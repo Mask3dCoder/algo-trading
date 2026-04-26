@@ -1,0 +1,15 @@
+[strategy]
+name = "equity_stat_arb"
+type = "equity"
+max_position_notional = 500_000
+max_leverage = 1.5
+risk_budget_pct = 0.02
+
+[strategy.params]
+lookback = 252
+half_life_max = 20
+entry_z = 2.0
+exit_z = 0.5
+kelly_fraction = 0.5
+max_pairs = 10
+rescan_freq = 63

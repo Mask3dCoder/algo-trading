@@ -1,0 +1,12 @@
+[database]
+host = "localhost"
+
+[logging]
+level = "DEBUG"
+format = "console"
+
+[redis]
+host = "localhost"
+
+[kafka]
+broker = "localhost:9092"

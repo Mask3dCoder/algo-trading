@@ -1,0 +1,15 @@
+[strategy]
+name = "macro_carry"
+type = "macro"
+max_position_notional = 5_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.01
+
+[strategy.params]
+n_long = 3
+n_short = 3
+vol_target = 0.10
+vol_lookback = 60
+carry_smoothing = 21
+rebalance_freq = 21
+carry_adjustment = true

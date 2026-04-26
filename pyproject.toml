@@ -1,0 +1,191 @@
+[project]
+name = "quantcore"
+version = "0.1.0"
+description = "Institutional-grade algorithmic trading system"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [{name = "QuantCore Team"}]
+
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "pandas>=2.2",
+    "polars>=0.20",
+    "pydantic>=2.6",
+    "dynaconf>=3.2",
+    "structlog>=24.1",
+    "exchange-calendars>=4.5",
+    "pytz>=2024.1",
+    "msgpack>=1.0",
+]
+
+[project.optional-dependencies]
+stats = [
+    "arch>=7.0",
+    "statsmodels>=0.14",
+    "hmmlearn>=0.3",
+    "ruptures>=1.1",
+    "scikit-learn>=1.4",
+    "scipy>=1.12",
+]
+
+ml = [
+    "scikit-learn>=1.4",
+    "xgboost>=2.0",
+    "lightgbm>=4.3",
+    "torch>=2.2",
+    "shap>=0.45",
+    "catboost>=1.2",
+    "optuna>=3.4",
+    "hypothesis>=6.99",
+]
+
+optim = [
+    "cvxpy>=1.4",
+    "pypfopt>=1.5",
+]
+
+exec = [
+    "alpaca-trade-api>=3.0",
+    "ccxt>=4.2",
+    "websockets>=12.0",
+    "aiohttp>=3.9",
+]
+
+infra = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "redis[hiredis]>=5.0",
+    "psycopg[binary]>=3.1",
+    "sqlalchemy>=2.0",
+    "kafka-python>=2.0",
+    "asyncpg>=0.29",
+    "aioredis>=2.0",
+    "alembic>=1.13",
+]
+
+viz = [
+    "plotly>=5.20",
+    "dash>=2.16",
+]
+
+nlp = [
+    "transformers>=4.39",
+    "beautifulsoup4>=4.12",
+    "feedparser>=6.0",
+]
+
+perf = [
+    "numba>=0.59",
+    "cupy-cuda12x; platform_machine == 'x86_64'",
+]
+
+data = [
+    "yfinance>=0.2",
+    "requests>=3.0",
+    "httpx>=0.27",
+]
+
+dev = [
+    "pytest>=8.1",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "mypy>=1.9",
+    "ruff>=0.3",
+    "hypothesis>=6.99",
+    "ipython>=8.20",
+    "notebook>=7.0",
+    "line-profiler>=4.0",
+    "maturin>=1.4",
+]
+
+all = [
+    "quantcore[stats,ml,optim,exec,infra,viz,nlp,perf,data,dev]",
+]
+
+[build-system]
+requires = ["setuptools>=69.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+include = ["quantcore*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["quantcore", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "RUF",    # ruff-specific
+    "PGH",    # pygrep-hooks
+    "PIE",    # flake8-pie
+    "PERF",   # perflint
+]
+ignore = ["E501", "SIM108"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["quantcore"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+module = [
+    "yfinance.*",
+    "arch.*",
+    "hmmlearn.*",
+    "ruptures.*",
+    "ccxt.*",
+    "alpaca.*",
+    "kafka.*",
+    "msgpack.*",
+    "plotly.*",
+    "dash.*",
+    "sklearn.*",
+    "xgboost.*",
+    "lightgbm.*",
+    "catboost.*",
+    "torch.*",
+    "shap.*",
+    "cvxpy.*",
+    "pypfopt.*",
+    "transformers.*",
+    "exchange_calendars.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks integration tests requiring Docker services",
+    "gpu: marks tests requiring GPU",
+    "optional_dep: marks tests requiring optional dependencies (installed via pip install -e \".[stats]\")",
+]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

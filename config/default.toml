@@ -1,0 +1,46 @@
+[database]
+host = "localhost"
+port = 5432
+name = "quantcore"
+user = "quantcore"
+password = "quantcore"
+pool_size = 10
+max_overflow = 20
+
+[redis]
+host = "localhost"
+port = 6379
+db = 0
+password = ""
+ttl_ohlcv = 3600
+ttl_latest_price = 5
+
+[kafka]
+broker = "localhost:9092"
+topic_prefix = "quantcore"
+consumer_group = "quantcore-group"
+
+[logging]
+level = "INFO"
+format = "json"
+
+[brokers.alpaca]
+base_url = "https://paper-api.alpaca.markets"
+data_url = "wss://stream.data.alpaca.markets"
+
+[brokers.ibkr]
+host = "127.0.0.1"
+port = 7497
+client_id = 1
+
+[risk_limits]
+max_position_pct = 0.05
+max_portfolio_var_pct = 0.02
+max_drawdown_pct = 0.15
+circuit_breaker_loss_pct = 0.05
+
+[execution]
+default_algo = "vwap"
+slippage_bps = 5.0
+commission_per_share = 0.005
+short_borrow_annual_rate = 0.02

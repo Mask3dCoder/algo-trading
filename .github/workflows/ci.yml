@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install ruff mypy
+      - name: Run Ruff
+        run: ruff check quantcore/ tests/ --exit-zero
+      - name: Run Mypy
+        run: mypy quantcore/ --ignore-missing-imports || true
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install project
+        run: pip install -e ".[dev,stats]"
+      - name: Run tests
+        run: pytest --cov=quantcore --cov-report=xml --tb=short -q
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t quantcore:latest .
+      - name: Save image
+        run: docker save quantcore:latest | gzip > quantcore.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: quantcore.tar.gz

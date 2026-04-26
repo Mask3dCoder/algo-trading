@@ -1,0 +1,16 @@
+[strategy]
+name = "equity_trend_following"
+type = "equity"
+max_position_notional = 1_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.02
+
+[strategy.params]
+fast_window = 20
+slow_window = 50
+trend_window = 200
+atr_window = 20
+atr_risk_units = 2.0
+max_pyramid_units = 4
+pyramid_atr_add = 0.5
+stop_atr_multiple = 2.0

@@ -1,0 +1,18 @@
+[strategy]
+name = "equity_mean_reversion"
+type = "equity"
+max_position_notional = 500_000
+max_leverage = 1.0
+risk_budget_pct = 0.03
+
+[strategy.params]
+rsi_window = 14
+rsi_oversold = 25
+rsi_overbought = 75
+bb_window = 20
+bb_std = 2.0
+vwap_window = 20
+z_entry = 2.0
+z_exit = 0.5
+hold_days = 3
+stop_loss_pct = 2.0

@@ -1,0 +1,14 @@
+[strategy]
+name = "equity_momentum"
+type = "equity"
+max_position_notional = 1_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.02
+
+[strategy.params]
+lookback_months = 12
+skip_months = 1
+n_long = 5
+n_short = 5
+vol_lookback = 6
+rebalance_freq = 21

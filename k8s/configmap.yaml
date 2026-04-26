@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: quantcore-config
+  namespace: quantcore
+data:
+  LOG_LEVEL: "info"
+  REDIS_HOST: "redis.quantcore.svc.cluster.local"
+  REDIS_PORT: "6379"
+  DB_HOST: "timescaledb.quantcore.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "quantcore"
+  KAFKA_BOOTSTRAP: "kafka.quantcore.svc.cluster.local:9092"

@@ -1,0 +1,15 @@
+[strategy]
+name = "macro_risk_parity"
+type = "macro"
+max_position_notional = 5_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.01
+
+[strategy.params]
+vol_target = 0.10
+lookback = 252
+rebalance_freq = 21
+regime_overlay = true
+high_vol_threshold = 75
+low_vol_threshold = 25
+max_leverage = 1.0

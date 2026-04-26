@@ -1,0 +1,17 @@
+[strategy]
+name = "macro_cta_trend"
+type = "macro"
+max_position_notional = 5_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.01
+
+[strategy.params]
+fast_window = 20
+medium_window = 50
+slow_window = 200
+fast_weight = 0.2
+medium_weight = 0.3
+slow_weight = 0.5
+vol_target = 0.15
+vol_lookback = 60
+rebalance_freq = 5

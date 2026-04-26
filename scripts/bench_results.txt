@@ -1,0 +1,69 @@
+
+======================================================================
+BACKTEST PROFILE
+======================================================================
+         5580910 function calls (5460894 primitive calls) in 5.037 seconds
+
+   Ordered by: cumulative time
+   List reduced from 320 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.344    0.344    5.037    5.037 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\backtest\engine.py:354(run)
+    19999    0.057    0.000    2.676    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\indexing.py:1177(__getitem__)
+    19999    0.084    0.000    2.555    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\indexing.py:1720(_getitem_axis)
+    10000    0.161    0.000    2.249    0.000 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\backtest\engine.py:198(next_bar)
+    20000    0.119    0.000    2.201    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\frame.py:3994(_ixs)
+    19999    0.345    0.000    1.626    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\internals\managers.py:977(fast_xs)
+   159992    0.306    0.000    1.224    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\series.py:1107(__getitem__)
+    19999    0.021    0.000    0.574    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\internals\base.py:378(interleaved_dtype)
+    19999    0.176    0.000    0.548    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\dtypes\cast.py:1444(find_common_type)
+   159992    0.209    0.000    0.536    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\series.py:1232(_get_value)
+   139994    0.063    0.000    0.459    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\internals\blocks.py:1319(iget)
+    20000    0.044    0.000    0.395    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\arrays\datetimelike.py:390(__getitem__)
+1380177/1380176    0.287    0.000    0.382    0.000 {built-in method builtins.isinstance}
+    20000    0.064    0.000    0.348    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\arrays\_mixins.py:278(__getitem__)
+   179992    0.180    0.000    0.294    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\indexing.py:2801(check_dict_or_set_indexers)
+    30001    0.024    0.000    0.224    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pydantic\main.py:240(__init__)
+    19999    0.012    0.000    0.223    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\generic.py:4548(get)
+    19999    0.115    0.000    0.221    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\arrays\datetimes.py:547(_box_func)
+    20000    0.034    0.000    0.203    0.000 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\frame.py:682(_constructor_sliced_from_mgr)
+    30001    0.181    0.000    0.199    0.000 {method 'validate_python' of 'pydantic_core._pydantic_core.SchemaValidator' objects}
+
+
+
+======================================================================
+SIGNALS PROFILE
+======================================================================
+         2258 function calls (2198 primitive calls) in 0.041 seconds
+
+   Ordered by: cumulative time
+   List reduced from 154 to 20 due to restriction <20>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        7    0.000    0.000    0.020    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:562(_apply)
+        7    0.000    0.000    0.020    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:460(_apply_columnwise)
+        7    0.000    0.000    0.019    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:440(_apply_series)
+        7    0.000    0.000    0.017    0.002 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:595(homogeneous_func)
+        7    0.012    0.002    0.017    0.002 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:601(calc)
+        1    0.000    0.000    0.008    0.008 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:378(breakout_signal)
+        1    0.001    0.001    0.007    0.007 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\mean_reversion.py:105(stochastic)
+        2    0.000    0.000    0.007    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:2133(max)
+        2    0.000    0.000    0.007    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:1561(max)
+        1    0.001    0.001    0.006    0.006 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:408(zscore_normalize)
+        2    0.000    0.000    0.006    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:2174(min)
+        2    0.000    0.000    0.006    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:1583(min)
+        2    0.000    0.000    0.005    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:2307(std)
+        2    0.000    0.000    0.005    0.003 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:1648(std)
+        1    0.004    0.004    0.004    0.004 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:219(adx)
+        1    0.001    0.001    0.004    0.004 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\mean_reversion.py:25(bollinger_bands)
+        2    0.003    0.002    0.004    0.002 C:\Users\rochv\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pandas\core\window\rolling.py:1663(zsqrt_func)
+        1    0.001    0.001    0.003    0.003 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:99(hull_ma)
+        3    0.000    0.000    0.003    0.001 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:141(_wma)
+        1    0.002    0.002    0.002    0.002 C:\Users\rochv\Downloads\projetcs\algo sw\quantcore\signals\technical\trend.py:290(supertrend)
+
+
+
+Kill switch mean: 0.00ms
+Alert mean: 0.01ms
+Dashboard mean: 159ms
+Feed throughput: 251189 msgs/sec

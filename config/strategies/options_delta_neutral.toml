@@ -1,0 +1,16 @@
+[strategy]
+name = "options_delta_neutral"
+type = "options"
+max_position_notional = 500_000
+max_leverage = 1.0
+risk_budget_pct = 0.02
+
+[strategy.params]
+ivr_entry = 50
+ivr_exit = 25
+dte_min = 30
+dte_max = 60
+delta_target = 0.3
+hedge_freq = 1
+gamma_scalp_threshold = 0.01
+max_positions = 5

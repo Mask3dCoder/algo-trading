@@ -1,0 +1,15 @@
+[strategy]
+name = "options_tail_hedge"
+type = "options"
+max_position_notional = 10_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.01
+
+[strategy.params]
+otm_pct = 10
+dte_entry = 90
+dte_roll = 30
+notional_budget_pct = 1
+skew_entry_threshold = 1.5
+vol_entry_threshold = 25
+correlation_threshold = 0.7
