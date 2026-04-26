@@ -90,7 +90,7 @@ class TestDetectSweepCascade:
         assert cascades == []
 
     def test_cascade_detected(self):
-        now = datetime(2024, 1, 1, 12, 0, 0)
+        datetime(2024, 1, 1, 12, 0, 0)
         trades = []
         for i in range(3):
             t = UOATrade(

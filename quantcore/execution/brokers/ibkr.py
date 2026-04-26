@@ -61,11 +61,11 @@ class IBKRBroker(BrokerAdapter):
         try:
             from ibapi.client import EClient
             from ibapi.wrapper import EWrapper as IBWrapper
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "ibapi not installed. Download from Interactive Brokers: "
                 "https://interactivebrokers.github.io/#"
-            )
+            ) from e
 
         # Use a custom wrapper class
         class IBWrapperImpl(IBWrapper):
@@ -158,8 +158,8 @@ class IBKRBroker(BrokerAdapter):
         try:
             from ibapi.contract import Contract
             from ibapi.order import Order as IBOrder
-        except ImportError:
-            raise ImportError("ibapi not installed")
+        except ImportError as e:
+            raise ImportError("ibapi not installed") from e
 
         # Build contract
         contract = Contract()

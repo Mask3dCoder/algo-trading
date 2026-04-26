@@ -44,7 +44,7 @@ class SequenceDataset:
         X = pipeline.fit_transform(self.features)
         y = self.targets.copy()
 
-        valid = ~(np.any(np.isnan(X), axis=1) | np.isnan(y))
+        ~(np.any(np.isnan(X), axis=1) | np.isnan(y))
         # Replace remaining NaN with 0 for DL
         X = np.nan_to_num(X, nan=0.0)
         y = np.nan_to_num(y, nan=0.0)
@@ -250,7 +250,8 @@ class SimpleTCNSignal:
             alpha = 2.0 / (ks + 1)
             smoothed = np.zeros_like(X)
             smoothed[0] = X[0]
-            for i in range(1, n := len(X)):
+            n = len(X)
+            for i in range(1, n):
                 smoothed[i] = alpha * X[i] + (1 - alpha) * smoothed[i - 1]
             conv_features.append(smoothed)
             diff = X - smoothed

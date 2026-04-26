@@ -23,8 +23,8 @@ import pandas as pd
 
 def cmd_backtest(args: argparse.Namespace) -> int:
     """Run a backtest from CLI."""
-    from quantcore.backtest.engine import BacktestEngine, PortfolioState
-    from quantcore.backtest.analytics import generate_performance_report, generate_html_report
+    from quantcore.backtest.analytics import generate_html_report
+    from quantcore.backtest.engine import BacktestEngine
     from quantcore.risk.limits import RiskLimits
 
     # Load data
@@ -95,7 +95,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
     # Generate report
     report = engine.summary()
-    print(f"\n=== Performance Summary ===")
+    print("\n=== Performance Summary ===")
     print(f"Total Return:  {report.total_return:.2%}")
     print(f"Annual Return: {report.annual_return:.2%}")
     print(f"Sharpe Ratio:  {report.sharpe:.2f}")
@@ -122,10 +122,10 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 def cmd_live(args: argparse.Namespace) -> int:
     """Start live trading (paper or live)."""
-    from quantcore.live import LiveRunner, LiveConfig
-    from quantcore.risk.limits import RiskLimits
-    from quantcore.risk.drawdown import DrawdownConfig, DrawdownAction
+    from quantcore.live import LiveConfig, LiveRunner
     from quantcore.portfolio.rebalance import RebalanceConfig, RebalanceTrigger
+    from quantcore.risk.drawdown import DrawdownConfig
+    from quantcore.risk.limits import RiskLimits
 
     config = LiveConfig(
         heartbeat_interval_sec=args.heartbeat,
@@ -173,8 +173,12 @@ def cmd_api(args: argparse.Namespace) -> int:
     try:
         import uvicorn
         from fastapi import FastAPI
+
         from quantcore.api.routes import (
-            risk_router, portfolio_router, execution_router, regime_router,
+            execution_router,
+            portfolio_router,
+            regime_router,
+            risk_router,
         )
 
         app = FastAPI(
@@ -215,7 +219,9 @@ def cmd_api(args: argparse.Namespace) -> int:
 def cmd_report(args: argparse.Namespace) -> int:
     """Generate a performance report from a CSV of returns or equity curve."""
     from quantcore.backtest.analytics import (
-        generate_performance_report, generate_html_report, compute_returns,
+        compute_returns,
+        generate_html_report,
+        generate_performance_report,
     )
 
     data = pd.read_csv(args.input)
@@ -231,7 +237,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         return 1
 
     report = generate_performance_report(equity, returns)
-    print(f"\n=== Performance Report ===")
+    print("\n=== Performance Report ===")
     print(f"Total Return:  {report.total_return:.2%}")
     print(f"Annual Return: {report.annual_return:.2%}")
     print(f"Sharpe Ratio:  {report.sharpe:.2f}")
@@ -252,8 +258,8 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_risk(args: argparse.Namespace) -> int:
     """Run risk analysis on a returns series."""
-    from quantcore.risk.var import historical_var, parametric_var, cvar
     from quantcore.risk.metrics import compute_all_metrics
+    from quantcore.risk.var import cvar, historical_var, parametric_var
 
     data = pd.read_csv(args.input)
     if "returns" not in data.columns:

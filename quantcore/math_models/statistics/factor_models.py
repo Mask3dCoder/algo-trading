@@ -139,7 +139,6 @@ def download_ff_factors(
     """
     try:
         import pandas_datareader.data as web
-        from pandas_datareader.famafrench import get_available_datasets
         dataset = "F-F_Research_Data_5_Factors_2x3"
         if n_factors == 3 or n_factors == 4:
             dataset = "F-F_Research_Data_Factors"
@@ -148,6 +147,6 @@ def download_ff_factors(
         # Monthly data is index 0
         factor_data = df[0]
         return factor_data.values / 100.0  # Convert from percentage
-    except ImportError:
+    except ImportError as e:
         # Fallback: generate placeholder
-        raise ImportError("pandas_datareader required for FF factor download. Install with: pip install pandas-datareader")
+        raise ImportError("pandas_datareader required for FF factor download. Install with: pip install pandas-datareader") from e

@@ -75,7 +75,7 @@ class AlphaVantageDataSource(DataSource):
         resp.raise_for_status()
         data = resp.json()
 
-        key = f"annual{statement.capitalize()}" if "annualReports" in data else f"quarterly{statement.capitalize()}"
+        f"annual{statement.capitalize()}" if "annualReports" in data else f"quarterly{statement.capitalize()}"
         reports = data.get("annualReports", []) or data.get("quarterlyReports", [])
         return pd.DataFrame(reports)
 

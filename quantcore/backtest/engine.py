@@ -367,7 +367,6 @@ class BacktestEngine:
                 self.drawdown_tracker.config if hasattr(self.drawdown_tracker, 'config') else DrawdownConfig()
             )
 
-        prev_bar: OHLCV | None = None
         pending_orders: list[Order] = []
         daily_returns: list[float] = []
 

@@ -303,8 +303,8 @@ class TestMomentumStrategy:
         strat.initialize()
         signals = strat.on_data(multi_asset_data)
         # Should have both long and short signals
-        longs = [s for s in signals if s.direction > 0]
-        shorts = [s for s in signals if s.direction < 0]
+        [s for s in signals if s.direction > 0]
+        [s for s in signals if s.direction < 0]
         # At least some directional signals (may be 0 if all assets same direction)
         assert len(signals) >= 0
 

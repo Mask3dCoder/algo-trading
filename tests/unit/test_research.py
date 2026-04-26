@@ -175,7 +175,7 @@ class TestExperimentTracker:
         tracker = ExperimentTracker()
         e1 = tracker.create_experiment(ExperimentConfig(name="E1", strategy_name="s1"))
         tracker.start_experiment(e1.experiment_id)
-        e2 = tracker.create_experiment(ExperimentConfig(name="E2", strategy_name="s2"))
+        tracker.create_experiment(ExperimentConfig(name="E2", strategy_name="s2"))
         running = tracker.list_experiments(status=ExperimentStatus.RUNNING)
         assert len(running) == 1
         drafts = tracker.list_experiments(status=ExperimentStatus.DRAFT)

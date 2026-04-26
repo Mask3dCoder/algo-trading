@@ -176,8 +176,8 @@ def plot_surface(surface: SSVISurface, k_range: tuple = (-1.0, 1.0), n_k: int = 
     """3D Plotly volatility surface visualization."""
     try:
         import plotly.graph_objects as go
-    except ImportError:
-        raise ImportError("plotly required for surface visualization")
+    except ImportError as e:
+        raise ImportError("plotly required for surface visualization") from e
 
     k_grid = np.linspace(k_range[0], k_range[1], n_k)
     K, T = np.meshgrid(k_grid, surface.expiries)

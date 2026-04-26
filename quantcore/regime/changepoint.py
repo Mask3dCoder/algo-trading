@@ -40,8 +40,8 @@ def pelt_changepoints(
     """
     try:
         import ruptures as rpt
-    except ImportError:
-        raise ImportError("ruptures not installed. Run: pip install ruptures")
+    except ImportError as e:
+        raise ImportError("ruptures not installed. Run: pip install ruptures") from e
 
     signal = np.asarray(series, dtype=float)
     if signal.ndim > 1:

@@ -61,7 +61,8 @@
       "Bash(ruff check *)",
       "Bash(python -m pytest tests/ -x -m \"not integration\" --tb=short -q --timeout=120)",
       "Bash(grep -i \"\\\\.pyc$\")",
-      "Bash(grep -i \"\\\\.env$\")"
+      "Bash(grep -i \"\\\\.env$\")",
+      "Bash(python -m pytest tests/ -q --tb=short --timeout=120)"
     ]
   }
 }

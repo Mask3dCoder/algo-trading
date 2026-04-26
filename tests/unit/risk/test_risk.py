@@ -103,7 +103,6 @@ def multi_asset_returns():
     rng = np.random.default_rng(42)
     n = 500
     # 2 correlated assets
-    corr = 0.6
     cov = np.array([[0.0001, 0.00006], [0.00006, 0.0001]])
     return rng.multivariate_normal([0.001, 0.0008], cov, n)
 
@@ -176,7 +175,7 @@ class TestParametricVaR:
 
     def test_cornish_fisher_increases_for_fat_tails(self):
         mu, sigma = 0.0, 0.02
-        z = sp_stats.norm.ppf(0.05)  # -1.645
+        sp_stats.norm.ppf(0.05)  # -1.645
         parametric = parametric_var(mu, sigma, confidence=0.95)
         cf = cornish_fisher_var(mu, sigma, skewness=-0.5, kurtosis=5.0, confidence=0.95)
         assert cf.var < parametric.var  # CF more negative = larger loss for fat tails
@@ -226,7 +225,7 @@ class TestCVaR:
 
     def test_incremental_cvar(self, multi_asset_returns):
         w = np.array([0.5, 0.5])
-        base = cvar(multi_asset_returns @ w, confidence=0.975)
+        cvar(multi_asset_returns @ w, confidence=0.975)
         inc = incremental_cvar(multi_asset_returns, w, 0, 0.1, confidence=0.975)
         # Adding risk should increase CVaR magnitude
         assert abs(inc) >= 0

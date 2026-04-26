@@ -130,8 +130,8 @@ class AlpacaFeed(FeedHandler):
                 self._connected = True
             else:
                 raise ConnectionError(f"Alpaca auth failed: {data}")
-        except ImportError:
-            raise ImportError("websockets package required: pip install websockets")
+        except ImportError as e:
+            raise ImportError("websockets package required: pip install websockets") from e
 
     async def subscribe(self, symbols: list[str]) -> None:
         """Subscribe to trades, quotes, and bars for symbols."""

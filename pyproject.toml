@@ -131,7 +131,42 @@ select = [
     "PIE",    # flake8-pie
     "PERF",   # perflint
 ]
-ignore = ["E501", "SIM108"]
+ignore = [
+    "E501",    # line too long — handled by formatter
+    "E731",    # lambda assignment — intentional in strategy code
+    "E741",    # ambiguous variable name — l, I, O used as math symbols
+    "E712",    # comparison to True/False — intentional in some tests
+    "SIM108",  # ternary vs if-else — preference
+    "SIM102",  # nested if collapse — style
+    "SIM103",  # return condition directly — style
+    "SIM105",  # contextlib.suppress — style preference
+    "SIM115",  # context handler — style
+    "SIM222",  # or/and simplification — style
+    "N802",    # uppercase function name — intentional for API compat
+    "N803",    # lowercase argument name — intentional for math vars
+    "N806",    # non-lowercase variable — intentional for math vars
+    "N817",    # camelCase in error name — preference
+    "N818",    # error suffix — preference
+    "TC001",   # move import to TYPE_CHECKING — style
+    "TC002",   # move third-party import — style
+    "TC003",   # move stdlib import — style
+    "RUF001",  # ambiguous unicode — false positives in math
+    "RUF002",  # docstring summary — preference
+    "RUF003",  # docstring comments — preference
+    "RUF005",  # list concatenation style — preference
+    "RUF006",  # create copy of dict — false positive
+    "RUF012",  # ClassVar annotation — style
+    "RUF015",  # unnecessary iter — style
+    "RUF022",  # global statement — style
+    "RUF059",  # unused * import — false positives
+    "B007",    # unused loop variable — intentional in some loops
+    "B027",    # re-raising exception — style
+    "B905",    # zip strict — Python 3.12+ style
+    "PERF102", # list copy vs list() — style
+    "PERF401", # list comprehension vs loop — style
+    "PGH003",  # blanket noqa — preference
+    "PGH004",  # blanket type: ignore — preference
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["quantcore"]

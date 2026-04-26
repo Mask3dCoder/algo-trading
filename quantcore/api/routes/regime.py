@@ -50,10 +50,10 @@ def api_hmm_fit(
                 for i, label in enumerate(result.state_labels)
             },
         }
-    except ImportError:
-        raise HTTPException(501, "hmmlearn not installed")
+    except ImportError as e:
+        raise HTTPException(501, "hmmlearn not installed") from e
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.post("/hmm/select")
@@ -68,8 +68,8 @@ def api_hmm_select(
             "results": results,
             "best_aic": results[0] if results else None,
         }
-    except ImportError:
-        raise HTTPException(501, "hmmlearn not installed")
+    except ImportError as e:
+        raise HTTPException(501, "hmmlearn not installed") from e
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +182,7 @@ def api_garch_regime(returns: list[float]) -> dict[str, Any]:
             "current_vol": result.current_vol if hasattr(result, "current_vol") else None,
         }
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 @router.post("/volatility/percentile")

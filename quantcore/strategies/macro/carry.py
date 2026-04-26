@@ -65,8 +65,8 @@ class CarryStrategy(Strategy):
 
         # Simple carry proxy: difference between 21-day return and spot return
         # This captures roll-down / yield in a simplified way
-        ret_short = close[-1] / close[-6] - 1.0  # 5-day return
-        ret_medium = close[-1] / close[-22] - 1.0  # 21-day return
+        close[-1] / close[-6] - 1.0  # 5-day return
+        close[-1] / close[-22] - 1.0  # 21-day return
 
         # Rate of return decay = carry proxy (higher = more carry)
         # Assets with positive carry show consistent positive returns

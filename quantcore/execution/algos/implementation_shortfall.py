@@ -59,7 +59,7 @@ def compute_almgren_chriss(
         ISSchedule with optimal trajectory.
     """
     X = total_shares
-    T_days = T * 252  # Convert to day fraction
+    T * 252  # Convert to day fraction
 
     # Adjusted parameters
     sigma_daily = sigma / np.sqrt(252)

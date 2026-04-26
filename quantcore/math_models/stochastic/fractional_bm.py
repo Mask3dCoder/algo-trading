@@ -19,7 +19,7 @@ def simulate_fbm_cholesky(
     Cov(W^H_s, W^H_t) = 0.5 * (s^(2H) + t^(2H) - |s-t|^(2H))
     Returns shape (n_paths, n_steps+1) on [0, T].
     """
-    dt = T / n_steps
+    T / n_steps
     times = np.linspace(0, T, n_steps + 1)[1:]  # Exclude 0
 
     n = len(times)

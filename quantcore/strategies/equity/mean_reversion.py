@@ -28,7 +28,7 @@ def _rolling_mean(x: NDArray, window: int) -> NDArray:
 
 
 def _rolling_std(x: NDArray, window: int) -> NDArray:
-    mean = _rolling_mean(x, window)
+    _rolling_mean(x, window)
     n = len(x)
     result = np.full(n, np.nan, dtype=float)
     for i in range(window - 1, n):

@@ -118,7 +118,7 @@ def mean_excess_plot(losses: NDArray, n_thresholds: int = 50) -> tuple[NDArray, 
     Returns (thresholds, mean_excess) arrays.
     """
     x = np.sort(np.asarray(losses, dtype=float))
-    n = len(x)
+    len(x)
 
     thresholds = np.linspace(x[0], x[-2], n_thresholds)
     mean_excess = np.zeros(n_thresholds)

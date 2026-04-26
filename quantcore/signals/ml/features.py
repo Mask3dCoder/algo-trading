@@ -31,7 +31,7 @@ class TechnicalFeatures:
     def compute(self) -> dict[str, NDArray]:
         """Compute all technical features. Returns dict of feature_name → array."""
         features: dict[str, NDArray] = {}
-        n = len(self.close)
+        len(self.close)
 
         # Trend features
         for w in self.windows:
@@ -98,7 +98,7 @@ class InterMarketFeatures:
 
     def compute(self) -> dict[str, NDArray]:
         features: dict[str, NDArray] = {}
-        n = len(self.returns)
+        len(self.returns)
 
         if self.benchmark_returns is not None:
             for w in self.windows:

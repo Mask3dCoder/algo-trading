@@ -248,7 +248,9 @@ def ou_halflife_signal(series: NDArray, lookback: int = 252) -> tuple[NDArray, N
 def _warmup() -> None:
     """Pre-compile all njit functions so first real call is fast."""
     try:
-        from numba import njit as _njit
+        from numba import (
+            njit as _njit,  # noqa: F401 — capability check; used to gate numba-accelerated codepaths
+        )
     except ImportError:
         return
     tiny = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=np.float64)

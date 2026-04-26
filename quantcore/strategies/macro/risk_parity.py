@@ -119,7 +119,7 @@ class RiskParityStrategy(Strategy):
             return 1.0
 
         current_vol = rolling_vols[-1]
-        pctl = float(np.percentile(rolling_vols, 100))  # Rank within history
+        float(np.percentile(rolling_vols, 100))  # Rank within history
         if len(rolling_vols) < 10:
             return 1.0
 

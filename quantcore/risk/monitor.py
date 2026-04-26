@@ -357,7 +357,7 @@ class RiskMonitor:
         alerts: list[RiskAlert] = []
 
         gross = sum(abs(v) for v in positions.values())
-        net = sum(v for v in positions.values())
+        sum(v for v in positions.values())
         leverage = gross / portfolio_value if portfolio_value > 0 else 0.0
 
         if leverage > self.config.max_leverage:

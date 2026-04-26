@@ -277,7 +277,7 @@ class TestElasticNetSignal:
         from quantcore.signals.ml.linear_models import ElasticNetSignal
         X, y = features_and_target
         model = ElasticNetSignal(alpha_range=[0.01, 0.1], l1_ratio=0.5, cv_splits=2)
-        result = model.fit(X, y)
+        model.fit(X, y)
         pred = model.predict(X)
         assert len(pred) == len(X)
 
@@ -589,7 +589,7 @@ class TestAutoencoderAnomaly:
         features[50, :] += 10.0
         features[150, :] -= 10.0
         model = AutoencoderAnomaly(n_components=5, threshold_percentile=95.0)
-        result = model.fit(features)
+        model.fit(features)
         scores = model.detect_anomalies(features)
         assert len(scores) == 200
         # Anomalous points should have higher scores

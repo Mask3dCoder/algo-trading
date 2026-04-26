@@ -34,8 +34,8 @@ class PolygonFeed(FeedHandler):
                 self._connected = True
             else:
                 raise ConnectionError(f"Polygon auth failed: {data}")
-        except ImportError:
-            raise ImportError("websockets required")
+        except ImportError as e:
+            raise ImportError("websockets required") from e
 
     async def subscribe(self, symbols: list[str]) -> None:
         if not self._ws:
@@ -112,8 +112,8 @@ class CryptoFeed(FeedHandler):
             self._exchange = exchange_class()
             await self._exchange.load_markets()
             self._connected = True
-        except ImportError:
-            raise ImportError("ccxt required: pip install ccxt")
+        except ImportError as e:
+            raise ImportError("ccxt required: pip install ccxt") from e
 
     async def subscribe(self, symbols: list[str]) -> None:
         self.add_symbols(symbols)

@@ -97,7 +97,7 @@ def time_series_momentum(
                 v = w[~np.isnan(w)]
                 if len(v) >= lookback // 2:
                     past_cum[j - 2 * lookback] = np.prod(1.0 + v) - 1.0
-            m = np.mean(past_cum[past_cum != 0]) if np.any(past_cum != 0) else 0.0
+            np.mean(past_cum[past_cum != 0]) if np.any(past_cum != 0) else 0.0
             s = np.std(past_cum[past_cum != 0]) if np.any(past_cum != 0) else 1.0
             if s > 0:
                 result[i] = np.clip(cum_return / (3.0 * s), -1.0, 1.0)
@@ -184,7 +184,7 @@ def idiosyncratic_momentum(
     if factor_returns.ndim == 1:
         factor_returns = factor_returns.reshape(-1, 1)
 
-    n_factors = factor_returns.shape[1]
+    factor_returns.shape[1]
     if n < lookback + skip:
         return result
 

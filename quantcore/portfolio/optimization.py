@@ -53,7 +53,7 @@ def mean_variance(
     """
     r = np.asarray(returns, dtype=float)
     n_assets = r.shape[1]
-    n_periods = r.shape[0]
+    r.shape[0]
 
     mu = r.mean(axis=0) * TRADING_DAYS
     sigma = np.cov(r.T) * TRADING_DAYS
@@ -140,7 +140,7 @@ def compute_frontier(
     n_assets = r.shape[1]
 
     mu = r.mean(axis=0) * TRADING_DAYS
-    sigma = np.cov(r.T) * TRADING_DAYS
+    np.cov(r.T) * TRADING_DAYS
 
     # Find min var portfolio
     min_var = mean_variance(r, target="min_variance", long_only=long_only)
@@ -353,8 +353,8 @@ def hrp(
 
         # Split into two sub-clusters
         mid = k // 2
-        left_idx = indices[:mid]
-        right_idx = indices[mid:]
+        indices[:mid]
+        indices[mid:]
 
         # Sub-covariances
         cov_left = cov_sub[np.ix_(range(mid), range(mid))]

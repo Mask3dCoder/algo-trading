@@ -59,8 +59,8 @@ class CCXTBroker(BrokerAdapter):
         """Initialize exchange and connect."""
         try:
             import ccxt.async_support as ccxt_async
-        except ImportError:
-            raise ImportError("ccxt not installed. Run: pip install ccxt")
+        except ImportError as e:
+            raise ImportError("ccxt not installed. Run: pip install ccxt") from e
 
         exchange_class = getattr(ccxt_async, self.exchange_id.lower())
 

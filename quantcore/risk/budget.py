@@ -259,7 +259,7 @@ def hierarchical_risk_parity(
     # Clustering
     condensed = squareform(dist, checks=False)
     link = linkage(condensed, method=method)
-    order = leaves_list(link)
+    leaves_list(link)
 
     # Recursive bisection
     def _hrp_recursive(indices: list[int]) -> list[float]:
@@ -277,7 +277,7 @@ def hierarchical_risk_parity(
         condensed_sub = squareform(dist_sub, checks=False)
         link_sub = linkage(condensed_sub, method=method)
         half = len(indices) // 2
-        left = list(link_sub[: half, :2].flatten().astype(int))
+        list(link_sub[: half, :2].flatten().astype(int))
         # Build cluster membership via the cut
         # Simplified: split by the linkage ordering
         idx_left = sorted(set(leaves_list(link_sub)[:half]))

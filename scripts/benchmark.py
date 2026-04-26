@@ -88,7 +88,7 @@ def benchmark_backtest_engine(data: pd.DataFrame, name: str) -> dict:
     engine = BacktestEngine(strategy=BuyAndHoldStrategy(), initial_cash=100_000.0)
 
     t0 = time.perf_counter()
-    result = engine.run(data)
+    engine.run(data)
     elapsed = time.perf_counter() - t0
 
     # Profile

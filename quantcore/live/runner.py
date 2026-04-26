@@ -330,7 +330,7 @@ class LiveRunner:
             side = Side.BUY if sig.get("direction") == "long" else Side.SELL
             symbol = str(sig.get("symbol", ""))
             price = float(sig.get("price", 0))
-            strength = float(sig.get("strength", 0.5))
+            float(sig.get("strength", 0.5))
 
             if price <= 0 or not symbol:
                 continue

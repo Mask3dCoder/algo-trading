@@ -140,7 +140,7 @@ def _barrier_do_call_h_above_k(
     # Down-and-in call
     lam = (r + 0.5 * sigma**2) / sigma**2
     y = np.log(H**2 / (S * K)) / (sigma * np.sqrt(T))
-    x = np.log(S / H) / (sigma * np.sqrt(T))
+    np.log(S / H) / (sigma * np.sqrt(T))
 
     din = S * (H / S) ** (2 * lam) * norm.cdf(-y + sigma * np.sqrt(T)) \
         - K * np.exp(-r * T) * (H / S) ** (2 * lam - 2) * norm.cdf(-y)
@@ -201,7 +201,7 @@ def american_option_lsm(
     Defaults to put (most common American option).
     """
     dt = T / n_steps
-    discount = np.exp(-r * dt)
+    np.exp(-r * dt)
     rng = np.random.default_rng(seed)
 
     # Generate paths

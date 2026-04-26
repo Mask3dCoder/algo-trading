@@ -223,7 +223,6 @@ class TestATR:
 class TestHistoricalVol:
     def test_known_value(self) -> None:
         """Constant returns should give zero volatility."""
-        n = 100
         close = np.arange(100.0, 200.0, dtype=float)  # Linear uptrend
         result = historical_vol(close, windows=[21])
         hv = result[21]

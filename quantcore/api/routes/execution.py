@@ -97,7 +97,7 @@ def api_cancel_order(order_id: str) -> dict[str, str]:
         _oms.cancel(order_id)
         return {"order_id": order_id, "status": "cancelled"}
     except Exception as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
 
 # ---------------------------------------------------------------------------

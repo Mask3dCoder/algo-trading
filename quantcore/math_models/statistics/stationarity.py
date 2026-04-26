@@ -116,7 +116,7 @@ def variance_ratio_test(
     from statsmodels.tsa.stattools import zivot_andrews  # noqa — we use a custom implementation
 
     # Custom implementation
-    n = len(series)
+    len(series)
     returns = np.diff(np.log(series)) if np.all(series > 0) else np.diff(series)
     n_r = len(returns)
 
@@ -124,7 +124,7 @@ def variance_ratio_test(
     var_1 = np.sum((returns - mu) ** 2) / (n_r - 1)
 
     # Variance at `lags` period
-    lagged_returns = returns[lags:] - returns[:-lags] if lags < n_r else returns
+    returns[lags:] - returns[:-lags] if lags < n_r else returns
     var_q = np.var(returns[::lags] if lags > 1 else returns, ddof=1)
     # Alternative computation
     q_returns = np.convolve(returns, np.ones(lags), mode='valid')

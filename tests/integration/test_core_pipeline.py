@@ -52,8 +52,8 @@ class TestDataToSignalPipeline:
 
         data = _make_ohlcv_data(200, n_symbols=1)
         close = data["close"].values
-        high = data["high"].values
-        low = data["low"].values
+        _ = data["high"].values
+        _ = data["low"].values
 
         sma_vals = sma(close, 20)
         ema_vals = ema(close, 20)

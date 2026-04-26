@@ -257,7 +257,7 @@ def color(
     sigma: ScalarOrArray,
 ) -> ScalarOrArray:
     """Color: dGamma/dT = -Gamma/(2T) * (2(r-σ²/2)T - σ√T*d2)/(σ√T) + σ²/2 * Gamma."""
-    d1_val = _d1(S, K, T, r, sigma)
+    _d1(S, K, T, r, sigma)
     d2_val = _d2(S, K, T, r, sigma)
     g = gamma(S, K, T, r, sigma)
     return -g / (2.0 * T) * (

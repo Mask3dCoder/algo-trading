@@ -234,7 +234,7 @@ class TestRiskMonitorVarBreach:
         assert len(alerts) == 0
 
     def test_consecutive_breaches_trigger_alert(self):
-        rng = np.random.default_rng(42)
+        np.random.default_rng(42)
         r = np.zeros(100)
         r[-3:] = -0.05
         var = np.full_like(r, -0.02)

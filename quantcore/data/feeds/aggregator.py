@@ -75,8 +75,8 @@ class BarAggregator:
     def _finalize_bar(self, symbol: str, bar_start: datetime) -> OHLCV:
         """Finalize and return the current bar as an OHLCV object."""
         bar = self._bars[symbol]
-        vwap = Decimal(str(bar["vwap_numerator"] / bar["vwap_denominator"])) if bar["vwap_denominator"] > 0 else Decimal("0")
-        twap = Decimal(str(bar["twap_numerator"] / bar["twap_count"])) if bar["twap_count"] > 0 else Decimal("0")
+        Decimal(str(bar["vwap_numerator"] / bar["vwap_denominator"])) if bar["vwap_denominator"] > 0 else Decimal("0")
+        Decimal(str(bar["twap_numerator"] / bar["twap_count"])) if bar["twap_count"] > 0 else Decimal("0")
 
         return OHLCV(
             symbol=symbol,

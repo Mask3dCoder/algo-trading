@@ -173,7 +173,7 @@ def m_squared(
     n = min(len(r), len(m))
 
     r_ann = float(np.mean(r[:n])) * TRADING_DAYS
-    m_ann = float(np.mean(m[:n])) * TRADING_DAYS
+    float(np.mean(m[:n])) * TRADING_DAYS
     sigma_p = float(np.std(r[:n], ddof=1)) * np.sqrt(TRADING_DAYS)
     sigma_m = float(np.std(m[:n], ddof=1)) * np.sqrt(TRADING_DAYS)
 

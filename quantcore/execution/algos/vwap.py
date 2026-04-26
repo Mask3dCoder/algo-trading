@@ -97,7 +97,6 @@ class VWAPAlgo:
         bucket_values = list(profile.values())
 
         slices = []
-        total_allocated = 0.0
 
         for i in range(cfg.num_slices):
             # Map slice to volume profile bucket

@@ -270,7 +270,7 @@ def run_paper_trade(
 
     oms = OrderManager()
     risk_limits = RiskLimits()
-    circuit_breaker = CircuitBreaker(limits=risk_limits)
+    CircuitBreaker(limits=risk_limits)
     logger.info("OMS + risk engine initialized")
 
     # Metrics state
@@ -349,7 +349,7 @@ def run_paper_trade(
                 acct = broker.get_account()
                 from quantcore.core.health_state import get_health_state
 
-                hstate = get_health_state()
+                get_health_state()
                 try:
                     import psutil
                     mem_rss = round(psutil.Process().memory_info().rss / (1024.0 * 1024.0), 1)

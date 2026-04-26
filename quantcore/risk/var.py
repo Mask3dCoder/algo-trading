@@ -287,7 +287,7 @@ def monte_carlo_var_copula(
     copula.fit(r)
 
     # Generate joint scenarios
-    rng = np.random.default_rng(seed)
+    np.random.default_rng(seed)
     copula_samples = copula.sample(n_scenarios, seed=seed)
     joint = np.zeros((n_scenarios, n_assets))
     for i in range(n_assets):

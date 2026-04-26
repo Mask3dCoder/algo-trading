@@ -7,7 +7,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from quantcore.core.types import Fill, Order, OrderStatus, Position
+from quantcore.core.types import Fill, Order, OrderStatus, OrderType, Position, Side
 from quantcore.execution.brokers.base import (
     AccountInfo,
     BrokerAdapter,
@@ -57,10 +57,10 @@ class AlpacaBroker(BrokerAdapter):
         try:
             from alpaca.trading.client import TradingClient
             from alpaca.trading.stream import TradingStream
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "alpaca-py not installed. Run: pip install alpaca-py"
-            )
+            ) from e
 
         self._client = TradingClient(
             api_key=self.api_key,

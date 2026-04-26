@@ -54,8 +54,8 @@ class RegimeHMM:
         """
         try:
             from hmmlearn.hmm import GaussianHMM
-        except ImportError:
-            raise ImportError("hmmlearn not installed. Run: pip install hmmlearn")
+        except ImportError as e:
+            raise ImportError("hmmlearn not installed. Run: pip install hmmlearn") from e
 
         X = np.asarray(data, dtype=float)
         if X.ndim == 1:
@@ -106,7 +106,7 @@ class RegimeHMM:
                 self.state_labels = ["bear", "bull"]
         elif self.n_states == 3:
             # Sort by return: bull → sideways → bear
-            idx = np.argsort(means)
+            np.argsort(means)
             self.state_labels = ["bear", "sideways", "bull"]
         elif self.n_states == 4:
             # Sort by return and vol

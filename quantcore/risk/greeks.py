@@ -108,7 +108,7 @@ def aggregate_greeks(
         if opt_info is not None:
             underlying = opt_info["underlying"]
             otype = opt_info["option_type"]
-            strike = opt_info["strike"]
+            opt_info["strike"]
             expiry = opt_info["expiration"]
 
             # Use provided greeks or default to simple approximation
