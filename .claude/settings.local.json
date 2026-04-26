@@ -48,7 +48,14 @@
       "Bash(python -m pytest tests/unit/regime/test_regime.py -v --tb=short -rs)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(git tag *)",
+      "Bash(python -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/ci.yml'\\)\\); print\\('Valid YAML'\\)\")",
+      "Bash(python -c \"from quantcore.api.routes import risk_router; print\\('API routes available'\\)\")",
+      "Bash(python -c \"import psutil; print\\('psutil available:', psutil.__version__\\)\")",
+      "Bash(python -m pytest tests/unit/api/test_health.py -v --tb=short)"
     ]
   }
 }

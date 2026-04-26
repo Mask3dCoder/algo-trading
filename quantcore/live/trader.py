@@ -208,6 +208,8 @@ class LiveTrader:
 
     def _emergency_flatten(self) -> None:
         """Emergency flatten: cancel all, liquidate everything."""
+        from quantcore.core.health_state import set_kill_switch_active
+        set_kill_switch_active(True)
         self.state = TraderState.EMERGENCY
         self.live_state = LiveState.HALTED
         for oid in list(self.oms.orders.keys()):
@@ -234,6 +236,8 @@ class LiveTrader:
                 self._positions = self.broker.get_positions()
             except Exception:
                 pass
+        from quantcore.core.health_state import set_open_positions_count
+        set_open_positions_count(len(self._positions))
 
     def _current_value(self) -> float:
         if self.broker:

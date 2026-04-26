@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from quantcore.api.routes import (
     risk_router, portfolio_router, execution_router, regime_router,
 )
+from quantcore.core.health_state import get_health_state
 
 
 @asynccontextmanager
@@ -58,8 +59,9 @@ async def root() -> dict[str, Any]:
 
 @app.get("/health")
 async def health_check() -> dict[str, Any]:
-    """Health check endpoint for probes and monitoring."""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    """Health check endpoint — uptime, data freshness, positions, kill switch, memory.
+
+    Returns 200 with operational metrics from the shared health state singleton.
+    Does not require authentication. Suitable for Kubernetes liveness/readiness probes.
+    """
+    return get_health_state()

@@ -81,6 +81,10 @@ class OrderManager:
         order.status = OrderStatus("submitted")
         order.updated_at = datetime.utcnow()
 
+        # Update health state for monitoring
+        from quantcore.core.health_state import record_order_submitted
+        record_order_submitted()
+
         return order.id
 
     def cancel(self, order_id: str) -> None:

@@ -166,6 +166,9 @@ class AlpacaFeed(FeedHandler):
 
     async def _process_event(self, event: dict) -> None:
         """Parse an Alpaca WebSocket message and emit appropriate event."""
+        from quantcore.core.health_state import record_data_point
+        record_data_point()
+
         event_type = event.get("T")
 
         if event_type == "t":
