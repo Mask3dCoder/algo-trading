@@ -243,8 +243,15 @@ def run_paper_trade(
     if data_source == "mock":
         feed = MockDataFeed(symbols=["STK0000"], interval_sec=1.0)
         logger.info("Using mock data feed (synthetic OHLCV)")
+    elif data_source == "alpaca":
+        from quantcore.feeds.alpaca_feed import AlpacaPaperFeed
+
+        symbols = ["SPY"]  # Default paper trading symbol
+        feed = AlpacaPaperFeed(symbols=symbols)
+        logger.info("Using Alpaca paper data feed (REST polling) — symbols: %s", symbols)
     elif data_source == "yahoo":
-        raise NotImplementedError("Yahoo data feed not yet wired into paper_trade.py")
+        logger.error("Yahoo data feed not yet wired into paper_trade.py")
+        return 2
     else:
         logger.error(f"Unknown data source: {data_source}")
         return 2
@@ -479,8 +486,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--data-source", default="mock",
-        choices=["mock", "yahoo"],
-        help="Data feed source (default: mock)",
+        choices=["mock", "alpaca", "yahoo"],
+        help="Data feed source (default: mock). 'alpaca' uses Alpaca Markets REST API.",
     )
     parser.add_argument(
         "--capital", type=float, default=100_000.0,
