@@ -17,6 +17,7 @@ dependencies = [
     "exchange-calendars>=4.5",
     "pytz>=2024.1",
     "msgpack>=1.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

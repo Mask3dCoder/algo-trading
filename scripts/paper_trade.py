@@ -29,7 +29,11 @@ from typing import Any
 # Ensure quantcore is importable when running script directly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import numpy as np
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import numpy as np  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Duration parsing
