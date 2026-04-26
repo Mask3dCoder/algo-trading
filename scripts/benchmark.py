@@ -320,6 +320,7 @@ def benchmark_feed_handler(n_messages: int = 10_000) -> dict:
             "p": 150.0 + (i % 100) * 0.01, "s": 100, "x": "N",
         })
 
+    # noqa: S106 — fake credentials for benchmark only; bypasses WebSocket entirely
     feed = AlpacaFeed(api_key="test", secret_key="test")
     feed._connected = True  # bypass websocket
 
