@@ -64,6 +64,7 @@ class TestPaperBroker:
         assert broker._current_prices["AAPL"] == 200.0
 
     def test_process_fills(self, broker):
+        broker.config.fill_probability = 1.0  # guarantee fill
         broker.update_market_data({"AAPL": 200.0})
         order = Order(
             id="pb-002", symbol="AAPL", side=Side.BUY,

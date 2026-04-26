@@ -9,11 +9,10 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from quantcore.core.types import Fill, Order, OrderStatus, OrderType, Position, Side
+from quantcore.core.types import Order, OrderStatus, OrderType, Position, Side
 from quantcore.execution.brokers.base import (
     AccountInfo,
     BrokerAdapter,
@@ -45,17 +44,14 @@ _ALPACA_STATUS_MAP: dict[str, OrderStatus] = {
 
 class AlpacaBrokerError(Exception):
     """Base class for Alpaca broker errors."""
-    pass
 
 
 class BrokerAuthError(AlpacaBrokerError):
     """Authentication or permission error (HTTP 403)."""
-    pass
 
 
 class OrderRejectedError(AlpacaBrokerError):
     """Order was rejected by Alpaca (HTTP 422)."""
-    pass
 
 
 class AlpacaBroker(BrokerAdapter):
@@ -190,7 +186,7 @@ class AlpacaBroker(BrokerAdapter):
                     except Exception:
                         continue
                 raise AlpacaBrokerError(
-                    f"Alpaca rate limit (429) — retried 3 times, still failing"
+                    "Alpaca rate limit (429) — retried 3 times, still failing"
                 ) from e
             elif status_code == 422:
                 log.error("Alpaca rejected order (422): %s", msg)

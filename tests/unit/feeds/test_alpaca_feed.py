@@ -6,7 +6,6 @@ All tests mock alpaca-py — no real network calls.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest import mock
 
 import pytest
 
@@ -15,8 +14,8 @@ class TestAlpacaDataFeedInterface:
     """Verify AlpacaDataFeed implements FeedHandler interface."""
 
     def test_implements_feed_handler(self) -> None:
-        from quantcore.feeds.alpaca_feed import AlpacaDataFeed
         from quantcore.data.feeds.base import FeedHandler
+        from quantcore.feeds.alpaca_feed import AlpacaDataFeed
 
         feed = AlpacaDataFeed(
             symbols=["SPY"],
@@ -156,13 +155,13 @@ class TestNormalization:
 
     def test_bar_message_normalization(self) -> None:
         """Given a raw Alpaca bar object, verify normalization to internal types."""
-        from dataclasses import dataclass
-        from datetime import UTC, datetime
+        from dataclasses import dataclass, field
+        from datetime import datetime
 
         @dataclass
         class MockBar:
             symbol: str = "SPY"
-            timestamp: datetime = datetime.now(UTC)
+            timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
             open: float = 450.0
             high: float = 452.0
             low: float = 449.0
@@ -193,13 +192,13 @@ class TestNormalization:
 
     def test_quote_message_normalization(self) -> None:
         """Given a raw Alpaca quote object, verify normalization."""
-        from dataclasses import dataclass
-        from datetime import UTC, datetime
+        from dataclasses import dataclass, field
+        from datetime import datetime
 
         @dataclass
         class MockQuote:
             symbol: str = "SPY"
-            timestamp: datetime = datetime.now(UTC)
+            timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
             bid_price: float = 450.0
             ask_price: float = 450.1
             bid_size: float = 100.0
@@ -237,13 +236,13 @@ class TestNormalization:
 
     def test_trade_message_normalization(self) -> None:
         """Given a raw Alpaca trade object, verify normalization."""
-        from dataclasses import dataclass
-        from datetime import UTC, datetime
+        from dataclasses import dataclass, field
+        from datetime import datetime
 
         @dataclass
         class MockTrade:
             symbol: str = "SPY"
-            timestamp: datetime = datetime.now(UTC)
+            timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
             price: float = 451.0
             size: int = 500
             tape: str = "A"

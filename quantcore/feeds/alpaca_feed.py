@@ -285,7 +285,6 @@ class AlpacaDataFeed(FeedHandler):
         """Attempt reconnection with count tracking."""
         self._reconnect_count += 1
         if self._reconnect_count > self._max_reconnect_count:
-            from quantcore.core.health_state import record_data_point
             log.error("Max reconnection attempts (%d) reached", self._max_reconnect_count)
             raise ConnectionError(
                 f"Failed to reconnect after {self._max_reconnect_count} attempts"

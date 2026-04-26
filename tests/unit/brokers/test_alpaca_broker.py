@@ -6,6 +6,7 @@ All external APIs are mocked via unittest.mock.patch.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -70,6 +71,7 @@ class TestPaperVsLiveLogging:
 
     def test_paper_mode_logs_safe_message(self, caplog) -> None:
         import logging
+
         from quantcore.brokers.alpaca_broker import AlpacaBroker
 
         caplog.set_level(logging.INFO)
