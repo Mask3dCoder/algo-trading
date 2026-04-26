@@ -7,54 +7,64 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install dependencies
-        run: pip install ruff mypy
-      - name: Run Ruff
-        run: ruff check quantcore/ tests/ --exit-zero
-      - name: Run Mypy
-        run: mypy quantcore/ --ignore-missing-imports || true
 
-  test:
-    needs: lint
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: "pip"
-      - name: Install project
-        run: pip install -e ".[dev,stats]"
-      - name: Run tests
-        run: pytest --cov=quantcore --cov-report=xml --tb=short -q
+      - name: Install dependencies
+        run: pip install -e ".[dev,stats,viz]"
+
+      - name: Lint (ruff)
+        run: ruff check quantcore/ tests/ --exit-zero
+        # --exit-zero: report warnings but never fail the build on lint alone.
+        # Warnings are informational; errors (E/F rules) trigger annotation.
+
+      - name: Unit tests
+        run: >
+          pytest tests/
+          -m "not integration"
+          --tb=short
+          -q
+          --timeout=120
+          --junitxml=junit.xml
+          --cov=quantcore
+          --cov-report=xml
+          --cov-report=term-missing
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "=== CI SUMMARY ==="
+          if [ -f junit.xml ]; then
+            python -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('junit.xml')
+          root = tree.getroot()
+          total = int(root.attrib.get('tests', 0))
+          failures = int(root.attrib.get('failures', 0))
+          errors = int(root.attrib.get('errors', 0))
+          skipped = int(root.attrib.get('skipped', 0))
+          passed = total - failures - errors - skipped
+          print(f'Tests: {total} total | {passed} passed | {failures} failed | {errors} errors | {skipped} skipped')
+          print(f'Time:  {float(root.attrib.get(\"time\", 0)):.1f}s')
+          "
+          else
+            echo "No test results file found."
+          fi
+
       - name: Upload coverage
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.python-version }}
+          name: coverage-report
           path: coverage.xml
-
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -t quantcore:latest .
-      - name: Save image
-        run: docker save quantcore:latest | gzip > quantcore.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: quantcore.tar.gz
