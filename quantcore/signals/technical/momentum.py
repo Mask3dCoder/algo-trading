@@ -6,8 +6,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from quantcore.core.constants import TRADING_DAYS_PER_YEAR
-from quantcore.signals.technical.trend import sma
-
 
 # ---------------------------------------------------------------------------
 # Cross-Sectional Momentum

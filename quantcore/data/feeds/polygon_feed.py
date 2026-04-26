@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from quantcore.core.types import OHLCV, Tick, Quote
+from quantcore.core.types import OHLCV, Quote, Tick
 from quantcore.data.feeds.base import FeedHandler
 
 

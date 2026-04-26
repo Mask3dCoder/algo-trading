@@ -5,16 +5,26 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 
-from quantcore.portfolio.sizing import (
-    kelly_criterion, fractional_kelly, volatility_target, atr_size, cvar_size,
-)
 from quantcore.portfolio.optimization import (
-    mean_variance, compute_frontier, black_litterman, bl_optimize,
-    hrp, nco, risk_parity, stability_test,
+    bl_optimize,
+    black_litterman,
+    compute_frontier,
+    hrp,
+    mean_variance,
+    nco,
+    risk_parity,
+    stability_test,
 )
-from quantcore.portfolio.rebalance import RebalanceEngine, RebalanceConfig, RebalanceTrigger
+from quantcore.portfolio.rebalance import RebalanceConfig, RebalanceEngine, RebalanceTrigger
+from quantcore.portfolio.sizing import (
+    atr_size,
+    cvar_size,
+    fractional_kelly,
+    kelly_criterion,
+    volatility_target,
+)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 

@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-import numpy as np
-
-from quantcore.core.types import Position, Order, Side
+from quantcore.core.types import Position
 
 
 class ReconciliationStatus(str, Enum):
@@ -44,7 +42,7 @@ class PositionReconciliation:
 @dataclass
 class ReconciliationReport:
     """Complete reconciliation report."""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     positions: dict[str, PositionReconciliation] = field(default_factory=dict)
     cash_internal: float = 0.0
     cash_broker: float = 0.0
@@ -126,9 +124,7 @@ class ReconciliationEngine:
                     report.critical_mismatches += 1
 
         # Determine overall status
-        if report.critical_mismatches > 0:
-            report.status = ReconciliationStatus.MISMATCHED
-        elif report.total_mismatches > 0:
+        if report.critical_mismatches > 0 or report.total_mismatches > 0:
             report.status = ReconciliationStatus.MISMATCHED
         else:
             report.status = ReconciliationStatus.MATCHED

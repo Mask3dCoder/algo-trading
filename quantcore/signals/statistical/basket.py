@@ -5,9 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.signals.technical.trend import sma
-
-
 # ---------------------------------------------------------------------------
 # Fair Value / NAV Estimate
 # ---------------------------------------------------------------------------

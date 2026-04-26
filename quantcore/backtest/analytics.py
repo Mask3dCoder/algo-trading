@@ -13,13 +13,21 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from quantcore.core.constants import ANNUALIZATION_FACTOR, ANNUALIZATION_SQRT
+from quantcore.core.constants import ANNUALIZATION_FACTOR
+from quantcore.risk.metrics import (
+    bootstrap_ci as _risk_bootstrap_ci,
+)
+from quantcore.risk.metrics import (
+    calmar_ratio as _risk_calmar,
+)
+from quantcore.risk.metrics import (
+    omega_ratio as _risk_omega,
+)
 from quantcore.risk.metrics import (
     sharpe_ratio as _risk_sharpe,
+)
+from quantcore.risk.metrics import (
     sortino_ratio as _risk_sortino,
-    calmar_ratio as _risk_calmar,
-    omega_ratio as _risk_omega,
-    bootstrap_ci as _risk_bootstrap_ci,
 )
 
 

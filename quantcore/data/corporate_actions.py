@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum, auto
 from datetime import date
+from enum import Enum
 
-import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 
 class ActionType(str, Enum):

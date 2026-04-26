@@ -7,10 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
-
-from quantcore.core.types import Fill, Order
+from quantcore.core.types import Fill
 
 
 class CostCategory(str, Enum):

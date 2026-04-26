@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime
 
 import numpy as np
 from numpy.typing import NDArray
 
 from quantcore.core.types import PortfolioSnapshot
-from quantcore.risk.metrics import compute_all_metrics, drawdown_stats
-from quantcore.risk.var import historical_var, cvar
-from quantcore.risk.drawdown import DrawdownTracker
+from quantcore.risk.metrics import compute_all_metrics
+from quantcore.risk.var import cvar, historical_var
 
 
 @dataclass

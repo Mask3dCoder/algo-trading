@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from quantcore.compliance.audit_log import (
-    AuditEventType, AuditEntry, AuditLog, _compute_hash, tamper_detection_report,
+    AuditEventType,
+    AuditLog,
+    tamper_detection_report,
 )
 from quantcore.compliance.rules import (
-    RuleType, RuleSeverity, ComplianceRule, RuleViolation,
-    ComplianceRuleEngine, build_default_rules,
-    detect_wash_sale, check_reg_sho,
+    ComplianceRuleEngine,
+    RuleType,
+    build_default_rules,
+    check_reg_sho,
+    detect_wash_sale,
 )
-from quantcore.core.types import Order, Position, PortfolioSnapshot, Side, OrderType
-
+from quantcore.core.types import Order, OrderType, PortfolioSnapshot, Position, Side
 
 # ---------------------------------------------------------------------------
 # Audit Log tests
@@ -68,7 +70,7 @@ class TestAuditLog:
         log.record(AuditEventType.SYSTEM_START, "system")
         import time
         time.sleep(0.01)
-        mid = datetime.now(timezone.utc)
+        mid = datetime.now(UTC)
         time.sleep(0.01)
         log.record(AuditEventType.ORDER_SUBMITTED, "strategy")
         results = log.query(start=mid)
@@ -224,12 +226,12 @@ class TestComplianceRuleEngine:
 class TestDetectWashSale:
     def test_no_wash_sale(self):
         trades = [
-            {"symbol": "AAPL", "side": "buy", "price": 200, "date": datetime.now(timezone.utc)},
+            {"symbol": "AAPL", "side": "buy", "price": 200, "date": datetime.now(UTC)},
         ]
         assert detect_wash_sale(trades, "AAPL") is False
 
     def test_wash_sale_detected(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         trades = [
             {"symbol": "AAPL", "side": "buy", "price": 200, "date": now - timedelta(days=5)},
             {"symbol": "AAPL", "side": "sell", "price": 190, "date": now},
@@ -237,7 +239,7 @@ class TestDetectWashSale:
         assert detect_wash_sale(trades, "AAPL") is True
 
     def test_wash_sale_no_loss(self):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         trades = [
             {"symbol": "AAPL", "side": "buy", "price": 190, "date": now - timedelta(days=5)},
             {"symbol": "AAPL", "side": "sell", "price": 200, "date": now},

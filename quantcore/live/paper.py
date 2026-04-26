@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from typing import Any
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import numpy as np
 
-from decimal import Decimal
-
-from quantcore.core.types import Order, Position, Side, OrderStatus, OrderType
-from quantcore.execution.oms import OrderManager, OrderState
-from quantcore.risk.limits import RiskLimits, check_pre_trade, LimitStatus
-from quantcore.risk.drawdown import DrawdownTracker, DrawdownConfig, DrawdownAction
+from quantcore.core.types import Order, OrderStatus, OrderType, Position, Side
+from quantcore.execution.oms import OrderManager
+from quantcore.risk.drawdown import DrawdownTracker
 
 
 @dataclass
@@ -37,7 +34,7 @@ class PaperConfig:
 @dataclass
 class PaperFill:
     """Paper trading fill record."""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     order_id: str = ""
     symbol: str = ""
     side: str = ""
@@ -143,7 +140,7 @@ class PaperBroker:
         commission = min(commission, gross * self.config.max_commission_pct)
 
         fill = PaperFill(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             order_id=str(order.id), symbol=symbol,
             side="buy" if order.side == Side.BUY else "sell",
             quantity=fill_qty, fill_price=float(fill_price),
@@ -197,7 +194,7 @@ class PaperBroker:
 
     def update_equity(self) -> None:
         acct = self.get_account()
-        self.account.equity_curve.append((datetime.now(timezone.utc), float(acct["portfolio_value"])))
+        self.account.equity_curve.append((datetime.now(UTC), float(acct["portfolio_value"])))
         self.drawdown_tracker.update(float(acct["portfolio_value"]))
 
     def get_equity_curve(self) -> tuple[list[datetime], list[float]]:

@@ -6,9 +6,6 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
-import numpy as np
-from numpy.typing import NDArray
-
 
 class FilingType(str, Enum):
     K10 = "10-K"

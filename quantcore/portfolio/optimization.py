@@ -7,8 +7,8 @@ from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.optimize import minimize, root
-from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 
 

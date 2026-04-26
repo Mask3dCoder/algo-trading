@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,7 +20,7 @@ class GEXConfig:
 
 @dataclass
 class GEXResult:
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     symbol: str = ""
     total_gex: float = 0.0
     net_gex: float = 0.0

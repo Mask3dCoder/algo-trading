@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from decimal import Decimal
-from typing import Callable
 import asyncio
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
+from decimal import Decimal
 
-from quantcore.execution.brokers.base import BrokerAdapter, BrokerOrder, AccountInfo
-from quantcore.core.types import Order, Fill, Position, Side, OrderType, OrderStatus
+from quantcore.core.types import Fill, Order, OrderStatus, OrderType, Position, Side
+from quantcore.execution.brokers.base import AccountInfo, BrokerAdapter, BrokerOrder
 
 
 @dataclass

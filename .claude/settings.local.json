@@ -56,7 +56,12 @@
       "Bash(python -c \"from quantcore.api.routes import risk_router; print\\('API routes available'\\)\")",
       "Bash(python -c \"import psutil; print\\('psutil available:', psutil.__version__\\)\")",
       "Bash(python -m pytest tests/unit/api/test_health.py -v --tb=short)",
-      "Bash(python -m pytest tests/test_paper_trade_cli.py -v --tb=short)"
+      "Bash(python -m pytest tests/test_paper_trade_cli.py -v --tb=short)",
+      "Bash(python -m pytest tests/integration/ -v --tb=short)",
+      "Bash(ruff check *)",
+      "Bash(python -m pytest tests/ -x -m \"not integration\" --tb=short -q --timeout=120)",
+      "Bash(grep -i \"\\\\.pyc$\")",
+      "Bash(grep -i \"\\\\.env$\")"
     ]
   }
 }

@@ -6,8 +6,6 @@ from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
-import numpy as np
-
 from quantcore.core.types import OHLCV, Tick
 
 

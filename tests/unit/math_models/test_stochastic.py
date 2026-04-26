@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from quantcore.math_models.stochastic.gbm import simulate_gbm, estimate_params, simulate_gbm_analytical, simulate_gbm_milstein
-from quantcore.math_models.stochastic.ou_process import simulate_ou, analytical_mean, analytical_variance, half_life, estimate_params as ou_estimate
+from quantcore.math_models.stochastic.gbm import (
+    estimate_params,
+    simulate_gbm,
+    simulate_gbm_analytical,
+    simulate_gbm_milstein,
+)
 from quantcore.math_models.stochastic.monte_carlo import MonteCarloEngine
+from quantcore.math_models.stochastic.ou_process import (
+    analytical_mean,
+    half_life,
+    simulate_ou,
+)
+from quantcore.math_models.stochastic.ou_process import estimate_params as ou_estimate
 
 
 class TestGBM:

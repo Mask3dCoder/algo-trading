@@ -12,7 +12,6 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
-    StrategyType,
     TradeSignal,
 )
 from quantcore.strategies.registry import register
@@ -57,7 +56,6 @@ class IronCondorStrategy(Strategy):
     ) -> float:
         """Approximate the strike corresponding to a given delta using BSM inversion."""
         from scipy.stats import norm
-        from scipy.optimize import brentq
 
         r = 0.05
         if T < 1e-10 or sigma < 1e-10:

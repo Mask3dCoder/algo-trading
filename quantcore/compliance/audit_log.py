@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any
 import hashlib
 import json
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 
 class AuditEventType(str, Enum):
@@ -29,7 +29,7 @@ class AuditEventType(str, Enum):
 class AuditEntry:
     """Immutable entry in the audit log with cryptographic hash chaining."""
     entry_id: str = ""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     event_type: AuditEventType = AuditEventType.SYSTEM_START
     actor: str = "system"
     details: dict[str, Any] = field(default_factory=dict)
@@ -59,7 +59,7 @@ class AuditLog:
         """Create and append a new audit entry with hash chain."""
         details = details or {}
         entry_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
         prev_hash = self._entries[-1].entry_hash if self._entries else ""
         entry_hash = _compute_hash(
             entry_id, timestamp.isoformat(), event_type.value, actor,

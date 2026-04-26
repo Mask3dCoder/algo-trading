@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from decimal import Decimal
 
 import numpy as np
 
-from quantcore.core.types import Fill, Order, Side
+from quantcore.core.types import Side
 
 
 class SlippageModel(ABC):

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Callable, Any
 
-from quantcore.core.types import Order, Fill, Position
+from quantcore.core.types import Fill, Order, Position
 
 
 @dataclass

@@ -141,9 +141,7 @@ def download_ff_factors(
         import pandas_datareader.data as web
         from pandas_datareader.famafrench import get_available_datasets
         dataset = "F-F_Research_Data_5_Factors_2x3"
-        if n_factors == 3:
-            dataset = "F-F_Research_Data_Factors"
-        elif n_factors == 4:
+        if n_factors == 3 or n_factors == 4:
             dataset = "F-F_Research_Data_Factors"
 
         df = web.DataReader(dataset, "famafrench", start=start, end=end)

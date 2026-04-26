@@ -7,9 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.math_models.bayesian.kalman import KalmanFilter
-from quantcore.math_models.statistics.cointegration import engle_granger, johansen_test
-
+from quantcore.math_models.statistics.cointegration import engle_granger
 
 # ---------------------------------------------------------------------------
 # Data Structures

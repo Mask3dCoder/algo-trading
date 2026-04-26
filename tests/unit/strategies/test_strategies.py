@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from numpy.typing import NDArray
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -105,7 +103,7 @@ class TestTradeSignal:
 
 class TestStrategyLifecycle:
     def test_initialize_and_teardown(self, mean_rev_config):
-        from quantcore.strategies.base import Strategy, StrategyState
+        from quantcore.strategies.base import StrategyState
         from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
         strat = MeanReversionStrategy(mean_rev_config)
         assert strat.state == StrategyState.UNINITIALIZED
@@ -164,8 +162,7 @@ class TestStrategyType:
 
 class TestRegistry:
     def test_register_and_get(self):
-        from quantcore.strategies.base import StrategyConfig, StrategyType
-        from quantcore.strategies.registry import _registry, register, get
+        from quantcore.strategies.registry import _registry, get, register
 
         saved = dict(_registry)
         try:
@@ -202,7 +199,7 @@ class TestRegistry:
             get("nonexistent_strategy_xyz_12345")
 
     def test_list_strategies(self):
-        from quantcore.strategies.registry import _registry, register, list_strategies
+        from quantcore.strategies.registry import _registry, list_strategies, register
         saved = dict(_registry)
         try:
             @register("alpha_strat")
@@ -222,7 +219,7 @@ class TestRegistry:
 
     def test_create_from_registry(self):
         from quantcore.strategies.base import StrategyConfig, StrategyType
-        from quantcore.strategies.registry import _registry, register, create
+        from quantcore.strategies.registry import _registry, create, register
         saved = dict(_registry)
         try:
             @register("test_create")
@@ -248,17 +245,17 @@ class TestAllStrategiesRegistered:
     @pytest.fixture(autouse=True)
     def _ensure_imported(self):
         # Import all strategy modules to trigger @register decorators
-        import quantcore.strategies.equity.momentum  # noqa: F401
-        import quantcore.strategies.equity.stat_arb  # noqa: F401
-        import quantcore.strategies.equity.mean_reversion  # noqa: F401
-        import quantcore.strategies.equity.trend_following  # noqa: F401
-        import quantcore.strategies.options.delta_neutral  # noqa: F401
-        import quantcore.strategies.options.iron_condor  # noqa: F401
-        import quantcore.strategies.options.earnings_vol  # noqa: F401
+        import quantcore.strategies.equity.mean_reversion
+        import quantcore.strategies.equity.momentum
+        import quantcore.strategies.equity.stat_arb
+        import quantcore.strategies.equity.trend_following
+        import quantcore.strategies.macro.carry
+        import quantcore.strategies.macro.cta_trend
+        import quantcore.strategies.macro.risk_parity
+        import quantcore.strategies.options.delta_neutral
+        import quantcore.strategies.options.earnings_vol
+        import quantcore.strategies.options.iron_condor
         import quantcore.strategies.options.tail_hedge  # noqa: F401
-        import quantcore.strategies.macro.risk_parity  # noqa: F401
-        import quantcore.strategies.macro.cta_trend  # noqa: F401
-        import quantcore.strategies.macro.carry  # noqa: F401
 
     def test_all_strategies_in_registry(self):
         from quantcore.strategies.registry import _registry
@@ -358,8 +355,8 @@ class TestMeanReversionStrategy:
         assert isinstance(signals, list)
 
     def test_rsi_computation(self):
-        from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.EQUITY)
         strat = MeanReversionStrategy(cfg)
         # Monotonically increasing prices → RSI near 100
@@ -368,8 +365,8 @@ class TestMeanReversionStrategy:
         assert rsi[-1] > 50  # Should be high for uptrend
 
     def test_bb_deviation(self):
-        from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.EQUITY)
         strat = MeanReversionStrategy(cfg)
         prices = np.ones(50) * 100.0
@@ -409,8 +406,8 @@ class TestTrendFollowingStrategy:
         assert isinstance(signals, list)
 
     def test_ema_computation(self):
-        from quantcore.strategies.equity.trend_following import TrendFollowingStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.equity.trend_following import TrendFollowingStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.EQUITY)
         strat = TrendFollowingStrategy(cfg)
         prices = np.linspace(100, 200, 50)
@@ -454,8 +451,8 @@ class TestDeltaNeutralStrategy:
         assert isinstance(signals, list)
 
     def test_ivr_computation(self):
-        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.OPTIONS)
         strat = DeltaNeutralStrategy(cfg)
         iv_history = np.linspace(0.1, 0.5, 252)
@@ -463,8 +460,8 @@ class TestDeltaNeutralStrategy:
         assert 0 <= ivr <= 100
 
     def test_greeks_computation(self):
-        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.OPTIONS)
         strat = DeltaNeutralStrategy(cfg)
         greeks = strat._compute_greeks(S=100, K=100, T=0.25, r=0.05, sigma=0.3)
@@ -476,8 +473,8 @@ class TestDeltaNeutralStrategy:
         assert greeks["vega"] > 0
 
     def test_pnl_attribution(self):
-        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.options.delta_neutral import DeltaNeutralStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.OPTIONS)
         strat = DeltaNeutralStrategy(cfg)
         greeks = {"delta": -0.3, "gamma": 0.05, "vega": 15.0, "theta": -0.02}
@@ -504,8 +501,8 @@ class TestIronCondorStrategy:
         assert isinstance(signals, list)
 
     def test_delta_to_strike(self):
-        from quantcore.strategies.options.iron_condor import IronCondorStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.options.iron_condor import IronCondorStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.OPTIONS)
         strat = IronCondorStrategy(cfg)
         # 16-delta call should be above spot
@@ -650,8 +647,8 @@ class TestCTATrendStrategy:
         assert isinstance(signals, list)
 
     def test_trend_signal(self):
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.MACRO)
         strat = CTATrendStrategy(cfg)
         # Uptrend: price above SMA
@@ -664,8 +661,8 @@ class TestCTATrendStrategy:
         assert signal_down < 0
 
     def test_breakout_signal(self):
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.MACRO)
         strat = CTATrendStrategy(cfg)
         # At 52-week high
@@ -674,8 +671,8 @@ class TestCTATrendStrategy:
         assert signal > 0.5
 
     def test_momentum_signal(self):
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.MACRO)
         strat = CTATrendStrategy(cfg)
         prices = np.linspace(100, 200, 22)
@@ -736,8 +733,10 @@ class TestCarryStrategy:
 class TestStrategiesInit:
     def test_base_exports(self):
         from quantcore.strategies import (
-            Strategy, StrategyConfig, StrategyMetrics,
-            StrategyState, StrategyType, TradeSignal,
+            Strategy,
+            StrategyConfig,
+            StrategyMetrics,
+            TradeSignal,
         )
         assert Strategy is not None
         assert StrategyConfig is not None
@@ -745,7 +744,7 @@ class TestStrategiesInit:
         assert TradeSignal is not None
 
     def test_registry_exports(self):
-        from quantcore.strategies import register, get, list_strategies, create
+        from quantcore.strategies import create, get, list_strategies, register
         assert callable(register)
         assert callable(get)
         assert callable(list_strategies)
@@ -753,20 +752,26 @@ class TestStrategiesInit:
 
     def test_equity_exports(self):
         from quantcore.strategies.equity import (
-            MomentumStrategy, StatArbStrategy,
-            MeanReversionStrategy, TrendFollowingStrategy,
+            MeanReversionStrategy,
+            MomentumStrategy,
+            StatArbStrategy,
+            TrendFollowingStrategy,
         )
         assert all([MomentumStrategy, StatArbStrategy, MeanReversionStrategy, TrendFollowingStrategy])
 
     def test_options_exports(self):
         from quantcore.strategies.options import (
-            DeltaNeutralStrategy, IronCondorStrategy,
-            EarningsVolStrategy, TailHedgeStrategy,
+            DeltaNeutralStrategy,
+            EarningsVolStrategy,
+            IronCondorStrategy,
+            TailHedgeStrategy,
         )
         assert all([DeltaNeutralStrategy, IronCondorStrategy, EarningsVolStrategy, TailHedgeStrategy])
 
     def test_macro_exports(self):
         from quantcore.strategies.macro import (
-            RiskParityStrategy, CTATrendStrategy, CarryStrategy,
+            CarryStrategy,
+            CTATrendStrategy,
+            RiskParityStrategy,
         )
         assert all([RiskParityStrategy, CTATrendStrategy, CarryStrategy])

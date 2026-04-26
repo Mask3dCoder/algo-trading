@@ -2,25 +2,38 @@
 
 from __future__ import annotations
 
-import pytest
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
-from quantcore.alt_data.sentiment.news import NewsSourceConfig, NewsArticle, NewsIngestor
-from quantcore.alt_data.sentiment.finbert import (
-    FinBERTSentiment, FinBERTConfig, FinBERTAnalyzer, scored_articles,
-)
-from quantcore.alt_data.sentiment.filings import (
-    FilingType, FilingDocument, LMDictionary, FilingIngestor, compute_filing_sentiment_trend,
-)
-from quantcore.alt_data.sentiment.social import (
-    SocialSource, SocialPost, SocialConfig, SocialIngestor, bot_filter,
-)
-from quantcore.alt_data.sentiment.signals import (
-    SentimentSignal, SentimentConfig, SentimentSignalGenerator,
-    sentiment_momentum, sentiment_divergence, aggregate_cross_sectional,
-)
 import numpy as np
 
+from quantcore.alt_data.sentiment.filings import (
+    FilingDocument,
+    FilingIngestor,
+    FilingType,
+    LMDictionary,
+    compute_filing_sentiment_trend,
+)
+from quantcore.alt_data.sentiment.finbert import (
+    FinBERTAnalyzer,
+    FinBERTConfig,
+    scored_articles,
+)
+from quantcore.alt_data.sentiment.news import NewsArticle, NewsIngestor, NewsSourceConfig
+from quantcore.alt_data.sentiment.signals import (
+    SentimentConfig,
+    SentimentSignal,
+    SentimentSignalGenerator,
+    aggregate_cross_sectional,
+    sentiment_divergence,
+    sentiment_momentum,
+)
+from quantcore.alt_data.sentiment.social import (
+    SocialConfig,
+    SocialIngestor,
+    SocialPost,
+    SocialSource,
+    bot_filter,
+)
 
 # ---------------------------------------------------------------------------
 # News tests
@@ -234,7 +247,7 @@ class TestSocialIngestor:
 
     def test_mention_volume(self):
         ingestor = SocialIngestor()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         posts = [
             SocialPost(id="1", ticker="AAPL", created_at=now),
             SocialPost(id="2", ticker="AAPL", created_at=now - timedelta(hours=48)),

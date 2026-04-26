@@ -314,9 +314,7 @@ def tail_hedge_signal(
 
     hedge = min(1.0, hedge)
 
-    if hedge > 0.5:
-        direction = "reduce"
-    elif hedge > 0.25:
+    if hedge > 0.5 or hedge > 0.25:
         direction = "reduce"
     else:
         direction = "neutral"

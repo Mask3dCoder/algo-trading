@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import io
 import os
 import sys
 import tempfile
@@ -68,7 +67,7 @@ class TestMetricsCSV:
             assert os.path.exists(csv_path)
             f.close()
 
-            with open(csv_path, "r") as fh:
+            with open(csv_path) as fh:
                 reader = csv.DictReader(fh)
                 expected = {
                     "timestamp", "total_pnl", "unrealized_pnl", "realized_pnl",
@@ -97,7 +96,7 @@ class TestMetricsCSV:
             f.flush()
             f.close()
 
-            with open(csv_path, "r") as fh:
+            with open(csv_path) as fh:
                 reader = csv.DictReader(fh)
                 rows = list(reader)
                 assert len(rows) == 1
@@ -109,7 +108,6 @@ class TestPaperTradeCLI:
     """Validate the CLI argument parser."""
 
     def test_parser_accepts_duration(self) -> None:
-        from scripts.paper_trade import main as paper_main
         parser = argparse.ArgumentParser()
         parser.add_argument("--duration", "-d", required=True)
         parser.add_argument("--strategy", "-s", default="momentum")

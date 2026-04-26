@@ -8,7 +8,7 @@ from itertools import combinations
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import linregress
-from statsmodels.tsa.stattools import coint, adfuller
+from statsmodels.tsa.stattools import adfuller, coint
 from statsmodels.tsa.vector_ar.vecm import coint_johansen
 
 

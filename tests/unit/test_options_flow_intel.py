@@ -2,26 +2,33 @@
 
 from __future__ import annotations
 
-import pytest
-import numpy as np
 from datetime import datetime
 
-from quantcore.alt_data.options_flow.unusual_activity import (
-    UOAType, UOAConfig, UOATrade, UOADetector,
-    detect_sweep_cascade, compute_premium_sentiment,
-)
+import numpy as np
+
 from quantcore.alt_data.options_flow.gex import (
-    GEXConfig, GEXResult, GEXCalculator, detect_gamma_squeeze,
+    GEXCalculator,
+    detect_gamma_squeeze,
 )
 from quantcore.alt_data.options_flow.max_pain import (
-    MaxPainConfig, MaxPainResult, MaxPainCalculator,
-    put_call_ratio, put_call_oi_ratio, pcr_signal,
+    MaxPainCalculator,
+    pcr_signal,
+    put_call_ratio,
 )
 from quantcore.alt_data.options_flow.put_call import (
-    PCRConfig, PCRSnapshot, PutCallAnalyzer,
-    compute_equity_only_pcr, pcr_term_structure,
+    PCRConfig,
+    PutCallAnalyzer,
+    compute_equity_only_pcr,
+    pcr_term_structure,
 )
-
+from quantcore.alt_data.options_flow.unusual_activity import (
+    UOAConfig,
+    UOADetector,
+    UOATrade,
+    UOAType,
+    compute_premium_sentiment,
+    detect_sweep_cascade,
+)
 
 # ---------------------------------------------------------------------------
 # Unusual Options Activity tests
@@ -86,7 +93,6 @@ class TestDetectSweepCascade:
         now = datetime(2024, 1, 1, 12, 0, 0)
         trades = []
         for i in range(3):
-            import copy
             t = UOATrade(
                 symbol="AAPL", trade_type=UOAType.SWEEP,
                 timestamp=datetime(2024, 1, 1, 12, 0, i * 10),

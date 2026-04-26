@@ -9,28 +9,22 @@ from quantcore.math_models.options.bsm import (
     bsm_call,
     bsm_put,
     call_delta,
-    put_delta,
-    gamma,
-    vega,
-    call_theta,
-    put_theta,
     call_rho,
-    put_rho,
-    vanna,
-    volga,
-    charm,
-    speed,
-    color,
-    ultima,
+    call_theta,
+    gamma,
     numerical_greek,
     put_call_parity_check,
+    put_delta,
+    put_rho,
+    vanna,
+    vega,
+    volga,
 )
 from quantcore.math_models.options.implied_vol import (
     implied_vol,
-    implied_vol_newton,
     implied_vol_brent,
+    implied_vol_newton,
 )
-
 
 # Standard test parameters (from Hull, Chapter 19)
 S, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.2

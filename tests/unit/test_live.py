@@ -4,20 +4,22 @@ from __future__ import annotations
 
 import time
 
-import numpy as np
 import pytest
 
-from quantcore.core.types import Position, Order, Side, OrderType, OrderStatus, PortfolioSnapshot
-from quantcore.live.runner import (
-    LiveRunner, LiveConfig, LiveState, LiveStateSnapshot, DataProvider, Broker,
-)
+from quantcore.core.types import Order, Position
 from quantcore.live.monitor import (
-    LiveMonitor, HealthStatus, HealthSnapshot, MonitorConfig,
+    HealthSnapshot,
+    HealthStatus,
+    LiveMonitor,
+    MonitorConfig,
     health_check,
 )
-from quantcore.risk.drawdown import DrawdownConfig, DrawdownAction, DrawdownState
-from quantcore.risk.limits import RiskLimits
-
+from quantcore.live.runner import (
+    LiveConfig,
+    LiveRunner,
+    LiveState,
+    LiveStateSnapshot,
+)
 
 # ---------------------------------------------------------------------------
 # Mock implementations
@@ -189,7 +191,6 @@ class TestLiveMonitor:
         )
         monitor.config = config
         monitor.record_heartbeat()
-        import time
         time.sleep(0.01)  # Make heartbeat stale
         snapshot = monitor.check()
         # Should have at least a warning from stale heartbeat

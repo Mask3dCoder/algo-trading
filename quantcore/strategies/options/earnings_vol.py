@@ -12,7 +12,6 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
-    StrategyType,
     TradeSignal,
 )
 from quantcore.strategies.registry import register
@@ -76,7 +75,7 @@ class EarningsVolStrategy(Strategy):
         ratio = implied_move / avg_historical_move if avg_historical_move > 1e-10 else 1.0
 
         # Simulate upcoming earnings event (in real system, this comes from calendar)
-        has_upcoming_earnings = data.get("earnings_upcoming", None)
+        has_upcoming_earnings = data.get("earnings_upcoming")
         if has_upcoming_earnings is not None:
             if has_upcoming_earnings.ndim > 0:
                 has_upcoming_earnings = bool(has_upcoming_earnings[-1])

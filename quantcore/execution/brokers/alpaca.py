@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from decimal import Decimal
-from typing import Callable, Any
-import json
-import asyncio
 import logging
+from collections.abc import Callable
+from decimal import Decimal
+from typing import Any
 
+from quantcore.core.types import Fill, Order, OrderStatus, Position
 from quantcore.execution.brokers.base import (
-    BrokerAdapter, BrokerOrder, AccountInfo,
+    AccountInfo,
+    BrokerAdapter,
+    BrokerOrder,
 )
-from quantcore.core.types import Order, Fill, Position, OrderStatus
-
 
 log = logging.getLogger(__name__)
 
@@ -99,8 +98,8 @@ class AlpacaBroker(BrokerAdapter):
         if not self._client:
             await self.connect()
 
-        from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, StopOrderRequest
         from alpaca.trading.enums import OrderSide, TimeInForce
+        from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest, StopOrderRequest
 
         side = OrderSide.BUY if order.side.lower() == "buy" else OrderSide.SELL
 

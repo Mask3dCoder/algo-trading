@@ -11,7 +11,6 @@ from scipy.optimize import minimize
 
 from quantcore.core.types import PortfolioSnapshot, Position
 
-
 # ---------------------------------------------------------------------------
 # Scenario data models
 # ---------------------------------------------------------------------------
@@ -253,7 +252,7 @@ def stress_report(
 def stress_report_dataframe(
     portfolio: PortfolioSnapshot,
     scenarios: list[str] | None = None,
-) -> "dict[str, list]":
+) -> dict[str, list]:
     """Run stress test and return data as dict (easily convertible to DataFrame)."""
     results = stress_report(portfolio, scenarios)
     return {

@@ -8,8 +8,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 
-from quantcore.math_models.options.implied_vol import implied_vol
-
 
 @dataclass
 class SVIParams:
@@ -120,9 +118,9 @@ class SSVISurface:
                 T_hi = exp
                 idx_hi = i
 
-        if T <= T_lo:
+        if T_lo >= T:
             return svi_implied_vol(k_arr, self.slices[idx_lo], T_lo)
-        if T >= T_hi:
+        if T_hi <= T:
             return svi_implied_vol(k_arr, self.slices[idx_hi], T_hi)
 
         w_lo = svi_total_variance(k_arr, self.slices[idx_lo])

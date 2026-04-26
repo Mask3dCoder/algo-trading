@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
 from decimal import Decimal
+from enum import Enum
 
 
 class LotMethod(str, Enum):

@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
-
-from quantcore.core.types import Position, PortfolioSnapshot
+from quantcore.core.types import PortfolioSnapshot, Position
 
 
 @dataclass
@@ -245,7 +242,7 @@ def greeks_stress(
     positions: dict[str, Position],
     spot_shocks: list[float] | None = None,
     option_greeks_fn: Any | None = None,
-) -> "dict[str, list[float]]":
+) -> dict[str, list[float]]:
     """Compute Greeks at each spot shock level (±1σ, ±2σ, ±3σ).
 
     Returns:

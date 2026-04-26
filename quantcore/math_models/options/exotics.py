@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
-from numpy.typing import NDArray
 from scipy.stats import norm
 
 from quantcore.math_models.options.bsm import bsm_call, bsm_put
 from quantcore.math_models.stochastic.monte_carlo import MonteCarloEngine
-
 
 # ---------------------------------------------------------------------------
 # Asian Options

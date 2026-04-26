@@ -5,12 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
-from quantcore.core.types import OHLCV, Tick, Quote
+from quantcore.core.types import OHLCV, Quote, Tick
 
 
 class FeedHandler(ABC):

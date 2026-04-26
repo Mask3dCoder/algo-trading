@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from quantcore.data.storage.database import DatabaseManager
 
-
 TIMESCALE_SETUP_SQL = """
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb;

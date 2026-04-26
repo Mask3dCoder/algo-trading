@@ -6,8 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.stats import genpareto, genextreme
-from scipy.optimize import minimize
+from scipy.stats import genextreme, genpareto
 
 
 @dataclass

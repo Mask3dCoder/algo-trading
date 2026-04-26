@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import numpy as np
 import pandas as pd
-from datetime import datetime, timezone, timedelta
 
 
 def _make_ohlcv_data(n_bars: int = 500, n_symbols: int = 1) -> pd.DataFrame:
     """Generate synthetic OHLCV bars for integration testing."""
     rng = np.random.default_rng(42)
     rows = []
-    start = datetime(2020, 1, 2, tzinfo=timezone.utc)
+    start = datetime(2020, 1, 2, tzinfo=UTC)
     for sym_idx in range(n_symbols):
         symbol = f"STK{sym_idx:04d}"
         close = 100.0
@@ -46,8 +47,8 @@ class TestDataToSignalPipeline:
         assert all(data["high"] >= data["close"])
 
     def test_signals_on_generated_data(self) -> None:
-        from quantcore.signals.technical.trend import sma, ema, macd
-        from quantcore.signals.technical.mean_reversion import rsi, bollinger_bands
+        from quantcore.signals.technical.mean_reversion import bollinger_bands, rsi
+        from quantcore.signals.technical.trend import ema, macd, sma
 
         data = _make_ohlcv_data(200, n_symbols=1)
         close = data["close"].values
@@ -73,7 +74,7 @@ class TestBacktestPipeline:
 
     def test_backtest_buy_and_hold(self) -> None:
         from quantcore.backtest.engine import BacktestEngine, PortfolioState
-        from quantcore.core.types import OHLCV, Signal, Direction
+        from quantcore.core.types import OHLCV, Direction, Signal
 
         data = _make_ohlcv_data(n_bars=252, n_symbols=1)
 
@@ -97,7 +98,7 @@ class TestBacktestPipeline:
 
     def test_backtest_has_expected_columns(self) -> None:
         from quantcore.backtest.engine import BacktestEngine, PortfolioState
-        from quantcore.core.types import OHLCV, Signal, Direction
+        from quantcore.core.types import OHLCV, Direction, Signal
 
         data = _make_ohlcv_data(n_bars=100, n_symbols=1)
 
@@ -120,9 +121,10 @@ class TestOMSPipeline:
     """Validate order lifecycle."""
 
     def test_order_lifecycle(self) -> None:
-        from quantcore.execution.oms import OrderManager
-        from quantcore.core.types import Order, Side, OrderType, OrderStatus
         from decimal import Decimal
+
+        from quantcore.core.types import Order, OrderStatus, OrderType, Side
+        from quantcore.execution.oms import OrderManager
 
         oms = OrderManager()
         order = Order(
@@ -164,7 +166,9 @@ class TestAlertAndAuditPipeline:
 
     def test_audit_trail_immutable(self) -> None:
         from quantcore.compliance.audit_log import (
-            AuditLog, AuditEventType, tamper_detection_report,
+            AuditEventType,
+            AuditLog,
+            tamper_detection_report,
         )
 
         log = AuditLog()

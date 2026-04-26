@@ -5,25 +5,30 @@ Flow: MarketData -> Regime -> Strategy -> Sizing -> RiskCheck -> OMS -> Executio
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
-import numpy as np
-
-from quantcore.core.types import Order, Position, PortfolioSnapshot, Side, OrderType
-from quantcore.risk.limits import (
-    RiskLimits, LimitCheckResult, LimitStatus,
-    check_pre_trade, check_post_trade, CircuitBreaker,
-)
+from quantcore.core.types import Order, PortfolioSnapshot, Position, Side
+from quantcore.execution.oms import OrderManager, market_order
+from quantcore.portfolio.rebalance import RebalanceConfig, RebalanceEngine, RebalanceTrigger
 from quantcore.risk.drawdown import (
-    DrawdownConfig, DrawdownTracker, DrawdownAction, DrawdownState,
+    DrawdownAction,
+    DrawdownConfig,
+    DrawdownState,
+    DrawdownTracker,
 )
-from quantcore.risk.metrics import compute_all_metrics, drawdown_stats
-from quantcore.execution.oms import OrderManager, market_order, limit_order
-from quantcore.portfolio.rebalance import RebalanceEngine, RebalanceConfig, RebalanceTrigger
+from quantcore.risk.limits import (
+    CircuitBreaker,
+    LimitCheckResult,
+    LimitStatus,
+    RiskLimits,
+    check_post_trade,
+    check_pre_trade,
+)
 
 
 class LiveState(str, Enum):

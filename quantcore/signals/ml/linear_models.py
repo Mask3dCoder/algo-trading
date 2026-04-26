@@ -9,7 +9,6 @@ from numpy.typing import NDArray
 
 from quantcore.signals.ml.preprocessing import PreprocessingPipeline, TimeSeriesSplit
 
-
 # ---------------------------------------------------------------------------
 # OLS Utilities
 # ---------------------------------------------------------------------------

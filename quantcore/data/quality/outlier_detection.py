@@ -61,7 +61,7 @@ def grubbs_test(series: NDArray, alpha: float = 0.05) -> list[int]:
         t_crit = student_t.ppf(1 - alpha / (2 * n_current), n_current - 2)
         G_crit = (n_current - 1) / np.sqrt(n_current) * np.sqrt(t_crit**2 / (n_current - 2 + t_crit**2))
 
-        if G > G_crit:
+        if G_crit < G:
             outliers.append(max_idx)
             x = np.delete(x, max_idx)
         else:

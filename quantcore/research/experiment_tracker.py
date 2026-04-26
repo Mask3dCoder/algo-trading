@@ -6,7 +6,7 @@ import json
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -38,7 +38,7 @@ class ExperimentResult:
     experiment_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config: ExperimentConfig = field(default_factory=ExperimentConfig)
     status: ExperimentStatus = ExperimentStatus.DRAFT
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     metrics: dict[str, float] = field(default_factory=dict)
     trades_count: int = 0
@@ -82,7 +82,7 @@ class ExperimentTracker:
         exp = self._experiments.get(experiment_id)
         if exp:
             exp.status = ExperimentStatus.COMPLETED
-            exp.completed_at = datetime.now(timezone.utc)
+            exp.completed_at = datetime.now(UTC)
             exp.metrics = metrics
             exp.trades_count = trades_count
             exp.signals_count = signals_count
@@ -230,7 +230,7 @@ class ExperimentTracker:
                 experiment_id=d["experiment_id"],
                 config=config,
                 status=ExperimentStatus(d.get("status", "draft")),
-                created_at=datetime.fromisoformat(d["created_at"]) if d.get("created_at") else datetime.now(timezone.utc),
+                created_at=datetime.fromisoformat(d["created_at"]) if d.get("created_at") else datetime.now(UTC),
                 completed_at=datetime.fromisoformat(d["completed_at"]) if d.get("completed_at") else None,
                 metrics=d.get("metrics", {}),
                 trades_count=d.get("trades_count", 0),

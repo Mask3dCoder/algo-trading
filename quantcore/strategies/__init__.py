@@ -8,7 +8,7 @@ from quantcore.strategies.base import (
     StrategyType,
     TradeSignal,
 )
-from quantcore.strategies.registry import register, get, list_strategies, create, clear
+from quantcore.strategies.registry import clear, create, get, list_strategies, register
 
 __all__ = [
     # Base

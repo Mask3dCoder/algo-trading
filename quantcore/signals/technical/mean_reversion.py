@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from quantcore.signals.technical.trend import sma, ema
+from quantcore.signals.technical.trend import sma
 
 try:
     from numba import njit

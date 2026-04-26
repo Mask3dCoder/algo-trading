@@ -145,7 +145,7 @@ class UOADetector:
         premium_score = min(total_premium / (self.config.min_premium_threshold * 5), 1.0)
         trade_count_score = min(len(sym_trades) / 10.0, 1.0)
         sweep_ratio = len([t for t in sym_trades if t.trade_type == UOAType.SWEEP]) / max(len(sym_trades), 1)
-        return float((premium_score * 0.5 + trade_count_score * 0.2 + sweep_ratio * 0.3))
+        return float(premium_score * 0.5 + trade_count_score * 0.2 + sweep_ratio * 0.3)
 
 
 def detect_sweep_cascade(

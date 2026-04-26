@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.optimize import minimize
 from scipy.integrate import quad
+from scipy.optimize import minimize
 
 
 @dataclass
@@ -20,7 +20,6 @@ class HestonParams:
 
 
 # Need dataclass import
-from dataclasses import dataclass
 
 
 def simulate_heston(

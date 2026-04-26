@@ -3,42 +3,53 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
+
+# Signal combiner
+from quantcore.signals.combiner import (
+    adaptive_combine,
+    equal_weight_combine,
+    regime_weight_combine,
+    sign_agreement_combine,
+)
+from quantcore.signals.options_flow.flow_signals import (
+    detect_sweeps,
+    put_call_ratio,
+    put_call_ratio_signal,
+    unusual_options_activity,
+)
+from quantcore.signals.options_flow.greeks_signals import (
+    charm_exposure,
+    gamma_exposure,
+    pin_risk_score,
+    vanna_exposure,
+)
+
+# Options flow signals
+from quantcore.signals.options_flow.volatility_signals import (
+    iv_percentile_series,
+    iv_rank,
+    vol_risk_premium,
+)
+from quantcore.signals.statistical.basket import (
+    etf_arb_signal,
+    fair_value,
+)
+from quantcore.signals.statistical.factors import (
+    composite_factor,
+    factor_ic,
+    pe_signal,
+    quintile_spread,
+    roe_signal,
+)
 
 # Statistical signals
 from quantcore.signals.statistical.pairs import (
-    scan_cointegrated_pairs, kalman_hedge_ratio, spread_zscore,
-    pairs_signal, halflife_size, cost_adjusted_threshold,
+    cost_adjusted_threshold,
+    halflife_size,
+    kalman_hedge_ratio,
+    pairs_signal,
+    spread_zscore,
 )
-from quantcore.signals.statistical.basket import (
-    fair_value, etf_arb_signal, index_arb_signal, adr_arb_signal,
-    basket_spread_signal,
-)
-from quantcore.signals.statistical.factors import (
-    pe_signal, pb_signal, roe_signal, composite_factor,
-    factor_ic, quintile_spread,
-)
-# Options flow signals
-from quantcore.signals.options_flow.volatility_signals import (
-    iv_rank, iv_rank_series, iv_percentile, iv_percentile_series,
-    vol_risk_premium, iv_skew_signal, iv_term_structure_signal,
-)
-from quantcore.signals.options_flow.flow_signals import (
-    unusual_options_activity, volume_weighted_delta,
-    put_call_ratio, put_call_ratio_signal, detect_sweeps,
-    options_flow_composite,
-)
-from quantcore.signals.options_flow.greeks_signals import (
-    gamma_exposure, gamma_flip_level, charm_exposure,
-    vanna_exposure, pin_risk_score, dealer_positioning_signal,
-)
-# Signal combiner
-from quantcore.signals.combiner import (
-    equal_weight_combine, ic_weight_combine,
-    regime_weight_combine, sign_agreement_combine,
-    adaptive_combine,
-)
-
 
 # ---------------------------------------------------------------------------
 # Pairs Trading Tests

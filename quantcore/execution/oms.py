@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
-import numpy as np
-
-from quantcore.core.types import Order, OrderStatus, OrderType, Side
 from quantcore.core.exceptions import OrderError
+from quantcore.core.types import Order, OrderStatus, OrderType, Side
 
 
 class OrderState(str, Enum):

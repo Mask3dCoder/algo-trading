@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.stats import norm, t as student_t, kstest, anderson
+from scipy.stats import kstest, norm
+from scipy.stats import t as student_t
 
 
 @dataclass

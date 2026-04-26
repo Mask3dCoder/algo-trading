@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class AlertSeverity(str, Enum):
@@ -40,7 +41,7 @@ class Alert:
     """A triggered alert."""
     alert_id: str = ""
     rule: AlertRule | None = None
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     severity: AlertSeverity = AlertSeverity.INFO
     message: str = ""
     details: dict[str, Any] = field(default_factory=dict)
@@ -70,7 +71,7 @@ class AlertEngine:
 
     def evaluate(self, state: dict[str, Any]) -> list[Alert]:
         """Evaluate all enabled rules against the current system state."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         fired: list[Alert] = []
 
         for rule in self._rules.values():
@@ -93,7 +94,7 @@ class AlertEngine:
         return fired
 
     def _fire(self, rule: AlertRule, state: dict[str, Any]) -> Alert:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         alert_id = f"alert_{now.timestamp()}_{rule.rule_id}"
         message = rule.message_template.format(
             name=rule.name, details=str(state.get("details", "")),
@@ -119,7 +120,7 @@ class AlertEngine:
             if alert.alert_id == alert_id:
                 alert.acknowledged = True
                 alert.acknowledged_by = user
-                alert.acknowledged_at = datetime.now(timezone.utc)
+                alert.acknowledged_at = datetime.now(UTC)
                 return True
         return False
 
@@ -139,7 +140,7 @@ class AlertEngine:
         return sorted(active, key=lambda a: a.timestamp, reverse=True)
 
     def get_recent_alerts(self, hours: float = 24.0) -> list[Alert]:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         return [a for a in self._alerts if a.timestamp >= cutoff]
 
     def clear_acknowledged(self) -> int:
@@ -216,6 +217,7 @@ def build_default_alert_rules() -> list[AlertRule]:
 def slack_notifier(webhook_url: str) -> Callable[[Alert], None]:
     """Create a Slack notification handler for alerts."""
     import json
+
     import requests
 
     session = requests.Session()

@@ -11,7 +11,7 @@ import io
 import pstats
 import sys
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -31,7 +31,7 @@ RNG = np.random.default_rng(42)
 def generate_ohlcv_data(n_bars: int = 50_000, n_symbols: int = 1) -> pd.DataFrame:
     """Generate realistic OHLCV bars as a random walk with realistic vol."""
     rows = []
-    start = datetime(2020, 1, 2, tzinfo=timezone.utc)
+    start = datetime(2020, 1, 2, tzinfo=UTC)
     for sym_idx in range(n_symbols):
         symbol = f"STK{sym_idx:04d}"
         close = 100.0
@@ -70,8 +70,8 @@ def generate_price_series(n: int = 10_000) -> np.ndarray:
 
 def benchmark_backtest_engine(data: pd.DataFrame, name: str) -> dict:
     """Profile the backtest engine run() method."""
-    from quantcore.backtest.engine import BacktestEngine, Strategy, PortfolioState
-    from quantcore.core.types import OHLCV, Signal, Direction
+    from quantcore.backtest.engine import BacktestEngine, PortfolioState
+    from quantcore.core.types import OHLCV, Direction, Signal
 
     class BuyAndHoldStrategy:
         def on_bar(self, bar: OHLCV, portfolio: PortfolioState) -> list:
@@ -113,11 +113,20 @@ def benchmark_backtest_engine(data: pd.DataFrame, name: str) -> dict:
 
 def benchmark_signal_generation(prices: np.ndarray, name: str) -> dict:
     """Profile technical indicator computation."""
-    from quantcore.signals.technical.trend import (
-        sma, ema, macd, adx, supertrend, breakout_signal, zscore_normalize, hull_ma,
-    )
     from quantcore.signals.technical.mean_reversion import (
-        bollinger_bands, rsi, stochastic,
+        bollinger_bands,
+        rsi,
+        stochastic,
+    )
+    from quantcore.signals.technical.trend import (
+        adx,
+        breakout_signal,
+        ema,
+        hull_ma,
+        macd,
+        sma,
+        supertrend,
+        zscore_normalize,
     )
     from quantcore.signals.technical.volatility import atr as atr_fn
 
@@ -164,8 +173,8 @@ def benchmark_signal_generation(prices: np.ndarray, name: str) -> dict:
 
 def benchmark_oms(n_orders: int = 10_000, name: str = "OMS") -> dict:
     """Profile OMS order lifecycle."""
+    from quantcore.core.types import Order, OrderType, Side
     from quantcore.execution.oms import OrderManager
-    from quantcore.core.types import Order, Side, OrderType
 
     oms = OrderManager()
     orders = [
@@ -286,7 +295,6 @@ def benchmark_dashboard_load(n_trials: int = 10) -> dict:
         t0 = time.perf_counter()
         app = create_app()
         # Simulate first page render: serialize layout to string
-        import dash
         if app is not None:
             _ = str(app.layout)
         elapsed = time.perf_counter() - t0
@@ -320,7 +328,7 @@ def benchmark_feed_handler(n_messages: int = 10_000) -> dict:
             "p": 150.0 + (i % 100) * 0.01, "s": 100, "x": "N",
         })
 
-    # noqa: S106 — fake credentials for benchmark only; bypasses WebSocket entirely
+
     feed = AlpacaFeed(api_key="test", secret_key="test")
     feed._connected = True  # bypass websocket
 

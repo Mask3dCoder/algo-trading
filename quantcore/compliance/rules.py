@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 
-from quantcore.core.types import Order, Position, PortfolioSnapshot, Side
+from quantcore.core.types import Order, PortfolioSnapshot, Position, Side
 
 
 class RuleType(str, Enum):
@@ -39,7 +39,7 @@ class ComplianceRule:
 @dataclass
 class RuleViolation:
     rule: ComplianceRule
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     details: str = ""
     order_id: str | None = None
     symbol: str | None = None
@@ -197,7 +197,7 @@ class ComplianceRuleEngine:
         self._restricted.discard(symbol.upper())
 
     def _check_wash_sale(self, symbol: str, sell_price: float) -> bool:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        cutoff = datetime.now(UTC) - timedelta(days=30)
         for trade in self._trade_history:
             if trade.get("symbol") != symbol:
                 continue
@@ -213,7 +213,7 @@ class ComplianceRuleEngine:
     def record_trade(self, symbol: str, side: str, price: float, quantity: float) -> None:
         self._trade_history.append({
             "symbol": symbol, "side": side, "price": price,
-            "quantity": quantity, "date": datetime.now(timezone.utc),
+            "quantity": quantity, "date": datetime.now(UTC),
         })
 
     @property
@@ -246,18 +246,18 @@ def detect_wash_sale(
     trades: list[dict], symbol: str, window_days: int = 30,
 ) -> bool:
     """Check if a symbol was bought within the window and is now being sold at a loss."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    cutoff = datetime.now(UTC) - timedelta(days=window_days)
     buys = [
         t for t in trades
         if t.get("symbol") == symbol and t.get("side") == "buy"
-        and t.get("date", datetime.now(timezone.utc)) >= cutoff
+        and t.get("date", datetime.now(UTC)) >= cutoff
     ]
     if not buys:
         return False
     sells = [
         t for t in trades
         if t.get("symbol") == symbol and t.get("side") == "sell"
-        and t.get("date", datetime.now(timezone.utc)) >= cutoff
+        and t.get("date", datetime.now(UTC)) >= cutoff
     ]
     for sell in sells:
         sell_price = float(sell.get("price", 0))

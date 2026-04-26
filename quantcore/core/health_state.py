@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 # --- Module-level state ---
 
 _start_time: float = time.time()
-_start_datetime: datetime = datetime.now(timezone.utc)
+_start_datetime: datetime = datetime.now(UTC)
 
 _last_data_timestamp: datetime | None = None
 _last_order_timestamp: datetime | None = None
@@ -31,7 +30,7 @@ _open_positions_count: int = 0
 
 def get_health_state() -> dict[str, Any]:
     """Return the full health state as a JSON-serializable dict."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     uptime = time.time() - _start_time
 
     # Memory: prefer psutil, fall back to resource module
@@ -68,13 +67,13 @@ def get_health_state() -> dict[str, Any]:
 def record_data_point() -> None:
     """Record that a market data point was received right now."""
     global _last_data_timestamp
-    _last_data_timestamp = datetime.now(timezone.utc)
+    _last_data_timestamp = datetime.now(UTC)
 
 
 def record_order_submitted() -> None:
     """Record that an order was submitted right now."""
     global _last_order_timestamp
-    _last_order_timestamp = datetime.now(timezone.utc)
+    _last_order_timestamp = datetime.now(UTC)
 
 
 def set_kill_switch_active(active: bool) -> None:

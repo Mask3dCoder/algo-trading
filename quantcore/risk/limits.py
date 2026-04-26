@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable
 
-from quantcore.core.types import Order, Position, PortfolioSnapshot
-from quantcore.core.exceptions import RiskLimitBreached
+from quantcore.core.types import Order, PortfolioSnapshot
 
 
 class LimitStatus(str, Enum):

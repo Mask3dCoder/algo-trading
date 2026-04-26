@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from quantcore.data.quality.outlier_detection import (
-    zscore_outliers, grubbs_test, iqr_outliers, return_outliers, detect_all,
-)
 from quantcore.data.quality.missing_data import (
-    forward_fill, interpolate_missing, em_impute, impute, detect_gaps,
+    em_impute,
+    forward_fill,
+    impute,
+    interpolate_missing,
 )
-from quantcore.data.quality.stale_quotes import detect_stale, cross_validate, majority_vote
+from quantcore.data.quality.outlier_detection import (
+    detect_all,
+    grubbs_test,
+    iqr_outliers,
+    return_outliers,
+    zscore_outliers,
+)
+from quantcore.data.quality.stale_quotes import cross_validate, detect_stale, majority_vote
 
 
 class TestOutlierDetection:

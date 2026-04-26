@@ -12,14 +12,13 @@ Methods:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
 
-from quantcore.math_models.statistics.garch import fit_garch
 from quantcore.math_models.distributions.copulas import GaussianCopula
+from quantcore.math_models.statistics.garch import fit_garch
 
 
 @dataclass

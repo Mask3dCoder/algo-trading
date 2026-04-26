@@ -6,23 +6,24 @@ drawdown tracking, and risk metrics.
 
 from __future__ import annotations
 
-import heapq
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum, auto
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
 
-from quantcore.core.types import Fill, OHLCV, Order, OrderStatus, OrderType, Position, Side
-from quantcore.risk.limits import RiskLimits, CircuitBreaker, check_pre_trade, LimitCheckResult
-from quantcore.risk.drawdown import DrawdownConfig, DrawdownTracker, DrawdownAction
 from quantcore.backtest.analytics import (
-    PerformanceReport, generate_performance_report, compute_returns,
+    PerformanceReport,
+    compute_returns,
+    generate_performance_report,
 )
-
+from quantcore.core.types import OHLCV, Fill, Order, OrderType, Position, Side
+from quantcore.risk.drawdown import DrawdownAction, DrawdownConfig, DrawdownTracker
+from quantcore.risk.limits import LimitCheckResult, RiskLimits, check_pre_trade
 
 # ---------------------------------------------------------------------------
 # Event types

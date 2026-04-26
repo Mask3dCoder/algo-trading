@@ -15,8 +15,10 @@ import numpy as np
 
 from quantcore.core.types import Order, PortfolioSnapshot
 from quantcore.risk.limits import (
-    RiskLimits, LimitCheckResult, LimitStatus,
-    check_pre_trade, check_post_trade, CircuitBreaker,
+    LimitStatus,
+    RiskLimits,
+    check_post_trade,
+    check_pre_trade,
 )
 
 

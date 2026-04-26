@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from enum import Enum, auto
-from typing import Callable
+from datetime import UTC, datetime
+from enum import Enum
 
 
 class WatchdogState(str, Enum):
@@ -33,7 +33,7 @@ class WatchdogConfig:
 @dataclass
 class WatchdogSnapshot:
     """Current state of the watchdog."""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     state: WatchdogState = WatchdogState.HEALTHY
     last_heartbeat: datetime | None = None
     heartbeats_received: int = 0
@@ -58,7 +58,7 @@ class Watchdog:
         self._heartbeat_count: int = 0
         self._consecutive_misses: int = 0
         self._restart_attempts: int = 0
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
         self._last_restart: datetime | None = None
         self._enabled: bool = True
         self._trigger_callbacks: list[Callable[[WatchdogState], None]] = []
@@ -68,7 +68,7 @@ class Watchdog:
         """Receive a heartbeat from the trading system."""
         if not self._enabled:
             return
-        self._last_heartbeat = datetime.now(timezone.utc)
+        self._last_heartbeat = datetime.now(UTC)
         self._heartbeat_count += 1
         self._consecutive_misses = 0
         if self.state == WatchdogState.UNRESPONSIVE:
@@ -76,7 +76,7 @@ class Watchdog:
 
     def check(self) -> WatchdogSnapshot:
         """Check system health and trigger actions if needed."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if not self._enabled:
             return self._snapshot()
@@ -126,7 +126,7 @@ class Watchdog:
 
     def _attempt_restart(self) -> None:
         self._restart_attempts += 1
-        self._last_restart = datetime.now(timezone.utc)
+        self._last_restart = datetime.now(UTC)
         self._consecutive_misses = 0
 
     def _trigger_actions(self) -> None:
@@ -154,7 +154,7 @@ class Watchdog:
             heartbeats_received=self._heartbeat_count,
             consecutive_misses=self._consecutive_misses,
             restart_attempts=self._restart_attempts,
-            uptime_seconds=(datetime.now(timezone.utc) - self._start_time).total_seconds(),
+            uptime_seconds=(datetime.now(UTC) - self._start_time).total_seconds(),
         )
 
     @property

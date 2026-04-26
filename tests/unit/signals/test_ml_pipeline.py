@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -99,8 +98,9 @@ class TestInterMarketFeatures:
 
 class TestCalendarFeatures:
     def test_day_of_week(self):
-        from quantcore.signals.ml.features import CalendarFeatures
         from datetime import date, timedelta
+
+        from quantcore.signals.ml.features import CalendarFeatures
         dates = np.array([date(2024, 1, 1) + timedelta(days=i) for i in range(50)])
         cal = CalendarFeatures(dates=dates)
         result = cal.compute()
@@ -704,14 +704,30 @@ class TestTrainQLearning:
 class TestMLInit:
     def test_all_exports_importable(self):
         from quantcore.signals.ml import (
-            TechnicalFeatures, InterMarketFeatures, CalendarFeatures,
-            cross_sectional_normalize, build_feature_matrix,
-            winsorize, cross_sectional_zscore, impute_median, impute_knn,
-            select_features_mutual_info, TimeSeriesSplit, PreprocessingPipeline,
-            LassoSignal, RidgeSignal, ElasticNetSignal, QuantileRegression,
-            GradientBoostingSignal, RandomForestSignal,
-            information_coefficient, rolling_ic, ic_decay,
-            signal_turnover, oos_degradation, quintile_analysis,
+            CalendarFeatures,
+            ElasticNetSignal,
+            GradientBoostingSignal,
+            InterMarketFeatures,
+            LassoSignal,
+            PreprocessingPipeline,
+            QuantileRegression,
+            RandomForestSignal,
+            RidgeSignal,
+            TechnicalFeatures,
+            TimeSeriesSplit,
+            build_feature_matrix,
+            cross_sectional_normalize,
+            cross_sectional_zscore,
+            ic_decay,
+            impute_knn,
+            impute_median,
+            information_coefficient,
+            oos_degradation,
+            quintile_analysis,
+            rolling_ic,
+            select_features_mutual_info,
+            signal_turnover,
+            winsorize,
         )
         assert all([
             TechnicalFeatures, InterMarketFeatures, CalendarFeatures,

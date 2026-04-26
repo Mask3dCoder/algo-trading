@@ -5,9 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.core.constants import TRADING_DAYS_PER_YEAR
-
-
 # ---------------------------------------------------------------------------
 # Implied Volatility Rank (IVR)
 # ---------------------------------------------------------------------------

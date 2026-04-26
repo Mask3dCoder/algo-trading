@@ -7,7 +7,6 @@ from numpy.typing import NDArray
 
 from quantcore.signals.technical.trend import sma
 
-
 # ---------------------------------------------------------------------------
 # VWAP Deviation
 # ---------------------------------------------------------------------------

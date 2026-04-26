@@ -65,7 +65,7 @@ class TestHMM:
 
         Requires: hmmlearn (install: pip install -e ".[stats]" or pip install hmmlearn).
         """
-        from quantcore.regime.hmm import RegimeHMM, RegimeResult
+        from quantcore.regime.hmm import RegimeHMM
         hmm = RegimeHMM(n_states=2)
         result = hmm.fit(regime_switching_data)
         assert len(result.states) == len(regime_switching_data)
@@ -284,39 +284,39 @@ class TestChangepoint:
 
 class TestVolatilityRegime:
     def test_vix_low(self):
-        from quantcore.regime.volatility_regime import vix_regime, VolRegime
+        from quantcore.regime.volatility_regime import VolRegime, vix_regime
         result = vix_regime(12.0)
         assert result.regime == VolRegime.LOW
 
     def test_vix_normal(self):
-        from quantcore.regime.volatility_regime import vix_regime, VolRegime
+        from quantcore.regime.volatility_regime import VolRegime, vix_regime
         result = vix_regime(18.0)
         assert result.regime == VolRegime.NORMAL
 
     def test_vix_crisis(self):
-        from quantcore.regime.volatility_regime import vix_regime, VolRegime
+        from quantcore.regime.volatility_regime import VolRegime, vix_regime
         result = vix_regime(40.0)
         assert result.regime == VolRegime.CRISIS
 
     def test_vix_extreme(self):
-        from quantcore.regime.volatility_regime import vix_regime, VolRegime
+        from quantcore.regime.volatility_regime import VolRegime, vix_regime
         result = vix_regime(80.0)
         assert result.regime == VolRegime.EXTREME
 
     def test_garch_regime(self, regime_switching_data):
-        from quantcore.regime.volatility_regime import garch_regime, VolRegime
+        from quantcore.regime.volatility_regime import garch_regime
         result = garch_regime(regime_switching_data)
         assert result.regime.value in ("low", "normal", "elevated", "crisis", "extreme")
 
     def test_vol_percentile_regime(self, regime_switching_data):
-        from quantcore.regime.volatility_regime import vol_percentile_regime, VolRegime
+        from quantcore.regime.volatility_regime import vol_percentile_regime
         result = vol_percentile_regime(regime_switching_data)
         assert result.regime.value in ("low", "normal", "elevated", "crisis", "extreme")
         assert result.percentile is not None
         assert 0 <= result.percentile <= 100
 
     def test_vol_percentile_short_data(self):
-        from quantcore.regime.volatility_regime import vol_percentile_regime, VolRegime
+        from quantcore.regime.volatility_regime import VolRegime, vol_percentile_regime
         rng = np.random.default_rng(42)
         short = rng.normal(0, 0.01, 10)
         result = vol_percentile_regime(short, window=252)
@@ -325,7 +325,8 @@ class TestVolatilityRegime:
     def test_consistency_across_methods(self, regime_switching_data):
         """Volatility regime classification should be consistent across methods."""
         from quantcore.regime.volatility_regime import (
-            garch_regime, vol_percentile_regime,
+            garch_regime,
+            vol_percentile_regime,
         )
         garch = garch_regime(regime_switching_data)
         pct = vol_percentile_regime(regime_switching_data)

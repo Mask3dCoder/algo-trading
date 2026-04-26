@@ -1,27 +1,57 @@
 """Sentiment analysis: news, FinBERT, SEC filings, social media, composite signals."""
 
-from quantcore.alt_data.sentiment.news import NewsSourceConfig, NewsArticle, NewsIngestor
-from quantcore.alt_data.sentiment.finbert import (
-    FinBERTSentiment, FinBERTConfig, FinBERTAnalyzer, scored_articles,
-)
 from quantcore.alt_data.sentiment.filings import (
-    FilingType, FilingDocument, LMDictionary, FilingIngestor,
+    FilingDocument,
+    FilingIngestor,
+    FilingType,
+    LMDictionary,
     compute_filing_sentiment_trend,
 )
-from quantcore.alt_data.sentiment.social import (
-    SocialSource, SocialPost, SocialConfig, SocialIngestor, bot_filter,
+from quantcore.alt_data.sentiment.finbert import (
+    FinBERTAnalyzer,
+    FinBERTConfig,
+    FinBERTSentiment,
+    scored_articles,
 )
+from quantcore.alt_data.sentiment.news import NewsArticle, NewsIngestor, NewsSourceConfig
 from quantcore.alt_data.sentiment.signals import (
-    SentimentSignal, SentimentConfig, SentimentSignalGenerator,
-    sentiment_momentum, sentiment_divergence, aggregate_cross_sectional,
+    SentimentConfig,
+    SentimentSignal,
+    SentimentSignalGenerator,
+    aggregate_cross_sectional,
+    sentiment_divergence,
+    sentiment_momentum,
+)
+from quantcore.alt_data.sentiment.social import (
+    SocialConfig,
+    SocialIngestor,
+    SocialPost,
+    SocialSource,
+    bot_filter,
 )
 
 __all__ = [
-    "NewsSourceConfig", "NewsArticle", "NewsIngestor",
-    "FinBERTSentiment", "FinBERTConfig", "FinBERTAnalyzer", "scored_articles",
-    "FilingType", "FilingDocument", "LMDictionary", "FilingIngestor",
+    "FilingDocument",
+    "FilingIngestor",
+    "FilingType",
+    "FinBERTAnalyzer",
+    "FinBERTConfig",
+    "FinBERTSentiment",
+    "LMDictionary",
+    "NewsArticle",
+    "NewsIngestor",
+    "NewsSourceConfig",
+    "SentimentConfig",
+    "SentimentSignal",
+    "SentimentSignalGenerator",
+    "SocialConfig",
+    "SocialIngestor",
+    "SocialPost",
+    "SocialSource",
+    "aggregate_cross_sectional",
+    "bot_filter",
     "compute_filing_sentiment_trend",
-    "SocialSource", "SocialPost", "SocialConfig", "SocialIngestor", "bot_filter",
-    "SentimentSignal", "SentimentConfig", "SentimentSignalGenerator",
-    "sentiment_momentum", "sentiment_divergence", "aggregate_cross_sectional",
+    "scored_articles",
+    "sentiment_divergence",
+    "sentiment_momentum",
 ]

@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 
-from quantcore.risk.drawdown import DrawdownTracker, DrawdownAction
-from quantcore.risk.metrics import sharpe_ratio, sortino_ratio, drawdown_stats
+from quantcore.risk.drawdown import DrawdownTracker
 
 
 class HealthStatus(str, Enum):

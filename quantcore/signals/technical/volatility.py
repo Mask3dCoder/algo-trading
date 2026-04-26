@@ -6,8 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from quantcore.core.constants import TRADING_DAYS_PER_YEAR
-from quantcore.signals.technical.trend import sma, ema, _atr_core
-
+from quantcore.signals.technical.trend import _atr_core
 
 # ---------------------------------------------------------------------------
 # Average True Range (ATR)

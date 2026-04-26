@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from enum import Enum, auto
-from typing import Any, Callable
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
-import numpy as np
-
-from quantcore.core.types import Order, Position, Side, PortfolioSnapshot
+from quantcore.core.types import PortfolioSnapshot, Position, Side
 from quantcore.execution.oms import OrderManager, market_order
-from quantcore.risk.limits import RiskLimits, check_pre_trade, check_post_trade, LimitStatus, CircuitBreaker
-from quantcore.risk.drawdown import DrawdownTracker, DrawdownConfig, DrawdownAction, DrawdownState
-from quantcore.risk.metrics import compute_all_metrics
-from quantcore.live.runner import LiveConfig, LiveState, LiveStateSnapshot, DataProvider, Broker
+from quantcore.live.runner import Broker, DataProvider, LiveConfig, LiveState
+from quantcore.risk.drawdown import DrawdownAction, DrawdownState, DrawdownTracker
+from quantcore.risk.limits import (
+    CircuitBreaker,
+    LimitStatus,
+    RiskLimits,
+    check_post_trade,
+    check_pre_trade,
+)
 
 
 class TraderState(str, Enum):
@@ -42,7 +45,7 @@ class TraderConfig:
 @dataclass
 class TraderSnapshot:
     """Full state snapshot of the trading engine."""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     trader_state: TraderState = TraderState.INIT
     live_state: LiveState = LiveState.IDLE
     portfolio_value: float = 0.0
@@ -82,7 +85,7 @@ class LiveTrader:
         self.live_state = LiveState.IDLE
         self.drawdown_tracker = DrawdownTracker(self.config.live_config.drawdown)
         self.circuit_breaker = CircuitBreaker(limits=self.config.live_config.risk_limits or RiskLimits())
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
         self._last_signal: datetime | None = None
         self._daily_start_value: float = 0.0
         self._weekly_start_value: float = 0.0
@@ -99,7 +102,7 @@ class LiveTrader:
         self._sync_portfolio()
         self._daily_start_value = self._current_value()
         self._weekly_start_value = self._daily_start_value
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = datetime.now(UTC)
         self.state = TraderState.PRE_MARKET
         self.live_state = LiveState.RUNNING
         return True
@@ -123,7 +126,7 @@ class LiveTrader:
 
     def tick(self) -> TraderSnapshot:
         """Single iteration of the trading loop."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if self.state == TraderState.EMERGENCY:
             return self._snapshot()
@@ -169,7 +172,7 @@ class LiveTrader:
             signals = self.strategy.generate_signals(self.data_provider)
         except Exception:
             return
-        self._last_signal = datetime.now(timezone.utc)
+        self._last_signal = datetime.now(UTC)
         for sig in signals:
             symbol = str(sig.get("symbol", ""))
             price = float(sig.get("price", 0))
@@ -183,7 +186,7 @@ class LiveTrader:
             side = Side.BUY if direction == "long" else Side.SELL
             order = market_order(symbol=symbol, side=side, quantity=qty)
             snap = PortfolioSnapshot(
-                timestamp=datetime.now(timezone.utc), positions=self._positions,
+                timestamp=datetime.now(UTC), positions=self._positions,
                 total_value=self._current_value(),
             )
             result = check_pre_trade(order, snap, self.config.live_config.risk_limits or RiskLimits())
@@ -262,7 +265,7 @@ class LiveTrader:
                 duration_days=0, max_drawdown_pct=self.drawdown_tracker.max_drawdown * 100,
                 action=self.drawdown_tracker._determine_action(self.drawdown_tracker.current_drawdown),
             )
-        uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+        uptime = (datetime.now(UTC) - self._start_time).total_seconds()
         return TraderSnapshot(
             trader_state=self.state, live_state=self.live_state,
             portfolio_value=self._current_value(), cash=self._cash,

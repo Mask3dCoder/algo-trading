@@ -9,8 +9,7 @@ Provides:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -238,7 +237,7 @@ def hierarchical_risk_parity(
     Returns:
         RiskBudget with HRP weights.
     """
-    from scipy.cluster.hierarchy import linkage, leaves_list
+    from scipy.cluster.hierarchy import leaves_list, linkage
     from scipy.spatial.distance import squareform
 
     cov_arr = np.asarray(cov, dtype=float)

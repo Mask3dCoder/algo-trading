@@ -21,7 +21,7 @@ import signal
 import sys
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -30,7 +30,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
-
 
 # ---------------------------------------------------------------------------
 # Duration parsing
@@ -133,7 +132,7 @@ class MockDataFeed:
         return True
 
     def get_latest(self) -> list[dict[str, Any]]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._last_tick = now
         events = []
         for sym in self.symbols:
@@ -267,7 +266,7 @@ def run_paper_trade(
 
     # Initialize OMS and risk
     from quantcore.execution.oms import OrderManager
-    from quantcore.risk.limits import RiskLimits, CircuitBreaker
+    from quantcore.risk.limits import CircuitBreaker, RiskLimits
 
     oms = OrderManager()
     risk_limits = RiskLimits()
@@ -303,7 +302,6 @@ def run_paper_trade(
 
             # Generate signals (not every tick — the strategy handles its own logic)
             signals = strategy.generate_signals(feed)
-            from quantcore.risk.drawdown import DrawdownConfig
 
             for sig in signals:
                 symbol = sig["symbol"]
@@ -315,8 +313,9 @@ def run_paper_trade(
                 else:
                     side = __import__("quantcore.core.types", fromlist=["Side"]).Side.SELL
 
-                from quantcore.core.types import Order, OrderType
                 from decimal import Decimal
+
+                from quantcore.core.types import Order, OrderType
 
                 # Size: 10% of equity per trade
                 equity = float(broker.get_account()["portfolio_value"])
@@ -359,10 +358,10 @@ def run_paper_trade(
 
                 last_data_age = None
                 if feed.last_data_timestamp:
-                    last_data_age = (datetime.now(timezone.utc) - feed.last_data_timestamp).total_seconds()
+                    last_data_age = (datetime.now(UTC) - feed.last_data_timestamp).total_seconds()
 
                 row = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "total_pnl": round(float(acct["portfolio_value"]) - initial_capital, 2),
                     "unrealized_pnl": 0.0,
                     "realized_pnl": round(float(acct["total_commission"]), 2),
@@ -418,7 +417,7 @@ def run_paper_trade(
         qty = float(pos.quantity)
         if abs(qty) < 1e-10:
             continue
-        from quantcore.core.types import Order, OrderType, Side, OrderStatus
+        from quantcore.core.types import Order, OrderType, Side
         close_side = Side.SELL if qty > 0 else Side.BUY
         close_order = Order(
             id=f"close_{int(time.time() * 1e6)}_{sym}",
@@ -440,10 +439,10 @@ def run_paper_trade(
     logger.info("Paper Trading Run Complete")
     logger.info(f"  Final P&L:      ${total_pnl:,.2f}")
     logger.info(f"  Total trades:   {orders_filled}")
-    logger.info(f"  Win rate:       N/A (not tracked per-trade)")
+    logger.info("  Win rate:       N/A (not tracked per-trade)")
     logger.info(f"  Max drawdown:   {broker.drawdown_tracker.max_drawdown:.2%}")
     logger.info(f"  Runtime:        {runtime:.0f}s ({runtime/3600:.1f}h)")
-    logger.info(f"  Final memory:   see metrics CSV")
+    logger.info("  Final memory:   see metrics CSV")
     logger.info(f"  Exit code:      {exit_code}")
     logger.info("=" * 60)
 

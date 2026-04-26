@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, date
-from typing import Sequence
+from collections.abc import Sequence
+from datetime import date, datetime, time, timedelta
 
 import pytz
 from exchange_calendars import get_calendar

@@ -5,10 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-import numpy as np
-import pandas as pd
-
-
 # Static universe definitions (current constituents)
 _SP500 = [
     "AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "TSLA", "BRK-B", "UNH", "JNJ",

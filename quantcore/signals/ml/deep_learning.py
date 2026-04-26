@@ -12,7 +12,6 @@ from numpy.typing import NDArray
 
 from quantcore.signals.ml.preprocessing import PreprocessingPipeline
 
-
 # ---------------------------------------------------------------------------
 # Sequence Dataset (numpy-based)
 # ---------------------------------------------------------------------------

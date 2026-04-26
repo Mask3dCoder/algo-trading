@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from quantcore.api.routes import (
-    risk_router, portfolio_router, execution_router, regime_router,
+    execution_router,
+    portfolio_router,
+    regime_router,
+    risk_router,
 )
 from quantcore.core.health_state import get_health_state
 

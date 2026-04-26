@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 # ---------------------------------------------------------------------------
 # Gamma Exposure (GEX)
 # ---------------------------------------------------------------------------
@@ -169,7 +168,6 @@ def pin_risk_score(
 
     Returns array of pin risk scores (same shape as strikes).
     """
-    from quantcore.math_models.options.bsm import _d1, _d2
 
     n = len(strikes)
     pin_scores = np.zeros(n, dtype=float)

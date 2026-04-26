@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from typing import cast
 
 try:
     from numba import njit
@@ -84,15 +85,15 @@ def ema(series: NDArray, period: int) -> NDArray:
 def dema(series: NDArray, period: int) -> NDArray:
     """Double EMA: 2*EMA - EMA(EMA)."""
     e1 = ema(series, period)
-    e2 = ema(cast(NDArray, np.where(np.isnan(e1), np.nan, e1)), period)
+    e2 = ema(cast("NDArray", np.where(np.isnan(e1), np.nan, e1)), period)
     return 2.0 * e1 - e2
 
 
 def tema(series: NDArray, period: int) -> NDArray:
     """Triple EMA: 3*EMA - 3*EMA(EMA) + EMA(EMA(EMA))."""
     e1 = ema(series, period)
-    e2 = ema(cast(NDArray, np.where(np.isnan(e1), np.nan, e1)), period)
-    e3 = ema(cast(NDArray, np.where(np.isnan(e2), np.nan, e2)), period)
+    e2 = ema(cast("NDArray", np.where(np.isnan(e1), np.nan, e1)), period)
+    e3 = ema(cast("NDArray", np.where(np.isnan(e2), np.nan, e2)), period)
     return 3.0 * e1 - 3.0 * e2 + e3
 
 
@@ -103,7 +104,7 @@ def hull_ma(series: NDArray, period: int) -> NDArray:
     wma_half = _wma(series, half)
     wma_full = _wma(series, period)
     diff = 2.0 * wma_half - wma_full
-    return _wma(cast(NDArray, np.where(np.isnan(diff), np.nan, diff)), sqrt_period)
+    return _wma(cast("NDArray", np.where(np.isnan(diff), np.nan, diff)), sqrt_period)
 
 
 @njit
@@ -165,7 +166,7 @@ def macd(
     ema_fast = ema(series, fast)
     ema_slow = ema(series, slow)
     macd_line = ema_fast - ema_slow
-    signal_line = ema(cast(NDArray, np.where(np.isnan(macd_line), np.nan, macd_line)), signal)
+    signal_line = ema(cast("NDArray", np.where(np.isnan(macd_line), np.nan, macd_line)), signal)
     histogram = macd_line - signal_line
     return macd_line, signal_line, histogram
 

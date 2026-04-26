@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from quantcore.core.types import (
+    OHLCV,
     Direction,
     Fill,
-    OHLCV,
     Order,
     OrderStatus,
     OrderType,
-    PortfolioSnapshot,
     Position,
     Quote,
     Side,
@@ -28,7 +27,7 @@ class TestOHLCV:
     def test_valid_ohlcv(self) -> None:
         bar = OHLCV(
             symbol="SPY",
-            timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 2, tzinfo=UTC),
             open=Decimal("450.00"),
             high=Decimal("452.50"),
             low=Decimal("449.00"),
@@ -42,7 +41,7 @@ class TestOHLCV:
         with pytest.raises(ValidationError):
             OHLCV(
                 symbol="SPY",
-                timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+                timestamp=datetime(2024, 1, 2, tzinfo=UTC),
                 open=Decimal("100"),
                 high=Decimal("110"),
                 low=Decimal("90"),
@@ -54,7 +53,7 @@ class TestOHLCV:
         with pytest.raises(ValidationError):
             OHLCV(
                 symbol="SPY",
-                timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+                timestamp=datetime(2024, 1, 2, tzinfo=UTC),
                 open=Decimal("100"),
                 high=Decimal("90"),
                 low=Decimal("110"),
@@ -65,7 +64,7 @@ class TestOHLCV:
     def test_frozen(self) -> None:
         bar = OHLCV(
             symbol="SPY",
-            timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 2, tzinfo=UTC),
             open=Decimal("100"),
             high=Decimal("110"),
             low=Decimal("90"),
@@ -78,7 +77,7 @@ class TestOHLCV:
     def test_serialization_roundtrip(self) -> None:
         bar = OHLCV(
             symbol="AAPL",
-            timestamp=datetime(2024, 6, 15, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 6, 15, tzinfo=UTC),
             open=Decimal("195.00"),
             high=Decimal("197.50"),
             low=Decimal("194.20"),
@@ -114,7 +113,7 @@ class TestQuote:
     def test_valid_quote(self) -> None:
         q = Quote(
             symbol="SPY",
-            timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 2, tzinfo=UTC),
             bid=Decimal("450.00"),
             ask=Decimal("450.10"),
             bid_size=500,
@@ -126,7 +125,7 @@ class TestQuote:
         with pytest.raises(ValidationError):
             Quote(
                 symbol="SPY",
-                timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+                timestamp=datetime(2024, 1, 2, tzinfo=UTC),
                 bid=Decimal("450.10"),
                 ask=Decimal("450.00"),
                 bid_size=500,

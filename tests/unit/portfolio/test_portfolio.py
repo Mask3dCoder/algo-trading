@@ -2,27 +2,40 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import numpy as np
 import pytest
 
-from quantcore.portfolio.sizing import (
-    kelly_criterion, fractional_kelly, volatility_target,
-    risk_parity_size, atr_size, cvar_size, optimal_f,
-)
 from quantcore.portfolio.optimization import (
-    mean_variance, compute_frontier, black_litterman, bl_optimize,
-    hrp, nco, risk_parity, stability_test, OptimizationResult,
+    bl_optimize,
+    black_litterman,
+    compute_frontier,
+    hrp,
+    mean_variance,
+    nco,
+    risk_parity,
+    stability_test,
 )
 from quantcore.portfolio.rebalance import (
-    RebalanceEngine, RebalanceConfig, RebalanceTrigger, RebalanceResult,
+    RebalanceConfig,
+    RebalanceEngine,
+    RebalanceTrigger,
+)
+from quantcore.portfolio.sizing import (
+    atr_size,
+    cvar_size,
+    fractional_kelly,
+    kelly_criterion,
+    optimal_f,
+    risk_parity_size,
+    volatility_target,
 )
 from quantcore.portfolio.tax import (
-    TaxLotTracker, TaxLot, RealizedGain, LotMethod,
+    LotMethod,
+    TaxLotTracker,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
 from numpy.typing import NDArray
-from scipy.stats import chi2
-from statsmodels.tsa.stattools import acf as sm_acf, pacf as sm_pacf
 from statsmodels.stats.diagnostic import acorr_ljungbox, het_arch
+from statsmodels.tsa.stattools import acf as sm_acf
+from statsmodels.tsa.stattools import pacf as sm_pacf
 
 
 def compute_acf(series: NDArray, nlags: int = 40) -> NDArray:

@@ -7,12 +7,11 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.signals.technical.trend import sma, ema, macd, adx
-from quantcore.signals.technical.mean_reversion import rsi, bollinger_bands, cci
-from quantcore.signals.technical.volume import obv, ad_line, mfi
+from quantcore.signals.technical.mean_reversion import bollinger_bands, cci, rsi
+from quantcore.signals.technical.momentum import cmo, roc
+from quantcore.signals.technical.trend import adx, ema, macd, sma
 from quantcore.signals.technical.volatility import atr, historical_vol
-from quantcore.signals.technical.momentum import roc, cmo
-
+from quantcore.signals.technical.volume import ad_line, mfi, obv
 
 # ---------------------------------------------------------------------------
 # Feature Groups

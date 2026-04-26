@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from decimal import Decimal
-from typing import Callable, Any
 import logging
 import threading
 import time
+from collections.abc import Callable
+from decimal import Decimal
 
+from quantcore.core.types import Fill, Order, Position
 from quantcore.execution.brokers.base import (
-    BrokerAdapter, BrokerOrder, AccountInfo,
+    AccountInfo,
+    BrokerAdapter,
+    BrokerOrder,
 )
-from quantcore.core.types import Order, Fill, Position, Side, OrderType, OrderStatus
-
 
 log = logging.getLogger(__name__)
 

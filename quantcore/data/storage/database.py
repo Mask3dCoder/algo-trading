@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 
@@ -129,9 +128,8 @@ class DatabaseManager:
         if not self._pool:
             raise RuntimeError("Database not connected")
 
-        async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.copy_records_to_table(table, records=data, columns=columns)
+        async with self._pool.acquire() as conn, conn.transaction():
+            await conn.copy_records_to_table(table, records=data, columns=columns)
         return len(data)
 
 

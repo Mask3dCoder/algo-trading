@@ -13,8 +13,6 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
-    StrategyMetrics,
-    StrategyType,
     TradeSignal,
 )
 from quantcore.strategies.registry import register

@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Any
 import re
-import html as html_mod
-
-from quantcore.core.types import Position
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -80,7 +77,7 @@ class NewsIngestor:
             published = None
             if hasattr(entry, "published_parsed") and entry.published_parsed:
                 try:
-                    published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                    published = datetime(*entry.published_parsed[:6], tzinfo=UTC)
                 except Exception:
                     pass
             tickers = self._map_tickers(title + " " + raw_text)
@@ -123,7 +120,7 @@ class NewsIngestor:
 
     def recent_articles(self, hours: float = 24.0) -> list[NewsArticle]:
         """Get articles published within the last N hours."""
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         return [a for a in self._articles if a.published_at and a.published_at >= cutoff]
 
     @property

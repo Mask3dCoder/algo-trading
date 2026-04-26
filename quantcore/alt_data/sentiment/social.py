@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 
 import numpy as np
-from numpy.typing import NDArray
 
 
 class SocialSource(str, Enum):
@@ -26,7 +25,7 @@ class SocialPost:
     body: str = ""
     score: int = 0
     num_comments: int = 0
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     url: str = ""
 
 
@@ -98,7 +97,7 @@ class SocialIngestor:
             id=post_id, source=SocialSource.REDDIT, ticker=detected_ticker,
             title=title, body=body, score=int(data.get("score", 0)),
             num_comments=int(data.get("num_comments", 0)),
-            created_at=datetime.fromtimestamp(data.get("created_utc", 0), tz=timezone.utc),
+            created_at=datetime.fromtimestamp(data.get("created_utc", 0), tz=UTC),
             url=f"https://reddit.com{data.get('permalink', '')}",
         )
 
@@ -126,7 +125,7 @@ class SocialIngestor:
                     ticker=ticker,
                     body=msg.get("body", ""),
                     created_at=datetime.fromisoformat(
-                        msg.get("created_at", datetime.now(timezone.utc).isoformat()),
+                        msg.get("created_at", datetime.now(UTC).isoformat()),
                     ),
                 )
                 if self._is_new(post.id):
@@ -143,7 +142,7 @@ class SocialIngestor:
         self, posts: list[SocialPost], ticker: str, hours: float = 24.0,
     ) -> int:
         """Count mentions of a ticker within a time window."""
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         return sum(1 for p in posts if p.ticker == ticker and p.created_at >= cutoff)
 
     def compute_sentiment(self, posts: list[SocialPost], analyzer: Any) -> float:
@@ -172,7 +171,7 @@ class SocialIngestor:
         return len(self._posts)
 
     def recent_posts(self, ticker: str, hours: float = 24.0) -> list[SocialPost]:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         return [
             p for p in self._posts
             if p.ticker == ticker and p.created_at >= cutoff
