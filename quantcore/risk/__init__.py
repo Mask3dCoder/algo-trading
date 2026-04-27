@@ -17,6 +17,15 @@ from quantcore.risk.budget import (
     risk_budget_optimize,
     risk_decomposition,
 )
+from quantcore.risk.config_loader import (
+    KillSwitchConfig,
+    PaperExecutionConfig,
+    PreflightConfig,
+    RiskConfig,
+    load_risk_config,
+    run_preflight_checks,
+    validate_kill_switch_mechanism,
+)
 from quantcore.risk.drawdown import (
     DrawdownAction,
     DrawdownConfig,
@@ -185,6 +194,9 @@ __all__ = [
     "AlertSeverity", "AlertCategory", "RiskAlert", "MonitorConfig",
     "MonitorState", "RiskMonitor", "detect_correlation_regime",
     "detect_vol_regime", "detect_liquidity_stress",
+    # config_loader
+    "RiskConfig", "PreflightConfig", "KillSwitchConfig", "PaperExecutionConfig",
+    "load_risk_config", "run_preflight_checks", "validate_kill_switch_mechanism",
     # signals
     "RiskSignal", "RiskRegime", "volatility_target_scale", "risk_on_off",
     "drawdown_protection", "tail_hedge_signal", "correlation_hedge_signal",

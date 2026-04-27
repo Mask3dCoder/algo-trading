@@ -63,7 +63,23 @@
       "Bash(grep -i \"\\\\.pyc$\")",
       "Bash(grep -i \"\\\\.env$\")",
       "Bash(python -m pytest tests/ -q --tb=short --timeout=120)",
-      "Bash(python -m pytest tests/unit/feeds/ tests/unit/brokers/ -v --tb=short --timeout=30)"
+      "Bash(python -m pytest tests/unit/feeds/ tests/unit/brokers/ -v --tb=short --timeout=30)",
+      "Bash(pip list *)",
+      "Bash(python -c \"import matplotlib; print\\('matplotlib', matplotlib.__version__\\)\")",
+      "Bash(python scripts/backtest_demo.py --symbols SPY --start 2023-01-01 --end 2024-06-30 --plot)",
+      "Bash(python scripts/backtest_demo.py --symbols SPY --start 2022-01-01 --end 2024-06-30 --fast 20 --slow 50 --plot)",
+      "Bash(python -m pytest tests/unit/data/test_yfinance_loader.py tests/integration/test_backtest_demo.py -v --timeout=60)",
+      "Bash(python -m pytest tests/unit/test_live_additions.py::TestPaperBroker::test_process_fills -v --count=5)",
+      "Bash(python -m pytest tests/unit/test_live_additions.py::TestPaperBroker::test_process_fills -v)",
+      "Bash(python -m pytest --timeout=120 -q)",
+      "Bash(python scripts/verify_alpaca.py)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(python scripts/strategy_audit.py --symbols SPY --capital 1000000)",
+      "Bash(python scripts/backtest_demo.py --symbols SPY --start 2023-01-01 --end 2024-12-31 --capital 1000000 --fast 50 --slow 200)",
+      "Bash(python -m pytest tests/ -q --tb=short)",
+      "Bash(python *)",
+      "Bash(cd \"C:\\\\\\\\Users\\\\\\\\rochv\\\\\\\\Downloads\\\\\\\\projetcs\\\\\\\\algo sw\")"
     ]
   }
 }

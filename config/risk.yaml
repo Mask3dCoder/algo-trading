@@ -1,0 +1,169 @@
+# QuantCore Risk Configuration
+# ============================================================================
+# Single source of truth for all risk parameters.
+# Edit this file to adjust limits — no code changes needed.
+# Use with: quantcore.risk.config_loader.load_risk_config("config/risk.yaml")
+
+# ---------------------------------------------------------------------------
+# Position-level limits
+# ---------------------------------------------------------------------------
+position_limits:
+  # Maximum position size as percentage of average daily volume
+  max_position_pct_adv: 0.05   # 5% of ADV
+  # Maximum dollar exposure for any single name
+  max_dollar_exposure_per_name: 1_000_000  # $1M
+  # Maximum absolute loss allowed per position (stop-loss)
+  max_loss_per_position: -50000          # -$50K
+
+# ---------------------------------------------------------------------------
+# Portfolio-level limits
+# ---------------------------------------------------------------------------
+portfolio_limits:
+  # Greeks limits (for options/hybrid portfolios)
+  max_net_delta: 500_000              # $500K net delta
+  max_gross_gamma: 100_000            # $100K absolute gamma
+  max_vega: 500_000                   # $500K vega
+  # Maximum exposure to any single sector
+  max_sector_exposure_pct: 0.40       # 40%
+  # Maximum percentage of portfolio in a single name
+  max_concentration_pct: 0.25         # 25%
+
+# ---------------------------------------------------------------------------
+# VaR limits
+# ---------------------------------------------------------------------------
+var_limits:
+  # Maximum VaR utilization (fraction of VaR budget consumed)
+  max_var_utilization_pct: 0.80       # 80%
+  # Confidence level for VaR calculations
+  confidence: 0.95
+  # VaR breach threshold: consecutive days breaching VaR to trigger alert
+  var_breach_threshold: 3
+  # Acceptable VaR coverage range (actual / expected exceedances)
+  var_coverage_min: 0.90
+  var_coverage_max: 1.10
+
+# ---------------------------------------------------------------------------
+# Margin & leverage
+# ---------------------------------------------------------------------------
+margin_limits:
+  # Maximum margin utilization (fraction of buying power used)
+  max_margin_utilization_pct: 0.85    # 85%
+  # Maximum leverage ratio
+  max_leverage: 2.0
+  # Maximum gross exposure (sum of absolute position values / NAV)
+  max_gross_exposure: 3.0
+
+# ---------------------------------------------------------------------------
+# Circuit breaker
+# ---------------------------------------------------------------------------
+circuit_breaker:
+  # How far past a limit triggers the breaker (e.g. 0.20 = 20% over limit)
+  threshold_pct: 0.20
+  # Action to take when breaker trips: "flatten" or "reduce_50"
+  action: flatten
+  # Maximum time between breaker checks (seconds)
+  check_interval_sec: 60
+
+# ---------------------------------------------------------------------------
+# Drawdown thresholds
+# ---------------------------------------------------------------------------
+drawdown:
+  # Tiered drawdown thresholds and their automatic actions
+  thresholds:
+    - drawdown: -0.05   # -5%
+      action: reduce_25  # Reduce positions by 25%
+    - drawdown: -0.10   # -10%
+      action: reduce_50  # Reduce positions by 50%
+    - drawdown: -0.15   # -15%
+      action: reduce_75  # Reduce positions by 75%
+    - drawdown: -0.20   # -20%
+      action: flatten    # Close all positions
+  # Hard halt — refuse all new orders below this threshold
+  halt_threshold: -0.25  # -25%
+  # Warning-level notification threshold
+  warning_pct: -0.05
+  # Critical-level notification threshold
+  critical_pct: -0.15
+
+# ---------------------------------------------------------------------------
+# Monitoring thresholds
+# ---------------------------------------------------------------------------
+monitor:
+  # Volatility spike: short-term vol / long-term vol ratio trigger
+  vol_spike_multiple: 2.5
+  vol_window_short: 21
+  vol_window_long: 63
+  # Correlation breakdown: absolute change in pairwise correlation
+  corr_break_threshold: 0.30
+  corr_window: 63
+  corr_short_window: 21
+  # Liquidity stress: spread widening and volume decline multiples
+  spread_widening_multiple: 3.0
+  vol_decline_multiple: 2.0
+  # Tail risk: Z-score threshold for extreme return detection
+  tail_zscore: -3.0
+
+# ---------------------------------------------------------------------------
+# Preflight checks — run before paper trading starts
+# ---------------------------------------------------------------------------
+preflight:
+  # Verify these conditions before the engine enters the main loop
+  checks:
+    # Minimum cash required to start
+    min_capital: 10000
+    # Maximum allowed drawdown at startup (from resume state)
+    max_startup_drawdown_pct: 0.15
+    # Require at least this many data points before trading
+    min_data_points: 50
+    # Ensure kill switch signal handler is registered
+    verify_kill_switch: true
+    # Ensure session state directory is writable
+    verify_state_dir_writable: true
+    # Ensure log directory is writable
+    verify_log_dir_writable: true
+    # Maximum age of resume state before it's considered stale
+    max_resume_state_age_hours: 24
+    # Maximum percentage of capital that can be in a single position
+    startup_max_concentration: 0.30
+    # Verify that at least one data feed connection works
+    verify_data_feed: true
+
+# ---------------------------------------------------------------------------
+# Kill switch — automatic safeguards that halt trading
+# ---------------------------------------------------------------------------
+kill_switch:
+  # Triggers that activate the kill switch
+  triggers:
+    # Maximum consecutive rejected orders before kill
+    max_consecutive_rejections: 5
+    # Maximum total rejections in a run before kill
+    max_total_rejections: 20
+    # Maximum drawdown % from peak equity (absolute)
+    max_drawdown_pct: -0.25
+    # Maximum time without new data before kill (seconds)
+    max_data_staleness_sec: 300
+    # Maximum P&L loss in a single day before kill
+    max_daily_loss: -25000
+    # Maximum memory usage before kill (MB)
+    max_memory_mb: 4096
+  # Cool-down period after kill switch activates (seconds)
+  cooldown_sec: 300
+  # Whether to auto-flatten on kill
+  auto_flatten: true
+
+# ---------------------------------------------------------------------------
+# Paper trading execution parameters
+# ---------------------------------------------------------------------------
+paper_execution:
+  # Percentage of equity to use per trade
+  trade_size_pct_equity: 0.10
+  # Minimum quantity to trade (shares)
+  min_trade_quantity: 1
+  # Seconds between data feed polls
+  poll_interval_sec: 0.1
+  # Seconds between market-closed re-checks
+  market_closed_sleep_sec: 30
+  # Seconds between session state saves
+  state_save_interval_sec: 60
+  # Seconds between metrics CSV writes
+  metrics_interval_sec: 60

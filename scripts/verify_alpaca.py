@@ -157,6 +157,23 @@ def main() -> None:
         except ImportError:
             print(f"  {WARN} Telegram module not yet available -- will be added in Section 5")
 
+    # Check 8: IBKR availability (optional)
+    print("\n[8] IBKR Connection (optional -- only if using IBKR broker)")
+    ibkr_port = int(os.environ.get("IBKR_PORT", "7497"))
+    ibkr_host = os.environ.get("IBKR_HOST", "127.0.0.1")
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(2)
+    result = sock.connect_ex((ibkr_host, ibkr_port))
+    sock.close()
+    if result == 0:
+        print(f"  {PASS} TWS/Gateway port {ibkr_port} is open -- IBKR connection available")
+        print(f"       Run python scripts/verify_ibkr.py for full IBKR diagnostics")
+    else:
+        print(f"  {WARN} TWS/Gateway not detected at {ibkr_host}:{ibkr_port}")
+        print(f"       This is OK if you are using --broker alpaca only")
+        print(f"       To use IBKR: start TWS, enable API, set port to {ibkr_port}")
+
     # ---- Summary ----
     print("\n" + "=" * 50)
     if failures == 0:
