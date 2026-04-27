@@ -140,28 +140,28 @@ class PortfolioState:
         if symbol not in self.positions:
             self.positions[symbol] = Position(
                 symbol=symbol,
-                quantity=Decimal(str(qty if fill.order_id.endswith("_BUY") else -qty)),
+                quantity=Decimal(str(qty if fill.order_id.endswith("_buy") else -qty)),
                 avg_cost=Decimal(str(price)),
                 market_price=Decimal(str(price)),
             )
-            self.cash -= qty * price if fill.order_id.endswith("_BUY") else 0.0
-            self.cash += qty * price if fill.order_id.endswith("_SELL") else 0.0
+            self.cash -= qty * price if fill.order_id.endswith("_buy") else 0.0
+            self.cash += qty * price if fill.order_id.endswith("_sell") else 0.0
         else:
             pos = self.positions[symbol]
             current_qty = float(pos.quantity)
-            new_qty = current_qty + qty if fill.order_id.endswith("_BUY") else current_qty - qty
+            new_qty = current_qty + qty if fill.order_id.endswith("_buy") else current_qty - qty
             # Update average cost for buys
-            if fill.order_id.endswith("_BUY"):
+            if fill.order_id.endswith("_buy"):
                 total_cost = float(pos.avg_cost) * abs(current_qty) + price * qty
                 new_avg = total_cost / abs(new_qty) if new_qty != 0 else 0.0
             else:
                 new_avg = float(pos.avg_cost)
 
             realized = 0.0
-            if fill.order_id.endswith("_SELL") and current_qty > 0:
+            if fill.order_id.endswith("_sell") and current_qty > 0:
                 realized = (price - float(pos.avg_cost)) * qty
                 self.cash += qty * price
-            elif fill.order_id.endswith("_BUY"):
+            elif fill.order_id.endswith("_buy"):
                 self.cash -= qty * price
 
             self.positions[symbol] = Position(
@@ -369,6 +369,7 @@ class BacktestEngine:
 
         pending_orders: list[Order] = []
         daily_returns: list[float] = []
+        bar: OHLCV | None = None
 
         while handler.has_next():
             bar = handler.next_bar()
@@ -491,6 +492,46 @@ class BacktestEngine:
             ts = bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
             self.portfolio.record_equity(ts)
 
+        # --- End-of-period cleanup: close remaining positions ---
+        if bar is not None:
+            # Process any pending orders from the final bar
+            for order in pending_orders:
+                self.fill_sim.set_bars(bar, None)
+                fill = self.fill_sim.simulate_fill(order)
+                if fill is not None:
+                    self.portfolio.apply_fill(fill, order.symbol)
+                    self.strategy.on_fill(fill, self.portfolio)
+            pending_orders.clear()
+
+            # Close any remaining open positions at the last available price
+            for sym in list(self.portfolio.positions.keys()):
+                pos = self.portfolio.positions[sym]
+                if float(pos.quantity) <= 0:
+                    continue
+                close_qty = int(abs(float(pos.quantity)))
+                order = Order(
+                    id=f"ord_eop_{sym}_sell",
+                    symbol=sym,
+                    side=Side.SELL,
+                    type=OrderType.MARKET,
+                    quantity=Decimal(str(close_qty)),
+                )
+                self.fill_sim.set_bars(bar, None)
+                fill = self.fill_sim.simulate_fill(order)
+                if fill is not None:
+                    self.portfolio.apply_fill(fill, sym)
+                    self.portfolio.signal_log.append({
+                        "timestamp": bar.timestamp,
+                        "symbol": sym,
+                        "direction": "eop_close",
+                        "strength": 1.0,
+                        "regime": self.portfolio.regime_state,
+                    })
+
+            # Record final equity after EOP closes
+            ts = bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
+            self.portfolio.record_equity(ts)
+
         # Build result DataFrame
         if not self.portfolio.equity_curve:
             return pd.DataFrame(columns=["timestamp", "equity"])
@@ -509,13 +550,62 @@ class BacktestEngine:
 
         equity = np.array([v for _, v in self.portfolio.equity_curve])
         returns = compute_returns(equity)
-        trade_pnls = [
-            float(fill.price) * float(fill.quantity) * (1 if "BUY" in fill.order_id else -1)
-            - float(fill.commission)
-            for fill in self.portfolio.trades
-        ]
+        trade_pnls = self._compute_trade_pnls(self.portfolio.trades)
 
         return generate_performance_report(equity, returns, np.array(trade_pnls) if trade_pnls else None)
+
+    @staticmethod
+    def _parse_symbol_from_fill(order_id: str) -> str:
+        """Extract symbol from a fill's order_id.
+
+        order_id format: ord_{iso_timestamp}_{symbol}_{side}_{side}
+        e.g. 'ord_2020-01-02T14:30:00_AAPL_buy_buy'
+        """
+        base = order_id.rsplit("_", 2)[0]
+        return base.split("_", 2)[2]
+
+    @staticmethod
+    def _compute_trade_pnls(trades: list) -> list[float]:
+        """Compute realized P&Ls via FIFO pairing of buys and sells per symbol."""
+        from collections import defaultdict, deque
+
+        by_symbol: dict[str, list] = defaultdict(list)
+        for fill in trades:
+            symbol = BacktestEngine._parse_symbol_from_fill(fill.order_id)
+            by_symbol[symbol].append(fill)
+
+        realized: list[float] = []
+        for fills in by_symbol.values():
+            buy_queue: deque = deque()
+            for fill in fills:
+                qty = float(fill.quantity)
+                price = float(fill.price)
+                comm = float(fill.commission)
+
+                if fill.order_id.endswith("_buy"):
+                    buy_queue.append((price, qty, comm))
+                elif fill.order_id.endswith("_sell"):
+                    sell_qty = qty
+                    sell_price = price
+                    total_sell_qty = sell_qty
+
+                    while sell_qty > 0 and buy_queue:
+                        buy_price, buy_qty, buy_comm = buy_queue[0]
+                        matched = min(sell_qty, buy_qty)
+
+                        buy_comm_alloc = buy_comm * (matched / buy_qty)
+                        sell_comm_alloc = comm * (matched / total_sell_qty)
+
+                        pnl = (sell_price - buy_price) * matched - buy_comm_alloc - sell_comm_alloc
+                        realized.append(pnl)
+
+                        sell_qty -= matched
+                        if matched >= buy_qty:
+                            buy_queue.popleft()
+                        else:
+                            buy_queue[0] = (buy_price, buy_qty - matched, buy_comm - buy_comm_alloc)
+
+        return realized
 
     def risk_metrics(self) -> dict[str, float]:
         """Compute risk-adjusted metrics for the backtest using the risk module."""

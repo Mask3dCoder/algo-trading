@@ -40,5 +40,8 @@ logs/*.csv
 .DS_Store
 Thumbs.db
 
+# Generated outputs
+outputs/
+
 # Rust
 rust_core/target/
