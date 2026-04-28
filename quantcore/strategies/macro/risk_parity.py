@@ -30,6 +30,10 @@ class RiskParityStrategy(Strategy):
         high_vol_threshold: above this percentile → reduce risk (default 75)
         low_vol_threshold: below this percentile → increase risk (default 25)
         max_leverage: max portfolio leverage (default 1.0)
+        vol_regime_enabled: enable portfolio-level vol regime filter (default True)
+        vol_regime_threshold: scale when 20-bar portfolio vol > vol_target * this (default 0.40)
+        vol_regime_lookback: vol estimation window (default 20)
+        min_vol_scale: minimum scale factor during high vol (default 0.30)
     """
 
     def __init__(self, config: StrategyConfig) -> None:
@@ -41,6 +45,10 @@ class RiskParityStrategy(Strategy):
         self.high_vol_threshold = float(config.params.get("high_vol_threshold", 75))
         self.low_vol_threshold = float(config.params.get("low_vol_threshold", 25))
         self.max_leverage = float(config.params.get("max_leverage", 1.0))
+        self.vol_regime_enabled = bool(config.params.get("vol_regime_enabled", True))
+        self.vol_regime_threshold = float(config.params.get("vol_regime_threshold", 0.40))
+        self.min_vol_scale = float(config.params.get("min_vol_scale", 0.30))
+        self.vol_regime_lookback = int(config.params.get("vol_regime_lookback", 20))
         self._days_since_rebalance = 0
         self._current_weights: NDArray | None = None
 
@@ -138,6 +146,35 @@ class RiskParityStrategy(Strategy):
 
         return np.clip(scale, 0.3, 1.5)
 
+    def _vol_regime_scale(self, returns: NDArray) -> float:
+        """Portfolio-level vol regime detector.
+
+        Uses equal-weight portfolio vol as regime proxy. When 20-bar portfolio
+        vol exceeds vol_target * vol_regime_threshold, linearly scale down
+        positions. This directly targets the HIGH_VOL regime definition.
+        Risk parity is inherently diversified, so the threshold is higher
+        (40% of vol_target) vs CTA trend (30%).
+        """
+        if not self.vol_regime_enabled:
+            return 1.0
+
+        if len(returns) < self.vol_regime_lookback:
+            return 1.0
+
+        recent = returns[-self.vol_regime_lookback:]
+        portfolio_returns = recent.mean(axis=1)
+        realized_vol = float(np.std(portfolio_returns, ddof=1)) * np.sqrt(252)
+
+        threshold = self.vol_target * self.vol_regime_threshold
+
+        if realized_vol <= threshold:
+            return 1.0
+
+        # Linear scaling: 1.0 at threshold, down to min_vol_scale at 2x threshold
+        excess = (realized_vol - threshold) / threshold
+        scale = max(self.min_vol_scale, 1.0 - excess * 0.5)
+        return float(scale)
+
     def on_data(self, data: dict[str, NDArray]) -> list[TradeSignal]:
         close = data.get("close")
         if close is None:
@@ -171,9 +208,13 @@ class RiskParityStrategy(Strategy):
         vol_scales = self.vol_target / asset_vols
         weights = weights * vol_scales
 
-        # Regime overlay
+        # Regime overlay (percentile-based)
         regime_scale = self._regime_scale(returns)
         weights = weights * regime_scale
+
+        # Vol regime filter (portfolio-level 20-bar vol)
+        vol_regime_scale = self._vol_regime_scale(returns)
+        weights = weights * vol_regime_scale
 
         # Leverage constraint
         total_weight = np.sum(np.abs(weights))

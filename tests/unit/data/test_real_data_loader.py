@@ -1,4 +1,8 @@
-"""Unit tests for real_data_loader — all network calls mocked."""
+"""Unit tests for real_data_loader -- all network calls mocked.
+
+Note: New tests also exist at tests/unit/test_real_data_loader.py.
+This file is kept for backward compatibility.
+"""
 
 from __future__ import annotations
 
@@ -10,24 +14,15 @@ import pytest
 
 from scripts.real_data_loader import (
     UNIVERSES,
-    DataQualityError,
+    fetch_and_prepare,
     list_universes,
-    load_and_validate,
     load_universe,
     validate_data,
 )
 
 
 def make_clean_df(symbols: list[str] | None = None, n_days: int = 252) -> pd.DataFrame:
-    """Build a clean multi-symbol OHLCV DataFrame for testing.
-
-    Args:
-        symbols: List of tickers (default SPY, QQQ).
-        n_days: Number of business days.
-
-    Returns:
-        DataFrame with columns [symbol, timestamp, open, high, low, close, volume].
-    """
+    """Build a clean multi-symbol OHLCV DataFrame for testing."""
     if symbols is None:
         symbols = ["SPY", "QQQ"]
 
@@ -58,11 +53,11 @@ def make_clean_df(symbols: list[str] | None = None, n_days: int = 252) -> pd.Dat
 class TestUniverses:
     def test_universes_defined(self) -> None:
         """UNIVERSES dict contains expected entries."""
-        assert "equity" in UNIVERSES
         assert "cta" in UNIVERSES
-        assert len(UNIVERSES["equity"]["symbols"]) >= 4
-        assert "SPY" in UNIVERSES["equity"]["symbols"]
+        assert "rp" in UNIVERSES
+        assert len(UNIVERSES["cta"]["symbols"]) >= 4
         assert "SPY" in UNIVERSES["cta"]["symbols"]
+        assert "SPY" in UNIVERSES["rp"]["symbols"]
 
     def test_universes_have_descriptions(self) -> None:
         """Each universe has description and asset_classes."""
@@ -84,26 +79,21 @@ class TestUniverses:
             sys.stdout = sys.__stdout__
 
         output = captured.getvalue()
-        assert "equity" in output
         assert "cta" in output
+        assert "rp" in output
         assert "SPY" in output
 
 
 class TestLoadUniverse:
     def test_load_universe_calls_load_combined(self) -> None:
-        """load_universe delegates to load_combined with correct args."""
-        with mock.patch("scripts.real_data_loader.load_combined") as mock_lc:
-            mock_lc.return_value = make_clean_df()
+        """load_universe delegates to load_bars with correct args."""
+        with mock.patch("scripts.real_data_loader.load_bars") as mock_lb:
+            mock_lb.return_value = make_clean_df()
 
-            df = load_universe("equity", "2020-01-01", "2020-12-31")
+            df = load_universe("cta", "2020-01-01", "2020-12-31")
 
-            mock_lc.assert_called_once_with(
-                UNIVERSES["equity"]["symbols"],
-                "2020-01-01",
-                "2020-12-31",
-                "1d",
-                use_cache=True,
-            )
+            expected_symbols = UNIVERSES["cta"]["symbols"]
+            assert mock_lb.call_count == len(expected_symbols)
             assert not df.empty
 
     def test_load_universe_unknown_raises(self) -> None:
@@ -113,102 +103,79 @@ class TestLoadUniverse:
 
     def test_load_universe_empty_returns_empty(self) -> None:
         """load_universe returns empty DataFrame when no data."""
-        with mock.patch("scripts.real_data_loader.load_combined") as mock_lc:
-            mock_lc.return_value = pd.DataFrame(
+        with mock.patch("scripts.real_data_loader.load_bars") as mock_lb:
+            mock_lb.return_value = pd.DataFrame(
                 columns=["symbol", "timestamp", "open", "high", "low", "close", "volume"]
             )
 
-            df = load_universe("equity", "2020-01-01", "2020-12-31")
+            df = load_universe("cta", "2020-01-01", "2020-12-31")
             assert df.empty
 
-    def test_load_universe_passes_use_cache(self) -> None:
-        """load_universe forwards use_cache parameter."""
-        with mock.patch("scripts.real_data_loader.load_combined") as mock_lc:
-            mock_lc.return_value = make_clean_df()
+    def test_load_universe_retry_on_failure(self) -> None:
+        """load_universe retries on failure, then continues."""
+        with mock.patch("scripts.real_data_loader.load_bars") as mock_lb:
+            call_count = 0
+            def side_effect(sym, *a, **kw):
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    raise Exception("Transient error")
+                return make_clean_df([sym], n_days=50)
 
-            load_universe("equity", "2020-01-01", "2020-12-31", use_cache=False)
-
-            mock_lc.assert_called_once_with(
-                UNIVERSES["equity"]["symbols"],
-                "2020-01-01",
-                "2020-12-31",
-                "1d",
-                use_cache=False,
-            )
+            mock_lb.side_effect = side_effect
+            with mock.patch("scripts.real_data_loader.time.sleep"):
+                df = load_universe("cta", "2020-01-01", "2020-12-31")
+            assert not df.empty
 
 
 class TestValidateData:
     def test_validate_passes_clean_data(self) -> None:
-        """validate_data returns passed=True for clean DataFrame."""
+        """validate_data returns empty list for clean DataFrame."""
         df = make_clean_df(["SPY", "QQQ", "TLT"], n_days=100)
-        result = validate_data(df, name="test")
-        assert result["passed"] is True
-        assert result["n_symbols"] == 3
-        assert result["total_bars"] == 300
-        assert len(result["errors"]) == 0
+        errs = validate_data(df, name="test")
+        assert len(errs) == 0
 
     def test_validate_empty_dataframe(self) -> None:
         """validate_data returns errors for empty DataFrame."""
         df = pd.DataFrame()
-        result = validate_data(df, name="empty")
-        assert result["passed"] is False
-        assert "empty" in str(result["errors"]).lower() or "empty" in str(result["errors"])
+        errs = validate_data(df, name="empty")
+        assert len(errs) > 0
+        assert "empty" in str(errs[0]).lower()
 
     def test_validate_missing_columns(self) -> None:
         """validate_data rejects DataFrame with missing columns."""
         df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
-        result = validate_data(df, name="bad_cols")
-        assert result["passed"] is False
-        assert any("column" in e.lower() for e in result["errors"])
+        errs = validate_data(df, name="bad_cols")
+        assert len(errs) > 0
+        assert any("column" in e.lower() for e in errs)
 
     def test_validate_detects_nan(self) -> None:
         """validate_data flags excessive NaN values."""
         df = make_clean_df(["SPY"], n_days=50)
         df.loc[df.index % 5 == 0, "close"] = float("nan")
-        result = validate_data(df, name="nan_test", max_nan_pct=0.05)
-        assert result["passed"] is False
-        assert any("NaN" in e for e in result["errors"])
-
-    def test_validate_reports_date_range(self) -> None:
-        """validate_data reports correct date range."""
-        df = make_clean_df(["SPY"], n_days=100)
-        result = validate_data(df, name="range_test")
-        assert result["date_range"] is not None
-        start_str, end_str = result["date_range"]
-        assert start_str == "2020-01-01"
-        assert end_str >= "2020-04-01"
-
-    def test_validate_produces_symbol_results(self) -> None:
-        """validate_data populates per-symbol results."""
-        df = make_clean_df(["SPY", "QQQ"], n_days=50)
-        result = validate_data(df, name="sym_check")
-        assert "SPY" in result["symbol_results"]
-        assert "QQQ" in result["symbol_results"]
-        assert result["symbol_results"]["SPY"]["bars"] == 50
-        assert result["symbol_results"]["QQQ"]["bars"] == 50
+        errs = validate_data(df, name="nan_test", max_nan_pct=0.05)
+        assert len(errs) > 0
+        assert any("NaN" in e for e in errs)
 
 
-class TestLoadAndValidate:
-    def test_load_and_validate_success(self) -> None:
-        """load_and_validate returns DataFrame on success."""
+class TestFetchAndPrepare:
+    def test_fetch_and_prepare_success(self) -> None:
+        """fetch_and_prepare returns DataFrame on success."""
         with mock.patch("scripts.real_data_loader.load_universe") as mock_lu:
-            mock_lu.return_value = make_clean_df(["SPY"], n_days=50)
-            df = load_and_validate("equity", "2020-01-01", "2020-12-31")
+            mock_lu.return_value = make_clean_df(
+                UNIVERSES["cta"]["symbols"], n_days=50
+            )
+            df = fetch_and_prepare("cta", "2020-01-01", "2020-12-31")
             assert not df.empty
 
-    def test_load_and_validate_raises_on_poor_quality(self) -> None:
-        """load_and_validate raises DataQualityError when data is bad."""
+    def test_fetch_and_prepare_raises_on_poor_quality(self) -> None:
+        """fetch_and_prepare raises ValueError when data is bad."""
         with mock.patch("scripts.real_data_loader.load_universe") as mock_lu:
             bad_df = make_clean_df(["SPY"], n_days=10)
             bad_df.loc[0, "close"] = float("nan")
             mock_lu.return_value = bad_df
 
-            with pytest.raises(DataQualityError):
-                load_and_validate(
-                    "equity", "2020-01-01", "2020-12-31",
-                    max_nan_pct=0.01,
+            with pytest.raises(ValueError, match="validation failed"):
+                fetch_and_prepare(
+                    "cta", "2020-01-01", "2020-12-31",
                 )
-
-    def test_data_quality_error_is_value_error(self) -> None:
-        """DataQualityError is a subclass of ValueError."""
-        assert issubclass(DataQualityError, ValueError)

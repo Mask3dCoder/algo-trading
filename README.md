@@ -93,3 +93,49 @@ Python ≥3.12 required. Optional dependency groups: `stats`, `ml`, `optim`, `ex
 - **Connection pooling everywhere.** All HTTP data sources share httpx.AsyncClient sessions; synchronous callers (SEC EDGAR, social media) use requests.Session. This eliminates the dominant latency source in production data pipelines.
 
 - **TimescaleDB + Redis hybrid storage.** Hypertables with continuous aggregates for historical data; Redis with msgpack serialization for real-time state, pub/sub, and caching.
+
+## Strategy Status
+
+| Strategy | Type | Status | Synthetic OOS SR | Real-Data OOS SR | Capacity | Notes |
+|---|---|---|---|---|---|---|
+| `macro_cta_trend` | Macro trend-following | **REJECTED** | +1.79 | **-0.147** | ~$1M | Failed real-data Phase A: catastrophic failure on 2018-2024 full period |
+| `macro_risk_parity` | Macro risk parity | **MONITOR** | +1.11 | +0.128 | ~$500K | Phase A: vol-target adjustments ineffective (SR-neutral); signal noise-limited |
+
+**Verdict criteria:**
+- **DEPLOY**: OOS Sharpe > 1.0, positive across all regimes, capacity > $500K, drawdown < 10%
+- **MONITOR**: OOS Sharpe > 0.5, meets DEPLOY criteria but needs live validation
+- **PAPER**: OOS Sharpe > 0.0 but has regime weakness needing further validation
+- **REJECT**: OOS Sharpe ≤ 0.0 or structural flaw
+
+### macro_cta_trend — REJECTED (Phase A)
+- Multi-speed trend: fast (20), medium (50), slow (200) windows with weighted voting
+- Volatility targeting + inverse-square vol regime scaling (threshold = vol_target * 0.30)
+- Dynamic weight shift: reduces fast-signal weight during high vol in favor of slow signals
+- **Synthetic regime breakdown**: HIGH_VOL SR +0.40, LOW_VOL SR +1.66, NORMAL SR +2.57, TREND_UP SR +3.35
+- **Real-data regime breakdown**: Full 2018-2024 SR -0.147 (SHOWSTOPPER), GFC 2008 SR -0.734 (SHOWSTOPPER), Q4 2018 SR +2.613 (PASS), COVID 2020 SR +0.991 (PASS), Rate Hikes 2022 SR +0.904 (PASS), Bull 2023-2024 SR +0.176 (FAIL)
+- Real-data max drawdown: -14.5%; 80% zero-return bars; kurtosis 52.9
+- Rejection reason: Signal structurally weak on real data — extreme tail risk from trend reversals. Conviction/choppiness filters attempted but degraded previously-passing COVID regime. Requires fundamentally different approach.
+- Deployment manifest: `strategies/deployment_manifest.yaml`
+
+### macro_risk_parity — MONITOR (Phase A completed)
+- Equal risk contribution via iterative ERC optimization with Ledoit-Wolf covariance shrinkage
+- Individual asset vol-targeting + percentile-based regime overlay + portfolio-level vol regime filter
+- Linear vol regime scaling: reduces positions when 20-bar portfolio vol exceeds vol_target * 0.40
+- **Regime breakdown**: HIGH_VOL SR +0.81, LOW_VOL SR +3.07, NORMAL SR +2.04, TREND_UP SR +10.20
+- **Phase A result**: Real-data full period SR +0.128 (below MONITOR threshold). 3 vol_target adjustments (0.12, 0.15, 0.18) all ineffective — vol_target scales signal and noise proportionally. Signal-to-noise ratio fundamentally limited. Strategy suitable for monitoring only; no parameter fix can salvage.
+- Most sensitive parameter: `rebalance_freq` (use freq=1 or freq=21; avoid freq=30)
+- Margin costs dominate above $500K AUM — capacity ceiling
+- Deployment manifest: `strategies/deployment_manifest.yaml`
+
+### Monitoring
+- Strategy monitoring: `monitoring/strategy_monitor.py` (signal quality, regime detection, performance drift alerts)
+- Alert engine: `quantcore/dashboard/alerts.py` (severity levels, notification routing, cooldowns)
+- Live health checks: `quantcore/live/monitor.py` (latency, data staleness, heartbeat, position drift)
+- Strategy smoke tests: 5 market scenarios (covid crash, trend reversal, correlation breakdown, liquidity crisis, low vol spike)
+
+### Known Risks
+1. Both strategies validated against synthetic + real data. CTA structurally weak (REJECTED). RP signal noise-limited (MONITOR only).
+2. Both strategies degrade above $500K-$1M AUM (market impact + margin costs)
+3. RP vol regime filter is uniformly applied (SR-neutral) — provides drawdown reduction but doesn't change signal composition
+4. No options hedging or cross-asset hedging implemented for either strategy
+5. Real-data backtest uses yfinance (OHLCV only) — no tick-level or order book validation

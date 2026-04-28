@@ -1,4 +1,4 @@
-"""Integration tests for real-data backtesting — gated behind RUN_REAL_DATA_TESTS=true.
+"""Integration tests for real-data backtest -- gated behind RUN_REAL_DATA_TESTS=true.
 
 These tests download actual yfinance data and run walk-forward backtests.
 They are skipped by default. Run with:
@@ -11,9 +11,8 @@ import os
 from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
-
-from quantcore.backtest.walk_forward import Fold
 
 # Gate: only run when RUN_REAL_DATA_TESTS=true
 pytestmark = pytest.mark.skipif(
@@ -22,30 +21,38 @@ pytestmark = pytest.mark.skipif(
 )
 
 from scripts.real_data_backtest import (
-    ALL_PERIODS,
-    PASS_CRITERIA,
+    FULL_PERIOD,
+    REGIME_PERIODS,
+    SHOWSTOPPER_THRESHOLDS,
     STRATEGY_PARAMS,
     _df_to_data,
     _setup_strategy,
-    run_period_backtest,
+    check_showstoppers,
+    run_full_period_backtest,
+    run_regime_backtest,
 )
 from scripts.real_data_loader import UNIVERSES, load_universe
 
 
 class TestDataConversion:
-    """Verify DataFrame → numpy dict conversion."""
+    """DataFrame to numpy dict conversion from real data."""
 
-    def test_df_to_data_basic(self) -> None:
+    @pytest.fixture(scope="class")
+    def cta_data(self) -> Any:
+        """Load CTA universe data."""
+        return load_universe("cta", "2020-01-01", "2020-06-30")
+
+    def test_df_to_data_basic(self, cta_data: Any) -> None:
         """_df_to_data produces correct shapes and keys."""
-        df = load_universe("equity", "2020-01-01", "2020-06-30")
-        assert not df.empty, "No equity data returned"
+        df = cta_data
+        assert not df.empty, "No cta data returned"
 
         data = _df_to_data(df)
-        expected_symbols = UNIVERSES["equity"]["symbols"]
+        expected_symbols = sorted(UNIVERSES["cta"]["symbols"])
 
         assert "close" in data
         assert "symbols" in data
-        assert data["symbols"] == sorted(expected_symbols)
+        assert data["symbols"] == expected_symbols
 
         n_bars = df["timestamp"].nunique()
         n_assets = len(expected_symbols)
@@ -53,28 +60,27 @@ class TestDataConversion:
             f"Expected ({n_bars}, {n_assets}), got {data['close'].shape}"
         )
 
-    def test_df_to_data_no_nan(self) -> None:
-        """_df_to_data produces NaN-free arrays."""
-        df = load_universe("equity", "2020-01-01", "2020-06-30")
-        data = _df_to_data(df)
+    def test_df_to_data_no_nan(self, cta_data: Any) -> None:
+        """_df_to_data produces NaN-free arrays after forward-fill."""
+        data = _df_to_data(cta_data)
 
         for field in ["close", "high", "low", "open", "volume"]:
             arr = data[field]
             assert not np.any(np.isnan(arr)), f"{field} contains NaN after conversion"
 
-    def test_df_to_data_cta_universe(self) -> None:
-        """_df_to_data works with CTA universe (more symbols)."""
-        df = load_universe("cta", "2020-01-01", "2020-06-30")
-        assert not df.empty, "No cta data returned"
+    def test_df_to_data_rp_universe(self) -> None:
+        """_df_to_data works with RP universe."""
+        df = load_universe("rp", "2020-01-01", "2020-06-30")
+        assert not df.empty, "No rp data returned"
 
         data = _df_to_data(df)
-        expected_symbols = sorted(UNIVERSES["cta"]["symbols"])
+        expected_symbols = sorted(UNIVERSES["rp"]["symbols"])
         assert data["symbols"] == expected_symbols
         assert data["close"].shape[1] == len(expected_symbols)
 
 
 class TestStrategySetup:
-    """Verify strategy instantiation with real-data params."""
+    """Strategy instantiation with real-data params."""
 
     def test_setup_cta_trend(self) -> None:
         """_setup_strategy creates macro_cta_trend with correct params."""
@@ -97,88 +103,102 @@ class TestStrategySetup:
         params = STRATEGY_PARAMS["macro_risk_parity"]
         assert strat.vol_target == params["vol_target"]
         assert strat.lookback == params["lookback"]
-        assert strat.regime_overlay == params["regime_overlay"]
+        assert strat.rebalance_freq == params["rebalance_freq"]
 
 
-class TestPeriodBacktest:
-    """Run walk-forward backtests on real data (small periods for speed)."""
-
-    @pytest.fixture(scope="class")
-    def equity_data(self) -> Any:
-        """Load equity universe data for a short period."""
-        return load_universe("equity", "2020-01-01", "2021-12-31")
+class TestFullPeriodBacktest:
+    """Full period anchored walk-forward on real data."""
 
     def test_cta_trend_full_period(self) -> None:
-        """macro_cta_trend runs on full period without error."""
-        df = load_universe("cta", "2020-01-01", "2021-12-31")
+        """macro_cta_trend runs full period without error."""
+        df = load_universe(
+            "cta", FULL_PERIOD["start"], FULL_PERIOD["end"]
+        )
         assert not df.empty
 
-        n_bars = df["timestamp"].nunique()
-        folds = [
-            Fold(train_start=0, train_end=200, test_start=201, test_end=n_bars)
-        ]
+        result = run_full_period_backtest("macro_cta_trend", df)
+        assert result["error"] is None, f"Backtest failed: {result['error']}"
+        assert result["n_folds"] >= 1
+        assert result["oos_sharpe"] is not None
+        assert result["oos_sortino"] is not None
 
-        result = run_period_backtest("macro_cta_trend", df, folds)
+    def test_risk_parity_full_period(self) -> None:
+        """macro_risk_parity runs full period without error."""
+        df = load_universe(
+            "rp", FULL_PERIOD["start"], FULL_PERIOD["end"]
+        )
+        assert not df.empty
+
+        result = run_full_period_backtest("macro_risk_parity", df)
         assert result["error"] is None, f"Backtest failed: {result['error']}"
         assert result["n_folds"] >= 1
         assert result["oos_sharpe"] is not None
 
-    def test_risk_parity_full_period(self) -> None:
-        """macro_risk_parity runs on full period without error."""
-        df = load_universe("equity", "2020-01-01", "2021-12-31")
+
+class TestRegimeBacktest:
+    """Regime-specific backtests on real data."""
+
+    def test_covid_regime_cta(self) -> None:
+        """macro_cta_trend runs COVID regime with warmup."""
+        regime = REGIME_PERIODS["covid"]
+        df = load_universe("cta", regime["warmup_start"], regime["end"])
         assert not df.empty
 
-        n_bars = df["timestamp"].nunique()
-        folds = [
-            Fold(train_start=0, train_end=200, test_start=201, test_end=n_bars)
-        ]
+        all_dates = sorted(df["timestamp"].unique())
+        regime_start = next(
+            i for i, d in enumerate(all_dates) if d >= pd.Timestamp(regime["start"])
+        )
 
-        result = run_period_backtest("macro_risk_parity", df, folds)
-        assert result["error"] is None, f"Backtest failed: {result['error']}"
-        assert result["n_folds"] >= 1
+        result = run_regime_backtest("macro_cta_trend", df, regime_start)
+        assert result["error"] is None, f"Regime backtest failed: {result['error']}"
+        assert result["oos_sharpe"] is not None
+        assert result["n_oos_bars"] >= 3
+
+    def test_gfc_regime_rp(self) -> None:
+        """macro_risk_parity runs GFC regime with warmup."""
+        regime = REGIME_PERIODS["gfc"]
+        df = load_universe("rp", regime["warmup_start"], regime["end"])
+        assert not df.empty
+
+        all_dates = sorted(df["timestamp"].unique())
+        regime_start = next(
+            i for i, d in enumerate(all_dates) if d >= pd.Timestamp(regime["start"])
+        )
+
+        result = run_regime_backtest("macro_risk_parity", df, regime_start)
+        assert result["error"] is None, f"Regime backtest failed: {result['error']}"
+        assert result["oos_sharpe"] is not None
 
 
-class TestPassCriteria:
-    """Verify pass criteria are correctly structured."""
+class TestShowstopperDetection:
+    """Showstopper threshold checking."""
 
-    def test_all_criteria_have_keys(self) -> None:
-        """PASS_CRITERIA covers all strategy-period combinations."""
+    def test_showstopper_thresholds_exist(self) -> None:
+        """SHOWSTOPPER_THRESHOLDS covers all strategy-period combos."""
         for strategy_id in STRATEGY_PARAMS:
-            for period_id in ALL_PERIODS:
+            for period_id in list(REGIME_PERIODS.keys()) + ["full"]:
                 key = (strategy_id, period_id)
-                assert key in PASS_CRITERIA, (
-                    f"Missing pass criterion for {strategy_id}/{period_id}"
+                assert key in SHOWSTOPPER_THRESHOLDS, (
+                    f"Missing showstopper threshold for {strategy_id}/{period_id}"
                 )
 
-    def test_criteria_values_are_reasonable(self) -> None:
-        """Pass criteria thresholds are within [-1, 2] range."""
-        for (sid, pid), threshold in PASS_CRITERIA.items():
-            assert -1.0 <= threshold <= 2.0, (
-                f"Unreasonable threshold {threshold} for {sid}/{pid}"
-            )
-
-    def test_pass_criteria_periods_match(self) -> None:
-        """All period keys in PASS_CRITERIA exist in ALL_PERIODS."""
-        for strategy_id, period_id in PASS_CRITERIA:
-            assert period_id in ALL_PERIODS, (
-                f"Period '{period_id}' not in ALL_PERIODS"
-            )
-
-
-class TestCLI:
-    """Verify CLI argument parsing works."""
-
-    def test_list_periods_runs(self) -> None:
-        """--list-periods flag prints periods without error."""
-        import io
-        import sys
-
-        from scripts.real_data_backtest import main as backtest_main
-
-        # We can't easily call main() with args, so just check the module
-        from scripts.real_data_backtest import ALL_PERIODS as periods
-
-        assert "full" in periods
-        assert "pre_covid" in periods
-        assert "rate_hikes" in periods
-        assert "gfc" in periods
+    def test_showstopper_check_works(self) -> None:
+        """check_showstoppers detects violations correctly."""
+        results = [
+            {
+                "strategy": "macro_cta_trend",
+                "period": "full",
+                "oos_sharpe": -0.5,
+            },
+            {
+                "strategy": "macro_risk_parity",
+                "period": "full",
+                "oos_sharpe": 0.5,
+            },
+        ]
+        violations = check_showstoppers(results)
+        # macro_cta_trend/full has showstopper at 0.00, -0.5 < 0.0 => violation
+        cta_violations = [
+            v for v in violations if "macro_cta_trend" in v and "full" in v
+        ]
+        assert len(cta_violations) > 0

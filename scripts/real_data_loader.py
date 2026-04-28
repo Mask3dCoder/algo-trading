@@ -1,18 +1,22 @@
-"""Real data loader -- yfinance-backed universe definitions and data quality validation.
+"""Real data loader -- yfinance-backed universe definitions with retry logic.
 
-Provides asset universe definitions for Phase A real-data backtesting,
-data loading with parquet caching, and quality validation (NaN checks,
-gap detection, coverage ratios).
+Universe definitions for Phase A real-data validation:
+  - cta:  SPY, EFA, TLT, GLD, DBC, FXE  (CTA multi-speed trend)
+  - rp:   SPY, EFA, TLT, IEF, GLD, DBC  (risk parity)
+
+Provides load_universe() with exponential backoff retry, validate_data()
+with 7 quality checks, and fetch_and_prepare() convenience wrapper.
 
 Usage:
-    python scripts/real_data_loader.py              # Validate all universes
-    python scripts/real_data_loader.py --universe equity  # Single universe
-    python scripts/real_data_loader.py --list-universes   # Show definitions
+    python scripts/real_data_loader.py                       # Validate all
+    python scripts/real_data_loader.py --universe cta        # Single universe
+    python scripts/real_data_loader.py --list-universes      # Show definitions
 """
 
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -24,7 +28,7 @@ from typing import Any
 
 import pandas as pd
 
-from quantcore.data.yfinance_loader import load_combined, load_multiple
+from quantcore.data.yfinance_loader import load_combined, load_bars
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +37,20 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 UNIVERSES: dict[str, dict[str, Any]] = {
-    "equity": {
-        "description": "Risk parity universe: equities, bonds, gold, commodities",
+    "cta": {
+        "description": "CTA multi-speed trend universe",
+        "symbols": ["SPY", "EFA", "TLT", "GLD", "DBC", "FXE"],
+        "asset_classes": {
+            "SPY": "US Equities",
+            "EFA": "International Equities",
+            "TLT": "US Long-Term Bonds",
+            "GLD": "Gold",
+            "DBC": "Commodities",
+            "FXE": "FX (EURUSD)",
+        },
+    },
+    "rp": {
+        "description": "Risk parity universe",
         "symbols": ["SPY", "EFA", "TLT", "IEF", "GLD", "DBC"],
         "asset_classes": {
             "SPY": "US Equities",
@@ -43,19 +59,6 @@ UNIVERSES: dict[str, dict[str, Any]] = {
             "IEF": "US Intermediate-Term Bonds",
             "GLD": "Gold",
             "DBC": "Commodities",
-        },
-    },
-    "cta": {
-        "description": "CTA universe: equities, bonds, gold, commodities, FX",
-        "symbols": ["SPY", "EFA", "TLT", "IEF", "GLD", "DBC", "FXE"],
-        "asset_classes": {
-            "SPY": "US Equities",
-            "EFA": "International Equities",
-            "TLT": "US Long-Term Bonds",
-            "IEF": "US Intermediate-Term Bonds",
-            "GLD": "Gold",
-            "DBC": "Commodities",
-            "FXE": "US Dollar Index (EUR)",
         },
     },
 }
@@ -71,17 +74,10 @@ def list_universes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Custom exception
+# Loading with retry
 # ---------------------------------------------------------------------------
 
-
-class DataQualityError(ValueError):
-    """Raised when data quality checks fail."""
-
-
-# ---------------------------------------------------------------------------
-# Loading
-# ---------------------------------------------------------------------------
+_RETRY_DELAYS: list[float] = [5.0, 15.0, 45.0]
 
 
 def load_universe(
@@ -91,10 +87,13 @@ def load_universe(
     interval: str = "1d",
     use_cache: bool = True,
 ) -> pd.DataFrame:
-    """Load combined data for a universe definition.
+    """Load combined data for a universe with retry on failure.
+
+    Each symbol is downloaded individually. If a symbol fails, up to 3
+    retries with exponential backoff (5s, 15s, 45s) are attempted.
 
     Args:
-        name: Key into UNIVERSES dict ('equity' or 'cta').
+        name: Key into UNIVERSES dict ('cta' or 'rp').
         start: Start date 'YYYY-MM-DD'.
         end: End date 'YYYY-MM-DD'.
         interval: Bar interval (default '1d').
@@ -109,169 +108,200 @@ def load_universe(
         raise ValueError(f"Unknown universe '{name}'. Valid options: {valid}")
 
     symbols = UNIVERSES[name]["symbols"]
-    df = load_combined(symbols, start, end, interval, use_cache=use_cache)
+    all_frames: list[pd.DataFrame] = []
 
-    if df.empty:
-        log.warning("No data returned for universe '%s' from %s to %s", name, start, end)
+    for sym in symbols:
+        last_error: Exception | None = None
+        for attempt, delay in enumerate(_RETRY_DELAYS):
+            try:
+                df = load_bars(sym, start, end, interval, use_cache=use_cache)
+                if not df.empty:
+                    all_frames.append(df)
+                    last_error = None
+                    break
+            except Exception as e:
+                last_error = e
+                log.warning(
+                    "Attempt %d/3 failed for %s: %s. Retrying in %.0fs...",
+                    attempt + 1, sym, e, delay,
+                )
+                time.sleep(delay)
 
-    return df
+        if last_error is not None:
+            log.error("All retries exhausted for %s: %s", sym, last_error)
+
+    if not all_frames:
+        return pd.DataFrame(
+            columns=["symbol", "timestamp", "open", "high", "low", "close", "volume"]
+        )
+
+    combined = pd.concat(all_frames, ignore_index=True)
+    combined = combined.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
+    return combined
 
 
 # ---------------------------------------------------------------------------
-# Data quality validation
+# Data quality validation (7 checks)
 # ---------------------------------------------------------------------------
 
 
 def validate_data(
     df: pd.DataFrame,
+    expected_symbols: list[str] | None = None,
     name: str = "",
-    min_coverage: float = 0.90,
+    max_missing_pct: float = 0.05,
     max_nan_pct: float = 0.05,
-    max_gap_days: int = 10,
-) -> dict[str, Any]:
+) -> list[str]:
     """Validate data quality for a combined multi-symbol DataFrame.
 
-    Checks:
-    - Non-empty DataFrame
-    - Required columns present
-    - NaN percentage per symbol
-    - Data coverage ratio (actual / expected business days)
-    - Gap detection (consecutive missing business days per symbol)
+    Seven checks:
+      1. Required columns exist
+      2. No duplicate (timestamp, symbol) rows
+      3. Date alignment -- all symbols share the same dates (after forward-fill)
+      4. Missing bar count -- each symbol within max_missing_pct of expected
+      5. Price sanity -- no zeros, negatives, or unrealistic values
+      6. NaN check per column
+      7. Volume check -- no zero volumes, no unrealistic spikes
 
     Args:
-        df: DataFrame with [symbol, timestamp, open, high, low, close, volume].
+        df: DataFrame with columns [symbol, timestamp, open, high, low, close, volume].
+        expected_symbols: Optional list of symbols that must all be present.
         name: Optional label for error messages.
-        min_coverage: Minimum fraction of expected bars that must exist (default 0.90).
-        max_nan_pct: Maximum fraction of NaN values allowed per column (default 0.05).
-        max_gap_days: Maximum allowed consecutive missing business days (default 10).
+        max_missing_pct: Max fraction of missing bars allowed (default 0.05).
+        max_nan_pct: Max fraction of NaN values allowed per column (default 0.05).
 
     Returns:
-        Dict with validation results:
-            'passed': bool
-            'n_symbols': int
-            'total_bars': int
-            'date_range': (str, str) | None
-            'symbol_results': dict[str, dict]
-            'errors': list[str]
-
-    Raises:
-        DataQualityError: If critical quality checks fail.
+        List of error messages (empty = all checks passed).
     """
-    result: dict[str, Any] = {
-        "passed": False,
-        "n_symbols": 0,
-        "total_bars": 0,
-        "date_range": None,
-        "symbol_results": {},
-        "errors": [],
-    }
+    errors: list[str] = []
 
-    # Check non-empty
     if df.empty:
-        result["errors"].append(f"{name}: DataFrame is empty")
-        return result
+        errors.append(f"{name}: DataFrame is empty")
+        return errors
 
-    # Required columns
+    # 1. Required columns
     required = ["symbol", "timestamp", "open", "high", "low", "close", "volume"]
     missing_cols = [c for c in required if c not in df.columns]
     if missing_cols:
-        result["errors"].append(f"{name}: Missing columns: {missing_cols}")
-        return result
+        errors.append(f"{name}: Missing columns: {missing_cols}")
+        return errors
 
-    result["total_bars"] = len(df)
-    result["n_symbols"] = df["symbol"].nunique()
+    # 2. Duplicate detection
+    dup_mask = df.duplicated(subset=["timestamp", "symbol"], keep=False)
+    n_dupes = dup_mask.sum()
+    if n_dupes > 0:
+        errors.append(f"{name}: {n_dupes} duplicate (timestamp, symbol) rows found")
 
-    # Date range
-    ts = pd.to_datetime(df["timestamp"])
-    result["date_range"] = (str(ts.min().date()), str(ts.max().date()))
+    # 3. Coverage: all expected symbols present
+    actual_symbols = set(df["symbol"].unique())
+    if expected_symbols:
+        expected_set = set(expected_symbols)
+        missing = expected_set - actual_symbols
+        if missing:
+            errors.append(f"{name}: Missing symbols from data: {sorted(missing)}")
 
-    total_errors: list[str] = []
-    symbol_results: dict[str, dict] = {}
+    actual_count = len(actual_symbols)
 
-    for sym in df["symbol"].unique():
-        sub = df[df["symbol"] == sym].copy()
-        sub = sub.sort_values("timestamp")
-        sym_errors: list[str] = []
+    # Date alignment check
+    ts_per_sym = df.groupby("symbol")["timestamp"].nunique()
+    max_ts = ts_per_sym.max()
+    min_ts = ts_per_sym.min()
+    if min_ts < max_ts * 0.95:
+        low_syms = ts_per_sym[ts_per_sym < max_ts * 0.95].index.tolist()
+        errors.append(
+            f"{name}: Date alignment issue -- symbols with fewer dates: {low_syms}"
+        )
 
-        # NaN check per column
-        for col in ["open", "high", "low", "close", "volume"]:
-            nan_pct = sub[col].isna().mean()
-            if nan_pct > max_nan_pct:
-                msg = f"{sym}: {col} NaN {nan_pct:.1%} > {max_nan_pct:.0%}"
-                sym_errors.append(msg)
+    # 4. Missing bar count per symbol
+    all_dates = sorted(df["timestamp"].unique())
+    if len(all_dates) > 0 and actual_count > 0:
+        expected_bars = len(all_dates)
+        for sym in df["symbol"].unique():
+            sym_bars = df[df["symbol"] == sym]["timestamp"].nunique()
+            missing_frac = (expected_bars - sym_bars) / expected_bars
+            if missing_frac > max_missing_pct:
+                errors.append(
+                    f"{name}: {sym} missing {missing_frac:.1%} bars "
+                    f"({sym_bars}/{expected_bars})"
+                )
 
-        # Coverage ratio
-        sub_ts = pd.to_datetime(sub["timestamp"])
-        expected = pd.bdate_range(sub_ts.min(), sub_ts.max())
-        actual = sub_ts.nunique()
-        coverage = actual / len(expected) if len(expected) > 0 else 1.0
-        if coverage < min_coverage:
-            msg = f"{sym}: coverage {coverage:.1%} < {min_coverage:.0%} ({actual}/{len(expected)} days)"
-            sym_errors.append(msg)
+    # 5. Price sanity
+    for col in ["open", "high", "low", "close"]:
+        if col not in df.columns:
+            continue
+        zeros = (df[col] <= 0).sum()
+        if zeros > 0:
+            errors.append(f"{name}: {zeros} zero/negative values in {col}")
+        inf_mask = df[col].isin([float("inf"), float("-inf")])
+        n_inf = inf_mask.sum()
+        if n_inf > 0:
+            errors.append(f"{name}: {n_inf} infinite values in {col}")
 
-        # Gap detection
-        sorted_dates = sorted(sub_ts.unique())
-        if len(sorted_dates) > 1:
-            business_day_diffs = []
-            for i in range(1, len(sorted_dates)):
-                diff = pd.bdate_range(sorted_dates[i - 1], sorted_dates[i])
-                gap = len(diff) - 1
-                if gap > 0:
-                    business_day_diffs.append(gap)
-            max_gap = max(business_day_diffs) if business_day_diffs else 0
-            if max_gap > max_gap_days:
-                msg = f"{sym}: max gap {max_gap}d > {max_gap_days}d"
-                sym_errors.append(msg)
-        else:
-            max_gap = 0
+    # 6. NaN check per column
+    for col in ["open", "high", "low", "close", "volume"]:
+        if col not in df.columns:
+            continue
+        nan_pct = df[col].isna().mean()
+        if nan_pct > max_nan_pct:
+            errors.append(
+                f"{name}: {col} NaN {nan_pct:.1%} > {max_nan_pct:.0%}"
+            )
 
-        symbol_results[sym] = {
-            "bars": len(sub),
-            "coverage": coverage,
-            "max_gap_days": max_gap,
-            "errors": sym_errors,
-        }
-        total_errors.extend(sym_errors)
+    # 7. Volume check
+    if "volume" in df.columns:
+        zero_vol = (df["volume"] == 0).sum()
+        if zero_vol > 0:
+            errors.append(f"{name}: {zero_vol} rows with zero volume")
+        vol = df["volume"]
+        vol = vol[vol > 0]
+        if len(vol) > 0:
+            median_vol = vol.median()
+            if median_vol > 0:
+                spike_ratio = vol.max() / median_vol
+                if spike_ratio > 500:
+                    errors.append(
+                        f"{name}: Volume spike detected -- max/median ratio {spike_ratio:.0f}x"
+                    )
 
-    result["symbol_results"] = symbol_results
-    result["errors"] = total_errors
-    result["passed"] = len(total_errors) == 0
-
-    return result
+    return errors
 
 
-def load_and_validate(
+# ---------------------------------------------------------------------------
+# Combined fetch and prepare
+# ---------------------------------------------------------------------------
+
+
+def fetch_and_prepare(
     name: str,
     start: str,
     end: str,
     interval: str = "1d",
     use_cache: bool = True,
-    **validate_kwargs: Any,
 ) -> pd.DataFrame:
     """Load a universe and validate data quality in one call.
 
     Args:
-        name: Universe name ('equity' or 'cta').
+        name: Universe name ('cta' or 'rp').
         start: Start date 'YYYY-MM-DD'.
         end: End date 'YYYY-MM-DD'.
         interval: Bar interval.
         use_cache: Use parquet caching.
-        **validate_kwargs: Passed through to validate_data().
 
     Returns:
         Validated DataFrame.
 
     Raises:
-        DataQualityError: If validation fails.
+        ValueError: If validation fails or universe is unknown.
     """
     df = load_universe(name, start, end, interval, use_cache=use_cache)
-    vresult = validate_data(df, name=name, **validate_kwargs)
+    expected = UNIVERSES.get(name, {}).get("symbols")
+    errs = validate_data(df, expected_symbols=expected, name=name)
 
-    if not vresult["passed"]:
+    if errs:
         msg = f"Data quality validation failed for '{name}'"
-        for err in vresult["errors"]:
-            msg += f"\n  - {err}"
-        raise DataQualityError(msg)
+        for e in errs:
+            msg += f"\n  - {e}"
+        raise ValueError(msg)
 
     return df
 
@@ -281,35 +311,24 @@ def load_and_validate(
 # ---------------------------------------------------------------------------
 
 
-def _print_validation_report(vresult: dict[str, Any], label: str = "") -> None:
-    """Print validation results in a readable format."""
-    status = "PASS" if vresult["passed"] else "FAIL"
+def _print_validation_report(errs: list[str], label: str = "") -> None:
+    """Print validation results."""
+    status = "PASS" if not errs else "FAIL"
     print(f"\n  [{status}] {label or 'Validation'}")
-    if vresult["date_range"]:
-        print(f"    Range: {vresult['date_range'][0]} -> {vresult['date_range'][1]}")
-    print(f"    Symbols: {vresult['n_symbols']}")
-    print(f"    Total bars: {vresult['total_bars']}")
-
-    for sym, sr in vresult["symbol_results"].items():
-        errs = sr["errors"]
-        sym_status = "PASS" if not errs else "FAIL"
-        print(f"    [{sym_status}] {sym}: {sr['bars']} bars, "
-              f"coverage {sr['coverage']:.1%}, max gap {sr['max_gap_days']}d")
-        for e in errs:
-            print(f"           ERROR: {e}")
-
-    if vresult["errors"]:
-        print(f"    Total errors: {len(vresult['errors'])}")
+    for e in errs:
+        print(f"    ERROR: {e}")
 
 
 def main() -> None:
     """CLI entry point for data loading and validation."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Real data loader for Phase A backtesting")
+    parser = argparse.ArgumentParser(
+        description="Real data loader for Phase A validation"
+    )
     parser.add_argument("--universe", type=str, default=None,
-                        help="Universe to load and validate (equity, cta)")
-    parser.add_argument("--start", type=str, default="2008-01-01",
+                        help="Universe to load and validate (cta, rp)")
+    parser.add_argument("--start", type=str, default="2018-01-01",
                         help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", type=str, default="2024-12-31",
                         help="End date (YYYY-MM-DD)")
@@ -348,8 +367,9 @@ def main() -> None:
 
             print(f"  Loaded {len(df)} bars across {df['symbol'].nunique()} symbols")
 
-            vresult = validate_data(df, name=uname)
-            _print_validation_report(vresult, uname)
+            expected = UNIVERSES[uname]["symbols"]
+            errs = validate_data(df, expected_symbols=expected, name=uname)
+            _print_validation_report(errs, uname)
 
         except Exception as e:
             print(f"  ERROR: {e}")
