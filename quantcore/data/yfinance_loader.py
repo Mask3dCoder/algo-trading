@@ -83,7 +83,7 @@ def load_bars(
 
     log.info("Downloading %s from %s to %s (%s)", symbol, start, end, interval)
     ticker = yf.Ticker(symbol)
-    raw = ticker.history(start=start, end=end, interval=interval, auto_adjust=False)
+    raw = ticker.history(start=start, end=end, interval=interval, auto_adjust=True)
 
     if raw.empty:
         log.warning("No data returned for %s (%s → %s)", symbol, start, end)
