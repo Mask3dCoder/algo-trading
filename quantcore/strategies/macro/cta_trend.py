@@ -31,6 +31,9 @@ class CTATrendStrategy(Strategy):
         vol_target: annualized vol target (default 0.15)
         vol_lookback: vol estimation lookback (default 60)
         rebalance_freq: rebalancing frequency in days (default 5)
+        vol_regime_threshold: scale when 20-bar portfolio vol > vol_target * this (default 0.30)
+        vol_regime_lookback: vol estimation window for regime detection (default 20)
+        min_vol_scale: minimum scale factor during high vol regimes (default 0.20)
     """
 
     def __init__(self, config: StrategyConfig) -> None:
@@ -44,6 +47,9 @@ class CTATrendStrategy(Strategy):
         self.vol_target = float(config.params.get("vol_target", 0.15))
         self.vol_lookback = int(config.params.get("vol_lookback", 60))
         self.rebalance_freq = int(config.params.get("rebalance_freq", 5))
+        self.vol_regime_threshold = float(config.params.get("vol_regime_threshold", 0.30))
+        self.vol_regime_lookback = int(config.params.get("vol_regime_lookback", 20))
+        self.min_vol_scale = float(config.params.get("min_vol_scale", 0.20))
         self._days_since_rebalance = 0
 
     def _trend_signal(self, prices: NDArray, window: int) -> float:
@@ -72,6 +78,37 @@ class CTATrendStrategy(Strategy):
         ret = prices[-1] / prices[-window - 1] - 1.0
         return float(np.sign(ret))
 
+    def _vol_regime_scale(self, prices: NDArray) -> float:
+        """Detect high-vol regimes using 20-bar portfolio vol.
+
+        When 20-bar vol of the portfolio mean return exceeds a threshold
+        (vol_target * vol_regime_threshold), shift signal weights from fast
+        to slow and reduce position sizes. This directly targets the HIGH_VOL
+        regime definition (elevated 20-bar portfolio vol).
+        """
+        min_needed = self.vol_regime_lookback + 2
+        if len(prices) < min_needed:
+            return 1.0
+
+        # Portfolio vol via mean return
+        if prices.ndim == 2:
+            mean_p = np.mean(prices, axis=1)
+        else:
+            mean_p = prices
+
+        recent = mean_p[-(self.vol_regime_lookback + 1):]
+        recent_rets = np.diff(recent) / recent[:-1]
+        recent_vol = float(np.std(recent_rets, ddof=1)) * np.sqrt(252)
+
+        trigger = self.vol_target * self.vol_regime_threshold
+        if recent_vol <= trigger:
+            return 1.0
+
+        # Inverse-square decay above threshold
+        ratio = recent_vol / trigger
+        scale = max(self.min_vol_scale, 1.0 / ratio ** 2)
+        return float(scale)
+
     def on_data(self, data: dict[str, NDArray]) -> list[TradeSignal]:
         close = data.get("close")
         if close is None:
@@ -94,6 +131,10 @@ class CTATrendStrategy(Strategy):
 
         symbols = data.get("symbols", [f"asset_{i}" for i in range(n_assets)])
 
+        # Portfolio-level regime detection (once, before per-asset loop)
+        regime_scale = self._vol_regime_scale(close)
+        in_high_regime = regime_scale < 1.0
+
         for a in range(n_assets):
             prices = close[:, a]
 
@@ -114,11 +155,20 @@ class CTATrendStrategy(Strategy):
                 + self._momentum_signal(prices, self.slow_window) * 0.3
             )
 
-            # Weighted combination
+            # Dynamic weight shift during high-vol regimes
+            if in_high_regime:
+                shift = (1.0 - regime_scale) * 0.4
+                fw = max(0.0, self.fast_weight - shift)
+                sw = self.slow_weight + (self.fast_weight - fw)
+            else:
+                fw = self.fast_weight
+                sw = self.slow_weight
+
+            # Weighted combination with dynamic weights
             composite = (
-                self.fast_weight * np.clip(fast_signal, -1, 1)
+                fw * np.clip(fast_signal, -1, 1)
                 + self.medium_weight * np.clip(medium_signal, -1, 1)
-                + self.slow_weight * np.clip(slow_signal, -1, 1)
+                + sw * np.clip(slow_signal, -1, 1)
             )
 
             # Vol targeting
@@ -132,7 +182,7 @@ class CTATrendStrategy(Strategy):
                 continue
 
             vol_scale = self.vol_target / realized_vol
-            position = composite * vol_scale
+            position = composite * vol_scale * regime_scale
 
             if abs(position) < 0.05:
                 continue
