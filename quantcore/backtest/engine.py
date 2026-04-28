@@ -21,6 +21,17 @@ from quantcore.backtest.analytics import (
     compute_returns,
     generate_performance_report,
 )
+from quantcore.backtest.impact_config import (
+    MarketImpactConfig,
+    MarketImpactEngine,
+    VolumeFilterConfig,
+)
+from quantcore.backtest.financing import (
+    BorrowCostRegistry,
+    FinancingConfig,
+    compute_daily_borrow_cost,
+    compute_daily_margin_interest,
+)
 from quantcore.core.types import OHLCV, Fill, Order, OrderType, Position, Side
 from quantcore.risk.drawdown import DrawdownAction, DrawdownConfig, DrawdownTracker
 from quantcore.risk.limits import LimitCheckResult, RiskLimits, check_pre_trade
@@ -55,6 +66,7 @@ class SignalData:
     direction: str  # "long", "short", "flat"
     strength: float
     strategy_id: str
+    notional_size: float | None = None  # strategy-computed position size, overrides sizing_pct
 
 
 @dataclass
@@ -100,6 +112,11 @@ class PortfolioState:
         self.trades: list[Fill] = []
         self.signal_log: list[dict[str, Any]] = []
         self.regime_state: str = "unknown"
+        self.total_market_impact_cost: float = 0.0
+        # Financing tracking (P2)
+        self.total_borrow_cost: float = 0.0
+        self.total_margin_interest: float = 0.0
+        self._financing_config: FinancingConfig | None = None
 
     @property
     def total_value(self) -> float:
@@ -135,6 +152,10 @@ class PortfolioState:
         price = float(fill.price)
         commission = float(fill.commission)
         self.cash -= commission
+
+        # Track market impact cost as a separate line item (already reflected in fill price)
+        self.total_market_impact_cost += float(fill.market_impact_cost)
+
         self.trades.append(fill)
 
         if symbol not in self.positions:
@@ -153,15 +174,20 @@ class PortfolioState:
             # Update average cost for buys
             if fill.order_id.endswith("_buy"):
                 total_cost = float(pos.avg_cost) * abs(current_qty) + price * qty
-                new_avg = total_cost / abs(new_qty) if new_qty != 0 else 0.0
+                new_avg = total_cost / abs(new_qty) if abs(new_qty) > 1e-10 else float(pos.avg_cost)
             else:
                 new_avg = float(pos.avg_cost)
 
             realized = 0.0
-            if fill.order_id.endswith("_sell") and current_qty > 0:
-                realized = (price - float(pos.avg_cost)) * qty
+            if fill.order_id.endswith("_sell"):
+                if current_qty > 0:
+                    realized = (price - float(pos.avg_cost)) * qty
+                # current_qty <= 0: adding to short, no realized P&L yet
                 self.cash += qty * price
             elif fill.order_id.endswith("_buy"):
+                if current_qty < 0:
+                    realized = (float(pos.avg_cost) - price) * qty
+                # current_qty >= 0: adding to long, no realized P&L yet
                 self.cash -= qty * price
 
             self.positions[symbol] = Position(
@@ -178,6 +204,71 @@ class PortfolioState:
 
     def record_equity(self, timestamp: float) -> None:
         self.equity_curve.append((timestamp, self.total_value))
+
+    def set_financing_config(self, config: FinancingConfig | None) -> None:
+        """Set the financing config for borrow/margin cost calculations."""
+        self._financing_config = config
+
+    def daily_financing_update(self) -> None:
+        """Accrue borrowing costs and margin interest for the current bar.
+
+        Called once per bar in the engine loop after price updates.
+        Deducts costs from cash and updates tracking totals.
+        If margin limit is breached, sets a flag for forced liquidation.
+        """
+        config = self._financing_config
+        if config is None:
+            return
+
+        registry = config.borrow_cost_registry
+        total_short_value = 0.0
+        total_long_value = 0.0
+
+        for symbol, pos in self.positions.items():
+            qty = float(pos.quantity)
+            price = self._prices.get(symbol, float(pos.market_price))
+            market_value = qty * price
+
+            if qty < 0:  # Short position
+                abs_value = abs(market_value)
+                total_short_value += abs_value
+                borrow_rate = registry.get_rate(symbol) if registry else 0.005
+                daily_cost = abs_value * borrow_rate / 360.0
+                if daily_cost > 0:
+                    self.cash -= daily_cost
+                    self.total_borrow_cost += daily_cost
+            elif qty > 0:  # Long position
+                total_long_value += market_value
+
+        # Margin interest on leveraged long positions
+        if config.margin_rate > 0 and total_long_value > self.cash:
+            margin_used = total_long_value - self.cash
+            daily_interest = margin_used * config.margin_rate / 360.0
+            if daily_interest > 0:
+                self.cash -= daily_interest
+                self.total_margin_interest += daily_interest
+
+    @property
+    def is_margin_breach(self) -> bool:
+        """Check if margin usage exceeds the configured limit."""
+        config = self._financing_config
+        if config is None:
+            return False
+        total_value = self.total_value
+        if total_value <= 0:
+            return False
+        # Margin used = total position value / equity (1.0 = no leverage)
+        long_value = sum(
+            max(0, float(p.quantity)) * self._prices.get(s, float(p.market_price))
+            for s, p in self.positions.items()
+        )
+        short_value = sum(
+            abs(min(0, float(p.quantity))) * self._prices.get(s, float(p.market_price))
+            for s, p in self.positions.items()
+        )
+        total_exposure = long_value + short_value
+        leverage = total_exposure / total_value
+        return leverage > config.margin_limit
 
 
 # ---------------------------------------------------------------------------
@@ -221,19 +312,31 @@ class HistoricalDataHandler:
 
 
 class FillSimulator:
-    """Simulates order fills with slippage and commissions."""
+    """Simulates order fills with slippage, commissions, and market impact."""
 
     def __init__(
         self,
         slippage_bps: float = 5.0,
         commission_per_share: float = 0.005,
         fill_at: str = "next_open",
+        impact_config: MarketImpactConfig | None = None,
+        volume_filter_config: VolumeFilterConfig | None = None,
     ) -> None:
         self.slippage_bps = slippage_bps
         self.commission_per_share = commission_per_share
         self.fill_at = fill_at
         self._next_bar: OHLCV | None = None
         self._current_bar: OHLCV | None = None
+        self._impact_engine: MarketImpactEngine | None = None
+        self._permanent_impact: dict[str, float] = {}  # symbol → cumulative perm impact in price units
+
+        if impact_config is not None:
+            self._impact_engine = MarketImpactEngine(impact_config, volume_filter_config)
+
+    def set_data(self, data: pd.DataFrame) -> None:
+        """Provide historical data for ADV/sigma estimation."""
+        if self._impact_engine is not None:
+            self._impact_engine.set_data(data)
 
     def set_bars(self, current: OHLCV, next_bar: OHLCV | None = None) -> None:
         self._current_bar = current
@@ -249,12 +352,60 @@ class FillSimulator:
 
         fill_price = float(bar.open)
 
-        # Apply slippage
+        # Apply base slippage
         slip = fill_price * self.slippage_bps / 10_000.0
         if order.side == Side.BUY:
             fill_price += slip
         else:
             fill_price -= slip
+
+        qty = float(order.quantity)
+        bar_volume = int(bar.volume)
+        market_impact_cost = 0.0
+        impact_bps = 0.0
+
+        # Volume filter and market impact
+        if self._impact_engine is not None:
+            # Check volume filter (may reduce fill quantity)
+            adjusted_qty, is_clipped = self._impact_engine.check_volume_filter(
+                qty, bar_volume
+            )
+            if adjusted_qty <= 0:
+                return None  # Fill rejected by volume filter
+
+            if is_clipped:
+                qty = adjusted_qty
+
+            # Compute market impact
+            result = self._impact_engine.estimate_impact(
+                shares=qty,
+                price=float(bar.open),
+                bar_volume=bar_volume,
+            )
+            impact_bps = result.total_cost_bps
+
+            # Apply temporary impact to fill price
+            temp_impact_price = float(bar.open) * result.temp_impact_bps / 10_000.0
+            if order.side == Side.BUY:
+                fill_price += temp_impact_price
+            else:
+                fill_price -= temp_impact_price
+
+            # Apply accumulated permanent impact from prior trades
+            sym_perm = self._permanent_impact.get(order.symbol, 0.0)
+            if sym_perm != 0.0:
+                if order.side == Side.BUY:
+                    fill_price += sym_perm
+                else:
+                    fill_price -= sym_perm
+
+            # Update cumulative permanent impact
+            perm_impact_price = float(bar.open) * result.perm_impact_bps / 10_000.0
+            self._permanent_impact[order.symbol] = (
+                self._permanent_impact.get(order.symbol, 0.0) + perm_impact_price
+            )
+
+            market_impact_cost = result.total_cost_dollars
 
         # Check limit orders
         if order.type == OrderType.LIMIT and order.limit_price is not None:
@@ -263,16 +414,17 @@ class FillSimulator:
             if order.side == Side.SELL and fill_price < float(order.limit_price):
                 return None
 
-        qty = float(order.quantity)
         commission = qty * self.commission_per_share
 
         return Fill(
             order_id=f"{order.id}_{order.side.value}",
             price=Decimal(str(round(fill_price, 6))),
-            quantity=order.quantity,
+            quantity=Decimal(str(qty)),
             commission=Decimal(str(round(commission, 4))),
             timestamp=bar.timestamp,
             slippage_bps=Decimal(str(self.slippage_bps)),
+            market_impact_cost=Decimal(str(round(market_impact_cost, 4))),
+            impact_bps=Decimal(str(round(impact_bps, 4))),
         )
 
 
@@ -303,10 +455,20 @@ class BacktestEngine:
         sizing_fn: Callable[[float, float, dict[str, Any]], float] | None = None,
         drawdown_config: DrawdownConfig | None = None,
         regime_model: Any = None,
+        impact_config: MarketImpactConfig | None = None,
+        volume_filter_config: VolumeFilterConfig | None = None,
+        financing_config: FinancingConfig | None = None,
     ) -> None:
         self.strategy = strategy
         self.portfolio = PortfolioState(initial_cash)
-        self.fill_sim = FillSimulator(slippage_bps, commission_per_share)
+        self.portfolio.set_financing_config(financing_config)
+        self._financing_config = financing_config
+        self.fill_sim = FillSimulator(
+            slippage_bps,
+            commission_per_share,
+            impact_config=impact_config,
+            volume_filter_config=volume_filter_config,
+        )
         self.risk_limits = risk_limits
         self.sizing_pct = sizing_pct
         self.sizing_fn = sizing_fn  # (cash, price, context) -> shares
@@ -319,10 +481,21 @@ class BacktestEngine:
         return self._rejected_orders
 
     def _compute_sizing(
-        self, side: Side, price: float, bar: OHLCV, sig_strength: float
+        self, side: Side, price: float, bar: OHLCV, sig: SignalData
     ) -> int:
         """Compute position size using the configured sizing strategy."""
         cash = self.portfolio.cash
+        pv = self.portfolio.total_value
+
+        # Strategy-computed notional_size takes priority
+        if sig.notional_size is not None and sig.notional_size > 0:
+            qty = int(sig.notional_size / price)
+            if side == Side.BUY:
+                return min(qty, int(cash / price)) if cash > 0 else 0
+            else:
+                # Short: limit to 2x portfolio value (Reg T margin)
+                return min(qty, int(pv * 2.0 / price))
+
         if cash <= 0 and side == Side.BUY:
             return 0
 
@@ -330,16 +503,17 @@ class BacktestEngine:
             context = {
                 "cash": cash,
                 "price": price,
-                "signal_strength": sig_strength,
+                "signal_strength": sig.strength,
                 "bar": bar,
-                "portfolio_value": self.portfolio.total_value,
+                "portfolio_value": pv,
             }
             return int(self.sizing_fn(cash, price, context))
 
+        qty = int(pv * self.sizing_pct / price)
         if side == Side.BUY:
-            return int(cash * self.sizing_pct / price)
+            return min(qty, int(cash / price)) if cash > 0 else 0
         else:
-            return 0
+            return qty
 
     def _current_regime(self, bar: OHLCV) -> str | None:
         """Detect current regime from the model if configured."""
@@ -360,7 +534,11 @@ class BacktestEngine:
         """
         handler = HistoricalDataHandler(data)
         self.portfolio = PortfolioState(self.portfolio.initial_cash)
+        self.portfolio.set_financing_config(self._financing_config)
         self._rejected_orders = []
+
+        # Set up market impact engine with historical data
+        self.fill_sim.set_data(data)
 
         if self.drawdown_tracker:
             self.drawdown_tracker = DrawdownTracker(
@@ -378,6 +556,33 @@ class BacktestEngine:
 
             # Update portfolio prices
             self.portfolio.update_price(bar.symbol, float(bar.close))
+
+            # Daily financing cost accrual (borrow costs + margin interest)
+            self.portfolio.daily_financing_update()
+
+            # Forced liquidation on margin breach
+            if self.portfolio.is_margin_breach:
+                for sym in list(self.portfolio.positions.keys()):
+                    pos = self.portfolio.positions[sym]
+                    close_qty = int(abs(float(pos.quantity)))
+                    if close_qty == 0:
+                        continue
+                    close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
+                    oid = f"ord_margin_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
+                    order = Order(
+                        id=oid, symbol=sym, side=close_side,
+                        type=OrderType.MARKET, quantity=Decimal(str(close_qty)),
+                    )
+                    self.fill_sim.set_bars(bar, None)
+                    fill = self.fill_sim.simulate_fill(order)
+                    if fill is not None:
+                        self.portfolio.apply_fill(fill, sym)
+                        self.strategy.on_fill(fill, self.portfolio)
+                # Skip signal processing for this bar (all positions closed)
+                self.portfolio.record_equity(
+                    bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
+                )
+                continue
 
             # Update drawdown tracker
             if self.drawdown_tracker is not None:
@@ -431,6 +636,22 @@ class BacktestEngine:
 
             # Convert signals to orders with risk checks and sizing
             for sig in signals:
+                price = float(bar.close)
+                pos = self.portfolio.positions.get(sig.symbol)
+                current_qty = float(pos.quantity) if pos else 0.0
+
+                # "flat" signal: close any existing position
+                if sig.direction == "flat":
+                    if abs(current_qty) > 1e-8:
+                        close_side = Side.SELL if current_qty > 0 else Side.BUY
+                        close_order = Order(
+                            id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_exit",
+                            symbol=sig.symbol, side=close_side, type=OrderType.MARKET,
+                            quantity=Decimal(str(int(abs(current_qty)))),
+                        )
+                        pending_orders.append(close_order)
+                    continue
+
                 if sig.direction == "long":
                     side = Side.BUY
                 elif sig.direction == "short":
@@ -438,18 +659,27 @@ class BacktestEngine:
                 else:
                     continue
 
-                price = float(bar.close)
+                # Close opposing position before opening new one
+                if side == Side.BUY and current_qty < 0:
+                    cover_qty = int(abs(current_qty))
+                    cover_order = Order(
+                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_buy_cover",
+                        symbol=sig.symbol, side=Side.BUY, type=OrderType.MARKET,
+                        quantity=Decimal(str(cover_qty)),
+                    )
+                    pending_orders.append(cover_order)
+                elif side == Side.SELL and current_qty > 0:
+                    close_qty = int(abs(current_qty))
+                    close_order = Order(
+                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_sell_close",
+                        symbol=sig.symbol, side=Side.SELL, type=OrderType.MARKET,
+                        quantity=Decimal(str(close_qty)),
+                    )
+                    pending_orders.append(close_order)
 
-                if side == Side.BUY:
-                    qty = self._compute_sizing(side, price, bar, sig.strength)
-                    if qty <= 0:
-                        continue
-                else:
-                    # For sells/shorts, close existing position
-                    pos = self.portfolio.positions.get(sig.symbol)
-                    if pos is None or float(pos.quantity) <= 0:
-                        continue
-                    qty = int(abs(float(pos.quantity)))
+                qty = self._compute_sizing(side, price, bar, sig)
+                if qty <= 0:
+                    continue
 
                 order = Order(
                     id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_{side.value}",
@@ -506,13 +736,15 @@ class BacktestEngine:
             # Close any remaining open positions at the last available price
             for sym in list(self.portfolio.positions.keys()):
                 pos = self.portfolio.positions[sym]
-                if float(pos.quantity) <= 0:
-                    continue
                 close_qty = int(abs(float(pos.quantity)))
+                if close_qty == 0:
+                    continue
+                close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
+                oid = f"ord_eop_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
                 order = Order(
-                    id=f"ord_eop_{sym}_sell",
+                    id=oid,
                     symbol=sym,
-                    side=Side.SELL,
+                    side=close_side,
                     type=OrderType.MARKET,
                     quantity=Decimal(str(close_qty)),
                 )
@@ -520,6 +752,7 @@ class BacktestEngine:
                 fill = self.fill_sim.simulate_fill(order)
                 if fill is not None:
                     self.portfolio.apply_fill(fill, sym)
+                    self.strategy.on_fill(fill, self.portfolio)
                     self.portfolio.signal_log.append({
                         "timestamp": bar.timestamp,
                         "symbol": sym,
@@ -552,7 +785,23 @@ class BacktestEngine:
         returns = compute_returns(equity)
         trade_pnls = self._compute_trade_pnls(self.portfolio.trades)
 
-        return generate_performance_report(equity, returns, np.array(trade_pnls) if trade_pnls else None)
+        # Detect multi-symbol: count unique symbols across all trades
+        # Symbol is embedded in order_id (not a direct Fill field)
+        unique_symbols = set()
+        for t in self.portfolio.trades:
+            unique_symbols.add(self._parse_symbol_from_fill(t.order_id))
+        n_symbols = len(unique_symbols)
+
+        return generate_performance_report(
+            equity,
+            returns,
+            np.array(trade_pnls) if trade_pnls else None,
+            total_market_impact_cost=self.portfolio.total_market_impact_cost,
+            total_borrow_cost=self.portfolio.total_borrow_cost,
+            total_margin_interest=self.portfolio.total_margin_interest,
+            is_multi_symbol=(n_symbols > 1),
+            constituent_symbol_count=n_symbols,
+        )
 
     @staticmethod
     def _parse_symbol_from_fill(order_id: str) -> str:

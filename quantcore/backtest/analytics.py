@@ -49,6 +49,25 @@ class PerformanceReport:
     n_trades: int = 0
     drawdown_table: list[dict[str, Any]] = field(default_factory=list)
     monthly_returns: dict[str, float] = field(default_factory=dict)
+    # Market impact tracking (P1)
+    total_market_impact_cost: float = 0.0
+    impact_cost_bps: float = 0.0
+    impact_adjusted_sharpe: float = 0.0
+    impact_adjusted_returns: list[float] = field(default_factory=list)
+    # Financing tracking (P2)
+    total_borrow_cost: float = 0.0
+    total_margin_interest: float = 0.0
+    borrow_drag_bps: float = 0.0
+    margin_drag_bps: float = 0.0
+    financing_adjusted_sharpe: float = 0.0
+    # PSR / DSR (P3)
+    probabilistic_sharpe: float = 0.0
+    deflated_sharpe: float = 0.0
+    psr_benchmark_sr: float = 0.0
+    min_track_record: int = 0
+    # Multi-symbol metadata
+    is_multi_symbol: bool = False
+    constituent_symbol_count: int = 0
 
 
 def compute_returns(equity: NDArray | pd.Series) -> NDArray:
@@ -185,8 +204,27 @@ def generate_performance_report(
     returns: NDArray | None = None,
     trade_pnls: NDArray | None = None,
     risk_free: float = 0.0,
+    total_market_impact_cost: float = 0.0,
+    total_borrow_cost: float = 0.0,
+    total_margin_interest: float = 0.0,
+    psr_benchmark_sr: float = 0.0,
+    all_trial_sharpes: list[float] | None = None,
+    is_multi_symbol: bool = False,
+    constituent_symbol_count: int = 0,
 ) -> PerformanceReport:
-    """Compute the full performance report from equity curve and optional trade P&Ls."""
+    """Compute the full performance report from equity curve and optional trade P&Ls.
+
+    Args:
+        equity: Equity curve array.
+        returns: Period returns. If None, computed from equity.
+        trade_pnls: Per-trade P&L array for trade-level analytics.
+        risk_free: Annual risk-free rate.
+        total_market_impact_cost: Total market impact cost in dollars.
+        total_borrow_cost: Total short borrow cost in dollars.
+        total_margin_interest: Total margin interest in dollars.
+        psr_benchmark_sr: Benchmark Sharpe for PSR (default 0).
+        all_trial_sharpes: Sharpe ratios from all trials for DSR (optional).
+    """
     equity = np.asarray(equity, dtype=float)
     if returns is None:
         returns = compute_returns(equity)
@@ -199,6 +237,52 @@ def generate_performance_report(
     dd_table = drawdown_analysis(equity)
     avg_dd = float(np.mean([e["depth"] for e in dd_table])) if dd_table else 0.0
 
+    # Compute impact cost in bps (annualized impact / avg AUM)
+    impact_cost_bps = 0.0
+    if total_market_impact_cost > 0 and len(equity) > 1:
+        avg_aum = float(np.mean(equity))
+        if avg_aum > 0:
+            total_impact_bps = (total_market_impact_cost / avg_aum) * 10_000
+            impact_cost_bps = total_impact_bps / max(n_years, 0.01)
+
+    # Compute financing drag in bps
+    borrow_drag_bps = 0.0
+    if total_borrow_cost > 0 and len(equity) > 1:
+        avg_aum = float(np.mean(equity))
+        if avg_aum > 0:
+            total_borrow_bps = (total_borrow_cost / avg_aum) * 10_000
+            borrow_drag_bps = total_borrow_bps / max(n_years, 0.01)
+
+    margin_drag_bps = 0.0
+    if total_margin_interest > 0 and len(equity) > 1:
+        avg_aum = float(np.mean(equity))
+        if avg_aum > 0:
+            total_margin_bps = (total_margin_interest / avg_aum) * 10_000
+            margin_drag_bps = total_margin_bps / max(n_years, 0.01)
+
+    # Compute PSR and DSR
+    probabilistic_sharpe = 0.0
+    deflated_sharpe = 0.0
+    min_track_record = 0
+    if len(r) >= 3:
+        try:
+            from quantcore.risk.psr import (
+                deflated_sharpe_ratio,
+                min_track_record_length,
+                probabilistic_sharpe_ratio,
+            )
+            probabilistic_sharpe = probabilistic_sharpe_ratio(r, benchmark_sr=psr_benchmark_sr, annualize=True)
+            min_track_record = int(min_track_record_length(
+                sharpe_ratio(r, risk_free),
+                benchmark_sr=psr_benchmark_sr,
+                target_probability=0.95,
+            ))
+            if all_trial_sharpes is not None and len(all_trial_sharpes) > 1:
+                best_sr = sharpe_ratio(r, risk_free)
+                deflated_sharpe = deflated_sharpe_ratio(all_trial_sharpes, best_sr, r)
+        except Exception:
+            pass
+
     report = PerformanceReport(
         total_return=total_ret,
         annual_return=annual_ret,
@@ -209,6 +293,18 @@ def generate_performance_report(
         max_drawdown=max_drawdown(equity),
         avg_drawdown=avg_dd,
         drawdown_table=dd_table,
+        total_market_impact_cost=total_market_impact_cost,
+        impact_cost_bps=impact_cost_bps,
+        total_borrow_cost=total_borrow_cost,
+        total_margin_interest=total_margin_interest,
+        borrow_drag_bps=borrow_drag_bps,
+        margin_drag_bps=margin_drag_bps,
+        probabilistic_sharpe=probabilistic_sharpe,
+        deflated_sharpe=deflated_sharpe,
+        psr_benchmark_sr=psr_benchmark_sr,
+        min_track_record=min_track_record,
+        is_multi_symbol=is_multi_symbol,
+        constituent_symbol_count=constituent_symbol_count,
     )
 
     if trade_pnls is not None:
