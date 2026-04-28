@@ -17,12 +17,12 @@ from scripts.strategy_audit import (
     make_data,
     StrategyConfig,
     StrategyType,
-    create,
 )
 from quantcore.backtest.engine import BacktestEngine
-from quantcore.backtest.financing import FinancingConfig
+from quantcore.backtest.financing import BorrowCostRegistry, FinancingConfig
 from quantcore.backtest.impact_config import MarketImpactConfig
 from quantcore.backtest.analytics import drawdown_analysis
+from quantcore.strategies.registry import get as get_strategy_class
 from scripts.strategy_adapter import StrategyAdapter
 
 NAME = "macro_cta_trend"
@@ -98,8 +98,8 @@ if sensitivities:
     for key, val, achg in sensitivities:
         by_param.setdefault(key, []).append(achg)
     most_sensitive = max(by_param.items(), key=lambda x: np.mean(x[1]))
-    print(f"\n  → Most sensitive parameter: {most_sensitive[0]} "
-          f"(mean |ΔSR| = {np.mean(most_sensitive[1]):.4f})")
+    print(f"\n  ==> Most sensitive parameter: {most_sensitive[0]} "
+          f"(mean |dSR| = {np.mean(most_sensitive[1]):.4f})")
 
 # ── Test 3: Regime conditional performance ─────────────────────────────────
 print(f"\n{'='*72}")
@@ -126,7 +126,7 @@ for i in range(20, len(close)):
         corr_series.append(0.0)
 corr_series = np.array(corr_series)
 
-strat = create(NAME, cfg)
+strat = get_strategy_class(NAME)(cfg)
 strat.initialize()
 oos_start = folds[0].test_start
 oos_end = folds[-1].test_end
@@ -200,11 +200,14 @@ print(f"  {'-'*12} {'-'*8} {'-'*8} {'-'*10} {'-'*10}")
 results_cap = []
 for cap in capital_levels:
     try:
-        adapt = StrategyAdapter(create(NAME, cfg), cfg, n_symbols=N_SYM)
+        adapt = StrategyAdapter(get_strategy_class(NAME), cfg, n_symbols=N_SYM)
         engine = BacktestEngine(strategy=adapt, initial_cash=float(cap),
             sizing_pct=0.30,
             impact_config=MarketImpactConfig(sigma=0.02, adv=500_000),
-            financing_config=FinancingConfig(borrow_rate=0.05, margin_rate=0.08, reg_t=0.50))
+            financing_config=FinancingConfig(
+                borrow_cost_registry=BorrowCostRegistry(default_rate=0.05),
+                margin_rate=0.08,
+            ))
         engine.run(engine_data)
         rep = engine.summary()
         equity = np.array([v for _, v in engine.portfolio.equity_curve])
@@ -220,10 +223,10 @@ if results_cap:
     peak_sr = max(r[1] for r in results_cap)
     for cap, sr, imp, brw in results_cap:
         if sr < peak_sr * 0.8:
-            print(f"\n  → Capacity ceiling: ${cap:,} (Sharpe degraded by >20% from {peak_sr:.3f})")
+            print(f"\n  ==> Capacity ceiling: ${cap:,} (Sharpe degraded by >20% from {peak_sr:.3f})")
             break
     else:
-        print(f"\n  → No capacity ceiling detected up to $5M")
+        print(f"\n  ==> No capacity ceiling detected up to $5M")
 
 # ── Test 5: Transaction cost sensitivity ──────────────────────────────────
 print(f"\n{'='*72}")
@@ -239,11 +242,14 @@ print(f"  {'-'*8} {'-'*8} {'-'*8} {'-'*12}")
 results_tc = []
 for mult in tc_mult:
     try:
-        adapt = StrategyAdapter(create(NAME, cfg), cfg, n_symbols=N_SYM)
+        adapt = StrategyAdapter(get_strategy_class(NAME), cfg, n_symbols=N_SYM)
         engine = BacktestEngine(strategy=adapt, initial_cash=1_000_000.0,
             sizing_pct=0.30,
             impact_config=MarketImpactConfig(sigma=0.02, adv=500_000, eta=base_eta*mult),
-            financing_config=FinancingConfig(borrow_rate=0.05, margin_rate=0.08, reg_t=0.50))
+            financing_config=FinancingConfig(
+                borrow_cost_registry=BorrowCostRegistry(default_rate=0.05),
+                margin_rate=0.08,
+            ))
         engine.run(engine_data)
         rep = engine.summary()
         equity = np.array([v for _, v in engine.portfolio.equity_curve])
@@ -258,10 +264,10 @@ for mult in tc_mult:
 if results_tc:
     for mult, sr, _ in results_tc:
         if sr <= 0:
-            print(f"\n  → Breakeven TC at {mult:.1f}x (Sharpe = {sr:.3f})")
+            print(f"\n  ==> Breakeven TC at {mult:.1f}x (Sharpe = {sr:.3f})")
             break
     else:
-        print(f"\n  → No breakeven up to 3x base TC")
+        print(f"\n  ==> No breakeven up to 3x base TC")
 
 # ── Test 6: Trend signal integrity ────────────────────────────────────────
 print(f"\n{'='*72}")
@@ -270,7 +276,7 @@ print(f"{'='*72}")
 
 # 6a) Signal lag
 print("\n  6a) Signal Lag Analysis")
-strat2 = create(NAME, cfg)
+strat2 = get_strategy_class(NAME)(cfg)
 strat2.initialize()
 
 close_arr = data["close"]
@@ -304,7 +310,7 @@ if len(all_signals) > 20:
             print(f"  {lag:>+5d} {corr:>+8.4f}")
             if abs(corr) > abs(best_corr):
                 best_corr, best_lag = corr, lag
-    print(f"  → Peak cross-correlation at lag {best_lag}: {best_corr:+.4f}")
+    print(f"  ==> Peak cross-correlation at lag {best_lag}: {best_corr:+.4f}")
 
 # 6b) Factor beta
 print("\n  6b) Factor Beta to Trend Benchmark (SMA crossover)")
@@ -328,9 +334,9 @@ try:
         print(f"  Beta to SMA crossover: {beta:+.4f}")
         print(f"  R²: {r2:.4f}")
         if abs(beta) < 0.3:
-            print(f"  → Low beta — high idiosyncratic alpha (good)")
+            print(f"  ==> Low beta — high idiosyncratic alpha (good)")
         else:
-            print(f"  → High beta — tracks simple trend benchmark")
+            print(f"  ==> High beta — tracks simple trend benchmark")
 except Exception as e:
     print(f"  Error: {e}")
 
