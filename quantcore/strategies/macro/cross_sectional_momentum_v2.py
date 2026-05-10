@@ -521,6 +521,17 @@ class CrossSectionalMomentumV2Strategy(Strategy):
         return {"drawdown_pct": 0.0, "is_in_cooldown": False,
                 "is_flattened": False, "scale_factor": 1.0}
 
+    def on_fill(self, fill, portfolio=None) -> None:
+        """Handle fill events from the backtest engine.
+
+        The engine calls on_fill(fill: Fill, portfolio: PortfolioState).
+        The ABC declares on_fill(symbol, fill_price, fill_qty, side).
+        This implementation is compatible with BOTH calling conventions
+        by accepting *any* first positional arg and ignoring it — the
+        strategy is purely signal-driven and does not need fill feedback.
+        """
+        pass  # Signal-driven strategy; no fill-based state update needed
+
     def reset(self) -> None:
         """Reset all state (for walk-forward folds)."""
         self._price_history.clear()

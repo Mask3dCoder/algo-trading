@@ -150,7 +150,7 @@ def validate_strategy(name: str, universe: str, params: dict, status: StrategySt
     """
     try:
         import quantcore.strategies.macro.cross_sectional_momentum_v2  # noqa: F401
-        from quantcore.backtest.engine import BacktestEngine, FillSimulator, PortfolioState
+        from quantcore.backtest.engine import BacktestEngine
         from quantcore.strategies.base import StrategyConfig, StrategyType
         from quantcore.strategies.registry import get as get_cls
     except ImportError as e:
@@ -184,12 +184,13 @@ def validate_strategy(name: str, universe: str, params: dict, status: StrategySt
             if len(test_data) < 10:
                 continue
 
-            portfolio = PortfolioState(initial_cash=1_000_000)
-            fill_sim = FillSimulator(
-                slippage_bps=10.0, commission_per_share=0.005, fill_at="next_open"
-            )
+            # BacktestEngine creates its own PortfolioState and FillSimulator internally.
+            # Use kwargs that match the actual constructor signature.
             engine = BacktestEngine(
-                strategy=strat, portfolio=portfolio, fill_sim=fill_sim
+                strategy=strat,
+                initial_cash=1_000_000,
+                slippage_bps=10.0,
+                commission_per_share=0.005,
             )
             eq_df = engine.run(test_data)
 
