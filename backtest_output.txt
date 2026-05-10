@@ -1,0 +1,79 @@
+============================================================
+  Phase A: Real-Data Validation
+  Strategies:  ['macro_factor_residual']
+  Full period: 2018-2024  
+  Regimes: ['gfc', 'q4_vol', 'covid', 'rate_hikes', 'bull']
+  Cache: disabled
+============================================================
+
+============================================================
+  Full period backtest: macro_factor_residual
+  Universe: original_5 (DBC, GLD, IEF, SPY, TLT)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%
+  Folds: 31  OOS bars: 1519
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 503
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 61
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 503
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 500
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 500
+
+==============================================================================================================
+  PHASE A -- REAL-DATA VALIDATION RESULTS
+==============================================================================================================
+  Strategy             Period               OOS SR  Sortino   Max DD Win Rate   Bars   Status
+  -------------------- ------------------ -------- -------- -------- -------- ------ --------
+  macro_factor_residual Full Period (2018-2024)   +0.000   +0.000     0.0%     0.0%   1519     FAIL
+  macro_factor_residual 2008 GFC             +0.000   +0.000     0.0%     0.0%    503     PASS
+  macro_factor_residual 2018 Q4 Vol          +0.000   +0.000     0.0%     0.0%     61     PASS
+  macro_factor_residual 2020 COVID           +0.000   +0.000     0.0%     0.0%    503     PASS
+  macro_factor_residual 2022 Rate Hikes      +0.000   +0.000     0.0%     0.0%    500     PASS
+  macro_factor_residual 2023-2024 Bull       +0.000   +0.000     0.0%     0.0%    500     PASS
+  -------------------- ------------------ -------- -------- -------- -------- ------ --------
+
+  PASS: 5  FAIL: 1  SHOWSTOPPER: 0  TOTAL: 6
+
+  ==================================================
+  PER-STRATEGY SUMMARY
+  ==================================================
+
+  macro_factor_residual:
+    Full Period (2018-2024) SR=+0.000  (req >0.50)  DD=    0.0%  WR=    0.0%  [FAIL]
+    2008 GFC           SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
+    2018 Q4 Vol        SR=+0.000  (req >-0.10)  DD=    0.0%  WR=    0.0%  [PASS]
+    2020 COVID         SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
+    2022 Rate Hikes    SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
+    2023-2024 Bull     SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
+
+  ==================================================
+  OVERALL VERDICT
+  ==================================================
+
+  5/6 criteria passed (1 failure(s)).
+
+  Results saved to: C:\Users\rochv\Downloads\projetcs\algo sw\results\real_data_validation.json
+
+  ============================================================
+  Phase A complete.
+  ============================================================

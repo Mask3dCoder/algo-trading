@@ -1,0 +1,2 @@
+oos_sharpe,max_dd_pct,annual_return,total_return,periods_passed,total_periods,is_valid,reason
+0.0,0.0,0.0,0.0,0,9,False,OOS Sharpe 0.00 < 0.5

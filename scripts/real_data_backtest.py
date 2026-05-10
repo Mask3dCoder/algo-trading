@@ -33,6 +33,9 @@ from quantcore.risk.metrics import sharpe_ratio, sortino_ratio, drawdown_stats
 # Import strategy modules to trigger @register decorators
 import quantcore.strategies.macro.cta_trend  # noqa: F401
 import quantcore.strategies.macro.risk_parity  # noqa: F401
+import quantcore.strategies.macro.factor_residual  # noqa: F401
+import quantcore.strategies.macro.factor_residual_v3 # noqa: F401
+import quantcore.strategies.macro.cross_sectional_momentum_v2  # noqa: F401
 
 from quantcore.strategies.base import StrategyConfig, StrategyType
 from quantcore.strategies.registry import get as get_strategy_class
@@ -48,6 +51,9 @@ log = logging.getLogger(__name__)
 STRATEGY_UNIVERSE: dict[str, str] = {
     "macro_cta_trend": "cta",
     "macro_risk_parity": "rp",
+    "macro_factor_residual": "expanded_15",
+    "macro_cross_sectional_momentum_v2": "expanded_15",
+    "macro_factor_residual_v3": "expanded_15",
 }
 
 # ---------------------------------------------------------------------------
@@ -117,6 +123,7 @@ STRATEGY_PARAMS: dict[str, dict[str, Any]] = {
         "vol_regime_threshold": 0.30,
         "vol_regime_lookback": 20,
         "min_vol_scale": 0.20,
+        "alignment_filter": True,
     },
     "macro_risk_parity": {
         "vol_target": 0.10,
@@ -129,6 +136,42 @@ STRATEGY_PARAMS: dict[str, dict[str, Any]] = {
         "vol_regime_lookback": 20,
         "min_vol_scale": 0.30,
     },
+    "macro_factor_residual": {
+        "rebalance_freq": 5,
+        "reg_window": 252,
+        "ridge_alpha": 1e-6,
+        "resid_mom_window": 63,
+        "resid_rev_weight": 0.3,
+        "vol_lookback": 20,
+        "min_weight": 0.01,
+    },
+    "macro_cross_sectional_momentum_v2": {
+        "rebalance_freq": 21,
+        "mom_windows": "20,60,120",
+        "mom_weights": "0.2,0.5,0.3",
+        "use_vol_adjustment": True,
+        "target_vol": 0.12,
+        "vol_lookback": 20,
+        "max_gross_exposure": 1.0,
+        "max_position_pct": 0.03,
+        "min_weight": 0.005,
+        "beta_neutral": True,
+        "beta_window": 60,
+        "regime_filter": True,
+        "regime_method": "percentile",
+        "regime_reduce_factor": 0.5,
+        "dd_control": True,
+        "dd_flatten_threshold": -0.15,
+        "dd_cooldown_days": 7,
+    },
+    "macro_factor_residual_v3": {
+        "rebalance_freq": 5,
+        "reg_window": 252,
+        "ridge_alpha": 1e-6,
+        "residual_window": 63,
+        "vol_lookback": 20,
+        "min_weight": 0.01,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -139,6 +182,7 @@ PASS_CRITERIA: dict[tuple[str, str], float] = {
     # Full period (walk-forward)
     ("macro_cta_trend", "full"): 0.50,
     ("macro_risk_parity", "full"): 0.30,
+    ("macro_factor_residual", "full"): 0.50,
     # Regime periods
     ("macro_cta_trend", "gfc"): 0.00,
     ("macro_cta_trend", "covid"): 0.20,
@@ -150,6 +194,25 @@ PASS_CRITERIA: dict[tuple[str, str], float] = {
     ("macro_risk_parity", "rate_hikes"): -0.20,
     ("macro_risk_parity", "q4_vol"): -0.30,
     ("macro_risk_parity", "bull"): 0.20,
+    ("macro_factor_residual", "gfc"): 0.00,
+    ("macro_factor_residual", "covid"): 0.00,
+    ("macro_factor_residual", "rate_hikes"): 0.00,
+    ("macro_factor_residual", "q4_vol"): -0.10,
+    ("macro_factor_residual", "bull"): 0.00,
+    # Cross-sectional momentum v2
+    ("macro_cross_sectional_momentum_v2", "full"): 0.30,
+    ("macro_cross_sectional_momentum_v2", "gfc"): 0.00,
+    ("macro_cross_sectional_momentum_v2", "covid"): 0.00,
+    ("macro_cross_sectional_momentum_v2", "rate_hikes"): 0.00,
+    ("macro_cross_sectional_momentum_v2", "q4_vol"): -0.10,
+    ("macro_cross_sectional_momentum_v2", "bull"): 0.20,
+    # Factor residual v3
+    ("macro_factor_residual_v3", "full"): 0.50,
+    ("macro_factor_residual_v3", "gfc"): 0.00,
+    ("macro_factor_residual_v3", "covid"): 0.00,
+    ("macro_factor_residual_v3", "rate_hikes"): 0.00,
+    ("macro_factor_residual_v3", "q4_vol"): -0.10,
+    ("macro_factor_residual_v3", "bull"): 0.00,
 }
 
 SHOWSTOPPER_THRESHOLDS: dict[tuple[str, str], float] = {
@@ -164,6 +227,16 @@ SHOWSTOPPER_THRESHOLDS: dict[tuple[str, str], float] = {
     ("macro_risk_parity", "covid"): -0.30,
     ("macro_risk_parity", "rate_hikes"): -0.50,
     ("macro_risk_parity", "bull"): -0.10,
+    ("macro_factor_residual", "full"): -0.10,
+    ("macro_factor_residual", "gfc"): -0.50,
+    ("macro_factor_residual", "covid"): -0.20,
+    ("macro_factor_residual", "rate_hikes"): -0.20,
+    ("macro_factor_residual", "bull"): -0.10,
+    ("macro_factor_residual_v3", "full"): -0.10,
+    ("macro_factor_residual_v3", "gfc"): -0.50,
+    ("macro_factor_residual_v3", "covid"): -0.20,
+    ("macro_factor_residual_v3", "rate_hikes"): -0.20,
+    ("macro_factor_residual_v3", "bull"): -0.10,
 }
 
 # ---------------------------------------------------------------------------
@@ -213,28 +286,65 @@ def _df_to_data(df: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _holding_days(entry_ts, exit_ts) -> float:
+    """Calculate holding period in days between two timestamps."""
+    if entry_ts is None or exit_ts is None:
+        return 0.0
+    try:
+        from datetime import timedelta
+        e = entry_ts if hasattr(entry_ts, 'timestamp') else entry_ts
+        x = exit_ts if hasattr(exit_ts, 'timestamp') else exit_ts
+        # Convert to pandas Timestamp for consistent handling
+        import pandas as pd
+        e = pd.Timestamp(e)
+        x = pd.Timestamp(x)
+        return (x - e).total_seconds() / 86400.0  # 24*3600
+    except Exception:
+        return 0.0
+
+
 def _compute_signal_returns(
     strat: Any,
     data: dict,
     start: int,
     end: int,
     tc_bps: float = 0.0,
-) -> np.ndarray:
+    timestamps: list = None,
+    track_trades: bool = False,
+) -> np.ndarray | tuple[np.ndarray, list[dict]]:
     """Compute bar-level signal-weighted returns over data[start:end).
 
     Supports transaction costs via tc_bps (turnover cost in basis points).
     When tc_bps > 0, tracks per-symbol position weights and applies a
     cost proportional to absolute weight changes between consecutive bars.
+
+    If track_trades is True, also returns a list of trade dicts with:
+    - timestamp_entry, timestamp_exit, position_direction, entry_price, exit_price,
+      pnl_abs, pnl_pct, holding_days, signal_type
+
+    Returns:
+        bar_returns if track_trades=False (backward compatible)
+        (bar_returns, trades_list) if track_trades=True
     """
+    LOSS_THRESHOLD = -0.0075  # -0.75% unrealized loss trigers exit (Phase 1.7)
+    trades = []
+    if track_trades:
+        # position tracker: {symbol: {direction, entry_ts, entry_price, signal_type}}
+        positions = {}
+        # Instrumentation (Phase 1.7)
+        early_exit_count = 0
+        total_loss_pre_exit = 0.0
+        loss_exit_pnl_list = []
+
     if end - start < 2:
-        return np.array([], dtype=float)
+        return np.array([], dtype=float), trades
 
     close = data["close"]
     symbols = data["symbols"]
     n_assets = len(symbols)
 
     if n_assets == 0:
-        return np.array([], dtype=float)
+        return np.array([], dtype=float), trades
 
     asset_rets = (
         close[start + 1: end] - close[start: end - 1]
@@ -253,6 +363,13 @@ def _compute_signal_returns(
             else:
                 bar_data[k] = v
 
+        # Set timestamp for diagnostic tracking
+        if timestamps is not None and bar_i < len(timestamps):
+            ts = timestamps[bar_i]
+            if hasattr(strat, 'set_timestamp'):
+                strat.set_timestamp(ts)
+            bar_data["timestamp"] = ts
+
         try:
             signals = strat.on_data(bar_data) or []
         except Exception:
@@ -261,11 +378,17 @@ def _compute_signal_returns(
         weighted_ret = 0.0
         total_weight = 0.0
         current_weights: dict[str, float] = {}
+        current_signals: dict[str, dict] = {}  # symbol -> signal metadata
 
         for s in signals:
             weight = float(s.direction) * float(s.strength)
             if s.direction != 0:
                 current_weights[s.symbol] = weight
+                current_signals[s.symbol] = {
+                    "direction": s.direction,
+                    "strength": s.strength,
+                    "metadata": s.metadata,
+                }
                 try:
                     asset_idx = symbols.index(s.symbol)
                 except (ValueError, IndexError):
@@ -287,11 +410,129 @@ def _compute_signal_returns(
             tc_cost = turnover * tc_bps / 10000.0
             bar_rets[idx] -= tc_cost
 
+        # Track trades if enabled
+        if track_trades:
+            for sym in list(positions.keys()):
+                pos = positions[sym]
+                exit_ts = timestamps[bar_i] if timestamps else None
+                exit_price = close[bar_i, symbols.index(sym)] if bar_i < close.shape[0] else None
+                
+                # Phase 1.7: Loss-based exit acceleration
+                if exit_price is not None and pos["entry_price"]:
+                    current_pnl_pct = (exit_price - pos["entry_price"]) / pos["entry_price"] * pos["direction"]
+                    # Cut losing trades fast (Step 1)
+                    if current_pnl_pct < LOSS_THRESHOLD:
+                        # Don't cut if profitable (Step 3)
+                        if current_pnl_pct > 0:
+                            pass  # Profitable - let it run
+                        else:
+                            # Loss-based exit: close position
+                            early_exit_count += 1
+                            total_loss_pre_exit += current_pnl_pct
+                            loss_exit_pnl_list.append(current_pnl_pct)
+                            holding_days = _holding_days(pos["entry_ts"], exit_ts)
+                            pnl_abs = (exit_price - pos["entry_price"]) * pos["direction"]
+                            trades.append({
+                                "timestamp_entry": pos["entry_ts"],
+                                "timestamp_exit": exit_ts,
+                                "position_direction": pos["direction"],
+                                "entry_price": pos["entry_price"],
+                                "exit_price": exit_price,
+                                "pnl_abs": pnl_abs,
+                                "pnl_pct": current_pnl_pct,
+                                "holding_days": holding_days,
+                                "signal_type": pos["signal_type"],
+                                "symbol": sym,
+                                "exit_reason": "loss_threshold"
+                            })
+                            positions.pop(sym)
+                            continue
+                
+                # Normal exit logic (signal-driven)
+                if sym not in current_signals or current_signals[sym]["direction"] != pos["direction"]:
+                    # Close position
+                    holding_days = _holding_days(pos["entry_ts"], exit_ts)
+                    pnl_abs = (exit_price - pos["entry_price"]) * pos["direction"] if exit_price and pos["entry_price"] else 0.0
+                    pnl_pct = pnl_abs / pos["entry_price"] if pos["entry_price"] else 0.0
+                    trades.append({
+                        "timestamp_entry": pos["entry_ts"],
+                        "timestamp_exit": exit_ts,
+                        "position_direction": pos["direction"],
+                        "entry_price": pos["entry_price"],
+                        "exit_price": exit_price,
+                        "pnl_abs": pnl_abs,
+                        "pnl_pct": pnl_pct,
+                        "holding_days": holding_days,
+                        "signal_type": pos["signal_type"],
+                        "symbol": sym,
+                        "exit_reason": "signal"
+                    })
+                    positions.pop(sym)
+            
+            # Open new positions
+            for sym in current_signals:
+                if sym not in positions:
+                    sig = current_signals[sym]
+                    entry_price = close[bar_i, symbols.index(sym)] if bar_i < close.shape[0] else None
+                    entry_ts = timestamps[bar_i] if timestamps else None
+                    confirms = sig["metadata"].get("confirms", 0)
+                    signal_type = "fast_only" if confirms == 0 else "confirmed"
+                    positions[sym] = {
+                        "direction": sig["direction"],
+                        "entry_ts": entry_ts,
+                        "entry_price": entry_price,
+                        "signal_type": signal_type,
+                    }
+            for sym in current_signals:
+                if sym not in positions:
+                    # New position opened
+                    sig = current_signals[sym]
+                    entry_price = close[bar_i, symbols.index(sym)] if bar_i < close.shape[0] else None
+                    entry_ts = timestamps[bar_i] if timestamps else None
+                    confirms = sig["metadata"].get("confirms", 0)
+                    signal_type = "fast_only" if confirms == 0 else "confirmed"
+                    positions[sym] = {
+                        "direction": sig["direction"],
+                        "entry_ts": entry_ts,
+                        "entry_price": entry_price,
+                        "signal_type": signal_type,
+                    }
+
         # Update carried weights only when new signals arrive
         if current_weights:
             carried_weights = dict(current_weights)
 
-    return bar_rets
+    # Close any remaining positions at end of period
+    if track_trades:
+        for sym in list(positions.keys()):
+            pos = positions.pop(sym)
+            exit_ts = timestamps[end - 1] if timestamps else None
+            exit_price = close[end - 1, symbols.index(sym)] if end - 1 < close.shape[0] else None
+            holding_days = _holding_days(pos["entry_ts"], exit_ts)
+            pnl_abs = (exit_price - pos["entry_price"]) * pos["direction"] if exit_price and pos["entry_price"] else 0.0
+            pnl_pct = pnl_abs / pos["entry_price"] if pos["entry_price"] else 0.0
+            trades.append({
+                "timestamp_entry": pos["entry_ts"],
+                "timestamp_exit": exit_ts,
+                "position_direction": pos["direction"],
+                "entry_price": pos["entry_price"],
+                "exit_price": exit_price,
+                "pnl_abs": pnl_abs,
+                "pnl_pct": pnl_pct,
+                "holding_days": holding_days,
+                "signal_type": pos["signal_type"],
+                "symbol": sym,
+            })
+
+    # Instrumentation output (Phase 1.7)
+    if track_trades:
+        avg_loss_exit = np.mean(loss_exit_pnl_list) if loss_exit_pnl_list else 0.0
+        print(f"[INSTRUMENTATION] early_exit_count={early_exit_count}, "
+              f"avg_loss_pre_exit={avg_loss_exit:.4f}, "
+              f"total_loss_exit={total_loss_pre_exit:.4f}")
+
+    return (bar_rets, trades) if track_trades else bar_rets
+
 
 
 # ---------------------------------------------------------------------------
@@ -604,7 +845,7 @@ def run_validation(
                 })
                 continue
 
-            result = run_full_period_backtest(strategy_id, df)
+            result = run_full_period_backtest(strategy_id, df, tc_bps=5.0)
             result["strategy"] = strategy_id
             result["period"] = "full"
             result["period_label"] = "Full Period (2018-2024)"
@@ -699,7 +940,7 @@ def run_validation(
                 })
                 continue
 
-            result = run_regime_backtest(strategy_id, df, warmup_end_idx)
+            result = run_regime_backtest(strategy_id, df, warmup_end_idx, tc_bps=5.0)
             result["strategy"] = strategy_id
             result["period"] = regime_id
             result["period_label"] = regime_info["label"]

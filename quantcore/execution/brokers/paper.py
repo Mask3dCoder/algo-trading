@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
+from quantcore.backtest.engine import PortfolioState
 from quantcore.core.types import Fill, Order, OrderStatus, OrderType, Position, Side
 from quantcore.execution.brokers.base import AccountInfo, BrokerAdapter, BrokerOrder
 
@@ -17,11 +18,11 @@ class PaperConfig:
     """Paper broker configuration."""
     initial_cash: float = 1_000_000.0
     latency_ms: float = 50.0
-    commission_per_share: float = 0.005
+    commission_per_share: float = 0.01  # ~10bps commission (on $100 stock)
     min_commission: float = 1.0
     margin_rate: float = 0.5  # 50% margin requirement
     short_rate: float = 0.02  # Annual borrow cost for shorts
-    slippage_model: str = "bps_1"  # 1 bps slippage
+    slippage_model: str = "bps_5"  # 5 bps slippage
     fill_probability: float = 0.99  # Probability of fill under normal conditions
 
 
@@ -37,8 +38,7 @@ class PaperBroker(BrokerAdapter):
         self.config = config or PaperConfig()
         self._orders: dict[str, Order] = {}
         self._fills: list[Fill] = []
-        self._positions: dict[str, Position] = {}
-        self._cash = Decimal(str(self.config.initial_cash))
+        self._portfolio = PortfolioState(initial_cash=self.config.initial_cash)
         self._connected = False
         self._fill_callbacks: list[Callable[[Fill], None]] = []
 
@@ -83,7 +83,8 @@ class PaperBroker(BrokerAdapter):
         await asyncio.sleep(self.config.latency_ms / 1000.0)
 
         # Fill simulation
-        fill_price = Decimal(str(self._get_fill_price(order)))
+        mp = float(order.market_price) if order.market_price is not None else None
+        fill_price = Decimal(str(self._get_fill_price(order, market_price=mp)))
         fill_qty = order.quantity
 
         # Compute commission
@@ -98,35 +99,15 @@ class PaperBroker(BrokerAdapter):
             quantity=fill_qty,
             commission=commission,
             exchange="PAPER",
+            side=Side(order.side),
         )
 
         self._fills.append(fill)
         self._total_commission += commission
 
-        # Update position
-        side_mult = Decimal("1") if order.side == "buy" else Decimal("-1")
-        if order.symbol in self._positions:
-            pos = self._positions[order.symbol]
-            total_qty = pos.quantity + side_mult * fill_qty
-            if total_qty == 0:
-                # Liquidated
-                pos.quantity = Decimal("0")
-                pos.avg_cost = Decimal("0")
-            else:
-                total_cost = pos.avg_cost * pos.quantity + fill_price * fill_qty
-                pos.quantity = total_qty
-                pos.avg_cost = total_cost / pos.quantity if pos.quantity != 0 else Decimal("0")
-        else:
-            self._positions[order.symbol] = Position(
-                symbol=order.symbol,
-                quantity=side_mult * fill_qty,
-                avg_cost=fill_price,
-                market_price=fill_price,
-            )
-
-        # Update cash
-        trade_value = fill_price * fill_qty
-        self._cash -= side_mult * trade_value + commission
+        # Delegate ALL economic state mutation to PortfolioState,
+        # which itself delegates to the canonical EconomicEngineCore.
+        self._portfolio.apply_fill(fill, order.symbol)
 
         # Update order status
         internal.status = OrderStatus.FILLED
@@ -154,20 +135,20 @@ class PaperBroker(BrokerAdapter):
         return self._orders[order_id]
 
     async def get_positions(self) -> list[Position]:
-        return list(self._positions.values())
+        return list(self._portfolio.positions.values())
 
     async def get_account(self) -> AccountInfo:
-        total_pv = float(self._cash)
-        for pos in self._positions.values():
+        total_pv = float(self._portfolio.cash)
+        for pos in self._portfolio.positions.values():
             total_pv += float(pos.market_value)
 
         return AccountInfo(
             account_id="paper",
-            buying_power=float(self._cash) * self.config.margin_rate * 2,
-            cash=float(self._cash),
+            buying_power=float(self._portfolio.cash) * self.config.margin_rate * 2,
+            cash=float(self._portfolio.cash),
             portfolio_value=total_pv,
             equity=total_pv,
-            margin_used=total_pv - float(self._cash),
+            margin_used=total_pv - float(self._portfolio.cash),
         )
 
     async def get_orders(self, status: str = "open") -> list[Order]:
@@ -185,14 +166,23 @@ class PaperBroker(BrokerAdapter):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _get_fill_price(self, order: BrokerOrder) -> float:
-        """Simulate fill price with simple slippage."""
-        base_price = 100.0  # Default reference price
+    def _get_fill_price(self, order: BrokerOrder, market_price: float | None = None) -> float:
+        """Simulate fill price with simple slippage.
+
+        Args:
+            order: The broker order.
+            market_price: Current market price. Used when limit_price is None.
+                Falls back to 100.0 only if neither is provided (legacy safety).
+        """
         if order.limit_price is not None:
             base_price = float(order.limit_price)
+        elif market_price is not None and market_price > 0:
+            base_price = market_price
+        else:
+            base_price = 100.0
 
-        # Simple 1 bps slippage
-        slippage = 0.0001  # 1 bps
+        # 5 bps slippage (10bps comm + 5bps slip = 15bps total)
+        slippage = 0.0005  # 5 bps
         if order.side == "buy":
             return base_price * (1.0 + slippage)
         else:

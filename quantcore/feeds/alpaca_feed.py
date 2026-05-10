@@ -458,7 +458,17 @@ class AlpacaPaperFeed:
             return self._generate_synthetic_bars(now)
 
     def _generate_synthetic_bars(self, now: datetime) -> list[dict[str, Any]]:
-        """Generate synthetic OHLCV data (used when Alpaca is unavailable)."""
+        """Generate synthetic OHLCV data (used when Alpaca is unavailable).
+
+        WARNING: Returns fabricated random-walk data. Results using this
+        fallback are NOT valid for research or live trading decisions.
+        """
+        if not hasattr(self, '_synthetic_warning_emitted'):
+            log.warning(
+                "Using SYNTHETIC market data — Alpaca feed unavailable. "
+                "All downstream signals and P&L are INVALID for research purposes."
+            )
+            self._synthetic_warning_emitted = True
         events = []
         for sym in self.symbols:
             cached = self._cached_bars.get(sym)
@@ -477,3 +487,121 @@ class AlpacaPaperFeed:
     @property
     def last_data_timestamp(self) -> datetime | None:
         return self._last_tick
+
+
+# ---------------------------------------------------------------------------
+# Live WebSocket feed adapter (background-threaded asyncio)
+# ---------------------------------------------------------------------------
+
+
+class LiveAlpacaFeed:
+    """Synchronous Alpaca WebSocket feed adapter for paper_trade.py.
+
+    Runs the AlpacaDataFeed WebSocket in a background asyncio thread so the
+    synchronous paper trading loop can call ``get_latest()`` to read the
+    latest bars from the in-memory cache. Significantly lower latency than
+    REST polling via AlpacaPaperFeed.
+
+    Usage::
+
+        feed = LiveAlpacaFeed(symbols=["SPY", "QQQ"])
+        feed.connect()
+        while trading:
+            bars = feed.get_latest()
+            ...
+        feed.disconnect()
+    """
+
+    def __init__(
+        self,
+        symbols: list[str] | None = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        sip: bool = False,
+    ) -> None:
+        import os
+
+        self._symbols = symbols or ["SPY"]
+        api_key = api_key or os.environ.get("ALPACA_API_KEY")
+        api_secret = api_secret or os.environ.get("ALPACA_API_SECRET")
+
+        if not api_key or not api_secret:
+            raise ValueError(
+                "ALPACA_API_KEY and ALPACA_API_SECRET environment variables required"
+            )
+
+        self._feed = AlpacaDataFeed(
+            symbols=self._symbols,
+            mode="live",
+            api_key=api_key,
+            api_secret=api_secret,
+            sip=sip,
+        )
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._startup_timeout: float = 15.0
+
+    def connect(self) -> None:
+        """Start WebSocket in a background thread and connect to Alpaca."""
+        import asyncio
+        import threading
+
+        if self._loop is not None:
+            return
+
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+
+        future = asyncio.run_coroutine_threadsafe(self._feed.connect(), self._loop)
+        try:
+            future.result(timeout=self._startup_timeout)
+        except Exception:
+            log.error("Alpaca WebSocket connection failed within %ss", self._startup_timeout)
+            raise
+
+        log.info("LiveAlpacaFeed connected via WebSocket — %d symbols", len(self._symbols))
+
+    def _run_loop(self) -> None:
+        import asyncio
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+    def get_latest(self) -> list[dict[str, Any]]:
+        """Return latest bar data for all subscribed symbols (sync, reads cache)."""
+        return self._feed.get_latest()
+
+    def disconnect(self) -> None:
+        """Disconnect WebSocket and stop the background event loop."""
+        import asyncio
+        import threading
+
+        if self._loop is None:
+            return
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self._feed.disconnect(), self._loop
+            )
+            future.result(timeout=10.0)
+        except Exception:
+            log.debug("WebSocket disconnect timed out, stopping loop anyway")
+
+        self._loop.call_soon_threadsafe(self._loop.stop)
+        if self._thread and self._thread is not threading.current_thread():
+            self._thread.join(timeout=5.0)
+        self._loop = None
+        self._thread = None
+        log.info("LiveAlpacaFeed disconnected")
+
+    @property
+    def symbols(self) -> list[str]:
+        return self._symbols
+
+    @property
+    def is_market_open(self) -> bool:
+        return self._feed.is_market_open()
+
+    @property
+    def last_data_timestamp(self) -> datetime | None:
+        return self._feed.last_data_timestamp

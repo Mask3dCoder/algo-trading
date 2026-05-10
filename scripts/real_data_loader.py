@@ -1,8 +1,8 @@
 """Real data loader -- yfinance-backed universe definitions with retry logic.
 
 Universe definitions for Phase A real-data validation:
-  - cta:  SPY, EFA, TLT, GLD, DBC, FXE  (CTA multi-speed trend)
-  - rp:   SPY, EFA, TLT, IEF, GLD, DBC  (risk parity)
+  - cta:  DBC, GLD, IEF, SPY, TLT  (CTA multi-speed trend)
+  - rp:   DBC, GLD, IEF, SPY, TLT  (risk parity)
 
 Provides load_universe() with exponential backoff retry, validate_data()
 with 7 quality checks, and fetch_and_prepare() convenience wrapper.
@@ -39,26 +39,65 @@ log = logging.getLogger(__name__)
 UNIVERSES: dict[str, dict[str, Any]] = {
     "cta": {
         "description": "CTA multi-speed trend universe",
-        "symbols": ["SPY", "EFA", "TLT", "GLD", "DBC", "FXE"],
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
         "asset_classes": {
-            "SPY": "US Equities",
-            "EFA": "International Equities",
-            "TLT": "US Long-Term Bonds",
-            "GLD": "Gold",
             "DBC": "Commodities",
-            "FXE": "FX (EURUSD)",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
         },
     },
     "rp": {
         "description": "Risk parity universe",
-        "symbols": ["SPY", "EFA", "TLT", "IEF", "GLD", "DBC"],
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
         "asset_classes": {
-            "SPY": "US Equities",
-            "EFA": "International Equities",
-            "TLT": "US Long-Term Bonds",
-            "IEF": "US Intermediate-Term Bonds",
-            "GLD": "Gold",
             "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+        },
+    },
+    "original_5": {
+        "description": "Original 5-asset universe (same as cta/rp)",
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
+        "asset_classes": {
+            "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+        },
+    },
+    "expanded_15": {
+        "description": "Expanded 15-asset universe with non-factor assets",
+        "symbols": [
+            # Original 5 (factors)
+            "DBC", "GLD", "IEF", "SPY", "TLT",
+            # Non-factor assets (for meaningful residuals)
+            "QQQ", "IWM", "EFA", "EEM",  # Equities
+            "HYG", "LQD",  # Credit
+            "USO", "SLV",  # Commodities
+            "VNQ",  # REITs
+            "DIA",  # Dow
+        ],
+        "asset_classes": {
+            "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+            "QQQ": "Nasdaq 100",
+            "IWM": "Russell 2000",
+            "EFA": "EAFE Developed",
+            "EEM": "Emerging Markets",
+            "HYG": "High Yield Bonds",
+            "LQD": "Investment Grade",
+            "USO": "Oil",
+            "SLV": "Silver",
+            "VNQ": "US REITs",
+            "DIA": "Dow Jones",
         },
     },
 }

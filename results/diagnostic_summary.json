@@ -1,0 +1,47 @@
+{
+  "phase": "A_DIAGNOSTIC",
+  "diagnostics": {
+    "D1": {
+      "name": "Walk-Forward Verification",
+      "status": "PASS",
+      "verdict": "Implementation is clean. Determinism verified, WF vs regime delta 0.017, no extreme fold outliers."
+    },
+    "D2": {
+      "name": "Transaction Cost Impact",
+      "status": "WARN",
+      "verdict": "TC impact is significant (delta 0.5-0.9 SR) but NOT the root cause. Even at TC=0, CTA Full SR=-0.147."
+    },
+    "D3": {
+      "name": "Signal Generation Comparison",
+      "status": "PASS",
+      "verdict": "Signal generation works correctly. 300 signals on real vs 263 on synthetic over same period."
+    },
+    "D4": {
+      "name": "Data Quality Verification",
+      "status": "PASS",
+      "verdict": "Data is fundamentally clean across all 3 datasets (CTA Full, CTA COVID, RP Full)."
+    },
+    "D5": {
+      "name": "Win Rate & Return Distribution",
+      "status": "CRITICAL_INSIGHT",
+      "verdict": "CRITICAL: ~80% of OOS bars have ZERO return. On non-zero bars, win rate is 53-63% (decent). Negative Sharpe driven by extreme kurtosis (52.9) \u2014 a few catastrophic losses dominate."
+    },
+    "D6": {
+      "name": "Engine Determinism & Sanity",
+      "status": "PASS",
+      "verdict": "Engine is sound. Fully deterministic, handles edge cases gracefully."
+    }
+  },
+  "root_cause": {
+    "primary": "Strategy signal is structurally weak \u2014 80% zero bars, kurtosis 52.9, negative mean return",
+    "secondary": "Transaction costs amplify the damage but are not the root cause",
+    "rejected": [
+      "Implementation bugs",
+      "Data pipeline issues",
+      "Win rate calculation errors",
+      "Synthetic overfitting"
+    ]
+  },
+  "verdict": "FAIL",
+  "next_steps": "Proceed to Phase B for strategy enhancement or classify as MONITOR only"
+}

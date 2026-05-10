@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -49,7 +50,9 @@ class OrderManager:
         self._orders: dict[str, Order] = {}
         self._audit: list[AuditEntry] = []
         self._submitted_ids: set[str] = set()
+        self._fill_keys: set[tuple[str, Decimal, Decimal]] = set()  # (order_id, qty, price)
         self._on_state_change: Callable[[Order, OrderState, OrderState], None] | None = None
+        self._lock = threading.Lock()
 
     @property
     def orders(self) -> dict[str, Order]:
@@ -68,21 +71,22 @@ class OrderManager:
 
         Returns order_id.
         """
-        # Idempotency check
-        if order.id in self._submitted_ids:
-            raise OrderError(f"Duplicate order: {order.id}")
+        with self._lock:
+            # Idempotency check
+            if order.id in self._submitted_ids:
+                raise OrderError(f"Duplicate order: {order.id}")
 
-        self._orders[order.id] = order
-        self._submitted_ids.add(order.id)
+            self._orders[order.id] = order
+            self._submitted_ids.add(order.id)
 
-        # Transition: NEW → SUBMITTED
-        self._transition(order.id, OrderState.NEW, OrderState.SUBMITTED)
-        order.status = OrderStatus("submitted")
-        order.updated_at = datetime.utcnow()
+            # Transition: NEW → SUBMITTED
+            self._transition(order.id, OrderState.NEW, OrderState.SUBMITTED)
+            order.status = OrderStatus("submitted")
+            order.updated_at = datetime.utcnow()
 
-        # Update health state for monitoring
-        from quantcore.core.health_state import record_order_submitted
-        record_order_submitted()
+            # Update health state for monitoring
+            from quantcore.core.health_state import record_order_submitted
+            record_order_submitted()
 
         return order.id
 
@@ -113,36 +117,43 @@ class OrderManager:
         order.updated_at = datetime.utcnow()
 
     def fill(self, order_id: str, quantity: Decimal, price: Decimal) -> OrderState:
-        """Report a fill for an order.
+        """Report a fill for an order. Thread-safe with idempotency check.
 
         Returns the new state.
         """
-        order = self._get_order(order_id)
-        current_state = self._current_state(order)
+        with self._lock:
+            # Fill idempotency: reject duplicate fills
+            fill_key = (order_id, quantity, price)
+            if fill_key in self._fill_keys:
+                return self._current_state(self._orders.get(order_id))  # type: ignore[return-value]
+            self._fill_keys.add(fill_key)
 
-        if current_state not in (OrderState.SUBMITTED, OrderState.PARTIAL):
-            raise OrderError(f"Cannot fill order {order_id} in state {current_state}")
+            order = self._get_order(order_id)
+            current_state = self._current_state(order)
 
-        order.filled_qty += quantity
-        if order.avg_fill_price is None:
-            order.avg_fill_price = price
-        else:
-            total_qty = order.filled_qty
-            order.avg_fill_price = (
-                (order.avg_fill_price * (total_qty - quantity) + price * quantity) / total_qty
-            )
+            if current_state not in (OrderState.SUBMITTED, OrderState.PARTIAL):
+                raise OrderError(f"Cannot fill order {order_id} in state {current_state}")
 
-        if order.filled_qty >= order.quantity:
-            self._transition(order_id, current_state, OrderState.FILLED)
-            order.status = OrderStatus.FILLED
-            new_state = OrderState.FILLED
-        else:
-            if current_state != OrderState.PARTIAL:
-                self._transition(order_id, current_state, OrderState.PARTIAL)
-            order.status = OrderStatus.PARTIAL
-            new_state = OrderState.PARTIAL
+            order.filled_qty += quantity
+            if order.avg_fill_price is None:
+                order.avg_fill_price = price
+            else:
+                total_qty = order.filled_qty
+                order.avg_fill_price = (
+                    (order.avg_fill_price * (total_qty - quantity) + price * quantity) / total_qty
+                )
 
-        order.updated_at = datetime.utcnow()
+            if order.filled_qty >= order.quantity:
+                self._transition(order_id, current_state, OrderState.FILLED)
+                order.status = OrderStatus.FILLED
+                new_state = OrderState.FILLED
+            else:
+                if current_state != OrderState.PARTIAL:
+                    self._transition(order_id, current_state, OrderState.PARTIAL)
+                order.status = OrderStatus.PARTIAL
+                new_state = OrderState.PARTIAL
+
+            order.updated_at = datetime.utcnow()
         return new_state
 
     def reject(self, order_id: str, reason: str = "") -> None:

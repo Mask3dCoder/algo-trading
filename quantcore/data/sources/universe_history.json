@@ -1,0 +1,11 @@
+{
+  "SP500": {
+    "2008-01-01": ["AAPL", "MSFT", "AMZN", "XOM", "JNJ", "JPM", "V", "PG", "GE", "WMT"],
+    "2010-01-01": ["AAPL", "MSFT", "AMZN", "XOM", "JNJ", "JPM", "V", "PG", "GOOGL", "WMT"],
+    "2020-01-01": ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "BRK-B", "UNH", "JNJ", "JPM"]
+  },
+  "NASDAQ100": {
+    "2008-01-01": ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "NVDA"],
+    "2020-01-01": ["AAPL", "MSFT", "AMZN", "GOOGL", "META", "TSLA", "NVDA", "AVGO"]
+  }
+}

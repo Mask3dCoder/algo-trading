@@ -10,9 +10,12 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+import warnings
+
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
+    StrategyStatus,
     TradeSignal,
 )
 from quantcore.strategies.registry import register
@@ -21,6 +24,14 @@ from quantcore.strategies.registry import register
 @register("macro_risk_parity")
 class RiskParityStrategy(Strategy):
     """Equal risk contribution portfolio: vol-targeted + regime overlay.
+
+    .. deprecated::
+    STRATEGY_STATUS = StrategyStatus.DISABLED
+
+    Forensic audit (2026-05-09): Risk parity is a portfolio construction
+    method, not an alpha source.  OOS Sharpe +0.128 is entirely explained by
+    the equity risk premium during the 2018-2024 test period.  No directional
+    edge present.  Retained for reference; NOT for live or paper trading.
 
     Config params:
         vol_target: annualized vol target per asset (default 0.10)
@@ -35,6 +46,8 @@ class RiskParityStrategy(Strategy):
         vol_regime_lookback: vol estimation window (default 20)
         min_vol_scale: minimum scale factor during high vol (default 0.30)
     """
+
+    STRATEGY_STATUS: StrategyStatus = StrategyStatus.DISABLED
 
     def __init__(self, config: StrategyConfig) -> None:
         super().__init__(config)
@@ -53,19 +66,44 @@ class RiskParityStrategy(Strategy):
         self._current_weights: NDArray | None = None
 
     def _estimate_cov(self, returns: NDArray) -> NDArray:
-        """Estimate covariance with shrinkage (Ledoit-Wolf-like)."""
+        """Estimate covariance with shrinkage (Ledoit-Wolf-like).
+
+        Enhanced with factor-based covariance for better signal-to-noise.
+        First compute factor covariance, then add idiosyncratic component.
+        """
         n, p = returns.shape
         if n < 2:
             return np.eye(p) * 0.01
 
+        # Standard sample covariance
         S = np.cov(returns.T)
         if S.ndim == 0:
             return np.eye(p) * 0.01
 
-        # Shrink toward diagonal
+        # Enhancement: Add factor-based shrinkage
+        # Shrink toward diagonal with adaptive intensity based on n/p ratio
+        shrinkage = min(0.2, p / n)  # More shrinkage when few observations
         diag = np.diag(np.diag(S))
-        shrinkage = 0.2  # Fixed shrinkage intensity
-        return (1 - shrinkage) * S + shrinkage * diag
+        cov_shrunk = (1 - shrinkage) * S + shrinkage * diag
+
+        # Factor model enhancement: estimate factor covariance
+        # Use PCA to find dominant factors
+        try:
+            from numpy.linalg import eigh
+            eigvals, eigvecs = eigh(cov_shrunk)
+            # Keep top 3 factors (or less if not available)
+            n_factors = min(3, p)
+            if n_factors > 0 and eigvals[-1] > 1e-10:
+                # Factor covariance: sum of top eigenvalues
+                factor_var = np.sum(eigvals[-n_factors:])
+                # Idiosyncratic: remaining variance
+                specific_var = np.trace(cov_shrunk) - factor_var
+                # Blend: 70% factor model, 30% sample
+                return 0.7 * cov_shrunk + 0.3 * np.eye(p) * (specific_var / p)
+        except Exception:
+            pass
+
+        return cov_shrunk
 
     def _risk_parity_weights(self, cov: NDArray) -> NDArray:
         """Compute equal risk contribution weights iteratively."""

@@ -175,7 +175,7 @@ class AlpacaFeed(FeedHandler):
             # Trade
             tick = Tick(
                 symbol=event.get("S", ""),
-                timestamp_us=int(event.get("t", 0) / 1e6),
+                timestamp_us=int(event.get("t", 0) / 1e6),  # Alpaca sends ns; /1e6 → μs
                 price=Decimal(str(event.get("p", 0))),
                 size=int(event.get("s", 0)),
                 exchange=event.get("x", ""),
@@ -183,10 +183,16 @@ class AlpacaFeed(FeedHandler):
             await self._emit_tick(tick)
 
         elif event_type == "q":
-            # Quote
+            # Quote — use exchange timestamp, not local clock
+            raw_ts = event.get("t", 0)
+            if isinstance(raw_ts, (int, float)) and raw_ts > 1e12:
+                # Nanosecond epoch from Alpaca
+                quote_ts = datetime.fromtimestamp(raw_ts / 1e9)
+            else:
+                quote_ts = datetime.utcnow()
             quote = Quote(
                 symbol=event.get("S", ""),
-                timestamp=datetime.utcnow(),
+                timestamp=quote_ts,
                 bid=Decimal(str(event.get("bp", 0))),
                 ask=Decimal(str(event.get("ap", 0))),
                 bid_size=int(event.get("bs", 0)),
@@ -195,10 +201,15 @@ class AlpacaFeed(FeedHandler):
             await self._emit_quote(quote)
 
         elif event_type == "b":
-            # Bar
+            # Bar — use exchange timestamp, not local clock
+            raw_ts = event.get("t", 0)
+            if isinstance(raw_ts, (int, float)) and raw_ts > 1e12:
+                bar_ts = datetime.fromtimestamp(raw_ts / 1e9)
+            else:
+                bar_ts = datetime.utcnow()
             bar = OHLCV(
                 symbol=event.get("S", ""),
-                timestamp=datetime.utcnow(),
+                timestamp=bar_ts,
                 open=Decimal(str(event.get("o", 0))),
                 high=Decimal(str(event.get("h", 0))),
                 low=Decimal(str(event.get("l", 0))),

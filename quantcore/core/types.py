@@ -123,7 +123,10 @@ class Fill(BaseModel):
     commission: Decimal = Field(ge=0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     exchange: str = ""
+    side: Side | None = None  # Required for correct position accounting
     slippage_bps: Decimal = Field(default=Decimal("0"), ge=0)
+    market_impact_cost: Decimal = Field(default=Decimal("0"), ge=0)
+    impact_bps: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 class Position(BaseModel):
@@ -149,6 +152,7 @@ class Signal(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    notional_size: float | None = None
 
 
 class PortfolioSnapshot(BaseModel):

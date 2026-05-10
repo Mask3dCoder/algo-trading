@@ -7,6 +7,13 @@ TWS must be running and logged in before running this script.
 import os
 import sys
 import time
+from pathlib import Path
+
+# Ensure quantcore is importable from the repo root
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -84,10 +91,16 @@ def main():
 
     summary = ib.accountSummary()
     for item in summary:
-        if item.tag == "NetLiquidation" and item.currency == "USD":
-            print(f"  {PASS} Portfolio value: ${float(item.value):,.2f}")
-        if item.tag == "AvailableFunds" and item.currency == "USD":
-            print(f"  {PASS} Available funds: ${float(item.value):,.2f}")
+        if item.tag in ("NetLiquidation", "NetLiquidationByCurrency") and item.currency == "BASE":
+            print(f"  {PASS} Portfolio value: {float(item.value):,.2f} (base currency)")
+        if item.tag == "AvailableFunds" and item.currency == "BASE":
+            print(f"  {PASS} Available funds: {float(item.value):,.2f} (base currency)")
+    # Per-currency breakdown
+    for item in summary:
+        if item.tag == "NetLiquidationByCurrency" and item.currency == "USD":
+            print(f"         USD-denominated: ${float(item.value):,.2f}")
+        if item.tag == "NetLiquidationByCurrency" and item.currency == "GBP":
+            print(f"         GBP-denominated: £{float(item.value):,.2f}")
 
     # Check 4: Market data (basic test)
     print("\n[4] Market Data")

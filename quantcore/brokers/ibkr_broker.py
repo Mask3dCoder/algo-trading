@@ -230,7 +230,7 @@ class IBKRBroker(BrokerAdapter):
         self._ib.execDetailsEvent += self._on_exec_details
 
         # Set up disconnect handler
-        self._ib.disconnectedEvent += self._on_disconnected
+        self._ib.disconnectedEvent += lambda: self._on_disconnected()
 
         log.info(
             "Connected to IBKR %s:%d (clientId=%d, account=%s, mode=%s)",
@@ -352,6 +352,100 @@ class IBKRBroker(BrokerAdapter):
 
         raise IBKRBrokerError(
             f"Order {broker_id} timed out waiting for acknowledgement after {self.timeout}s"
+        )
+
+    async def submit_bracket_order(self, order: BrokerOrder) -> str:
+        """Submit a bracket order with optional stop-loss and take-profit children.
+
+        Creates a parent MARKET order with attached STOP (stop-loss) and
+        LIMIT (take-profit) child orders linked via OCA group. When one
+        child fills, the other is automatically cancelled.
+
+        Returns the parent broker order ID.
+        """
+        if not self._connected or not self._ib or not self._ib.isConnected():
+            await self.connect()
+
+        import ib_insync
+
+        contract = ib_insync.Stock(order.symbol, "SMART", "USD")
+        try:
+            self._ib.qualifyContracts(contract)
+        except Exception as e:
+            raise IBKROrderRejectedError(
+                f"Contract qualification failed for {order.symbol}: {e}"
+            )
+
+        action = order.side.upper()
+        total_qty = float(order.quantity)
+        opposite = "SELL" if action == "BUY" else "BUY"
+        oca_group = f"bracket_{int(time.time() * 1e6)}"
+
+        # Parent MARKET order
+        parent = ib_insync.MarketOrder(action, total_qty)
+        parent.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+        parent.ocaGroup = oca_group
+        parent.ocaType = 1  # Cancel with block
+
+        # Place parent first
+        parent_trade = self._ib.placeOrder(contract, parent)
+        parent_id = parent_trade.order.orderId
+        broker_id = f"ibkr-{parent_id}"
+        self._order_map[broker_id] = parent_trade
+        self._pending_orders[parent_id] = broker_id
+
+        # Child orders
+        children: list[ib_insync.Order] = []
+
+        if order.take_profit_price and float(order.take_profit_price) > 0:
+            tp = ib_insync.LimitOrder(
+                opposite, total_qty, float(order.take_profit_price),
+            )
+            tp.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+            tp.ocaGroup = oca_group
+            tp.ocaType = 1
+            tp.parentId = parent_id
+            tp.transmit = True
+            children.append(tp)
+
+        if order.stop_loss_price and float(order.stop_loss_price) > 0:
+            sl = ib_insync.StopOrder(
+                opposite, total_qty, float(order.stop_loss_price),
+            )
+            sl.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+            sl.ocaGroup = oca_group
+            sl.ocaType = 1
+            sl.parentId = parent_id
+            sl.transmit = True
+            children.append(sl)
+
+        # Submit children
+        for child in children:
+            child_trade = self._ib.placeOrder(contract, child)
+            child_id = child_trade.order.orderId
+            child_broker_id = f"ibkr-{child_id}"
+            self._order_map[child_broker_id] = child_trade
+            self._pending_orders[child_id] = child_broker_id
+
+        # Wait for parent acknowledgement
+        start = time.time()
+        while time.time() - start < self.timeout:
+            self._ib.sleep(0.1)
+            status = parent_trade.orderStatus.status
+            if status in ("Submitted", "PreSubmitted", "Filled"):
+                log.info(
+                    "Bracket order %s (%s %s %s) with %d children placed",
+                    broker_id, order.symbol, action, total_qty, len(children),
+                )
+                return broker_id
+            if status in ("Cancelled", "ApiCancelled", "Inactive"):
+                reason = getattr(parent_trade.orderStatus, "whyHeld", "") or status
+                raise IBKROrderRejectedError(
+                    f"Bracket order {broker_id} rejected: {reason}"
+                )
+
+        raise IBKRBrokerError(
+            f"Bracket order {broker_id} timed out after {self.timeout}s"
         )
 
     async def cancel_order(self, order_id: str) -> bool:
@@ -510,20 +604,58 @@ class IBKRBroker(BrokerAdapter):
         summary = self._ib.accountSummary()
         info = AccountInfo(account_id=self.account_id)
 
+        # Collect account-specific values (in base currency) and
+        # 'All' aggregate values for per-currency breakdowns.
+        base_nlv = 0.0
+        base_cash = 0.0
+        base_equity = 0.0
+        base_avail = 0.0
+        base_gpv = 0.0
+        usd_rate = 1.0
+        acct = self.account_id
+
         for item in summary:
-            if item.currency != "USD":
+            try:
+                val = float(item.value)
+            except (ValueError, TypeError):
                 continue
-            val = float(item.value)
-            if item.tag == "NetLiquidation":
-                info.portfolio_value = val
-            elif item.tag == "AvailableFunds":
-                info.buying_power = val
-            elif item.tag == "CashBalance" or item.tag == "TotalCashValue":
-                info.cash = val
-            elif item.tag == "NetLiquidationByCurrency":
-                info.equity = val
-            elif item.tag == "GrossPositionValue":
-                info.margin_used = val
+
+            # Exchange rate for base→USD conversion
+            if item.tag == "ExchangeRate" and item.currency == "USD":
+                usd_rate = max(val, 0.001)
+
+            # Account-specific entries (in base currency)
+            if item.account == acct:
+                if item.tag == "NetLiquidation":
+                    base_nlv = val
+                elif item.tag == "TotalCashValue":
+                    base_cash = val
+                elif item.tag == "AvailableFunds":
+                    base_avail = val
+                elif item.tag == "GrossPositionValue":
+                    base_gpv = val
+
+            # Stock market value only appears under 'All'
+            if item.account == "All" and item.tag == "StockMarketValue" and item.currency == "BASE":
+                base_equity = val
+
+        # Fallback: use NetLiquidationByCurrency BASE if NetLiquidation not found
+        if base_nlv == 0.0:
+            for item in summary:
+                if item.tag == "NetLiquidationByCurrency" and item.currency == "BASE":
+                    try:
+                        base_nlv = float(item.value)
+                    except (ValueError, TypeError):
+                        pass
+                    break
+
+        # Convert base-currency values to USD
+        if usd_rate > 0:
+            info.portfolio_value = base_nlv / usd_rate
+            info.cash = base_cash / usd_rate
+            info.equity = base_equity / usd_rate
+            info.buying_power = base_avail / usd_rate
+            info.margin_used = base_gpv / usd_rate
 
         if info.portfolio_value > 0 and info.cash > 0:
             info.margin_used = max(0.0, info.portfolio_value - info.cash)
@@ -587,6 +719,33 @@ class IBKRBroker(BrokerAdapter):
                 new_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(new_loop)
                 result = new_loop.run_until_complete(self.submit_order(order))
+                future.set_result(result)
+            except Exception as e:
+                future.set_exception(e)
+
+        threading.Thread(target=_run, daemon=True).start()
+        return future.result(timeout=self.timeout)
+
+    def submit_bracket_order_sync(self, order: BrokerOrder) -> str:
+        """Synchronous bracket order submission."""
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.submit_bracket_order(order))
+
+        import concurrent.futures
+        import threading
+
+        future = concurrent.futures.Future()
+
+        def _run():
+            try:
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                result = new_loop.run_until_complete(
+                    self.submit_bracket_order(order))
                 future.set_result(result)
             except Exception as e:
                 future.set_exception(e)

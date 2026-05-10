@@ -31,11 +31,12 @@ def mock_ib():
     return ib
 
 
-def _summary_item(tag, value, currency="USD"):
+def _summary_item(tag, value, currency="USD", account="DU123456"):
     item = MagicMock()
     item.tag = tag
     item.value = value
     item.currency = currency
+    item.account = account
     return item
 
 
@@ -323,6 +324,7 @@ class TestSyncWrappers:
         broker = IBKRBroker(host="127.0.0.1", port=7497, client_id=1)
         broker._ib = mock_ib
         broker._connected = True
+        broker.account_id = "DU123456"
 
         acct = broker.get_account_sync()
         assert acct.portfolio_value == 100000

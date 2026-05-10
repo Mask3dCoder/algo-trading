@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 import numpy as np
+import structlog
 from numpy.typing import NDArray
 
 from quantcore.core.types import PortfolioSnapshot
@@ -24,6 +25,7 @@ from quantcore.risk.limits import (
 )
 from quantcore.risk.metrics import compute_all_metrics
 from quantcore.risk.stress import (
+    Scenario,
     StressResult,
     apply_scenario,
     build_scenario_library,
@@ -38,6 +40,17 @@ from quantcore.risk.var import (
     monte_carlo_var,
     parametric_var,
 )
+
+
+def _nearest_psd(cov: NDArray[np.floating]) -> NDArray[np.floating]:
+    """Project covariance matrix to nearest positive semi-definite matrix.
+
+    Uses eigenvalue clipping: all negative eigenvalues → 0, then reconstruct.
+    This ensures portfolio variance is always non-negative.
+    """
+    eigvals, eigvecs = np.linalg.eigh((cov + cov.T) / 2.0)
+    eigvals = np.maximum(eigvals, 0.0)
+    return eigvecs @ np.diag(eigvals) @ eigvecs.T
 
 
 @dataclass
@@ -104,7 +117,7 @@ class RiskEngine:
         self.drawdown_tracker = DrawdownTracker(drawdown_config)
         self.var_confidence = var_confidence
         self.stress_scenarios = stress_scenarios or [
-            "tech_crash", "rate_hike", "credit_crunch", "vol_spike",
+            "GFC_2008", "COVID_2020", "RATE_SHOCK_2022", "LTCM_1998",
         ]
         self._returns_history: list[float] = []
         self._circuit_breaker = CircuitBreaker(limits=self.limits)
@@ -115,6 +128,19 @@ class RiskEngine:
         self._returns_history.extend(r.tolist())
         # Keep last 5 years
         self._returns_history = self._returns_history[-1260:]
+
+    def update_per_asset_returns(self, returns: NDArray[np.floating]) -> None:
+        """Accumulate per-asset returns for risk attribution.
+
+        Args:
+            returns: Shape (n_assets,) or (n_periods, n_assets) per-asset returns.
+        """
+        r = np.atleast_2d(np.asarray(returns, dtype=float))
+        if not hasattr(self, '_per_asset_returns') or self._per_asset_returns is None:
+            self._per_asset_returns = r.tolist()
+        else:
+            self._per_asset_returns.extend(r.tolist())
+        self._per_asset_returns = self._per_asset_returns[-1260:]
 
     def assess(
         self,
@@ -146,54 +172,72 @@ class RiskEngine:
             portfolio_value=float(portfolio.total_value),
         )
 
-        # 1. VaR
+        _log = structlog.get_logger()
+
+        # 1. VaR (with NaN guards — NaN VaR must never silently propagate)
         assessment.var_historical = historical_var(r, confidence=self.var_confidence)
+        if assessment.var_historical is not None and (np.isnan(assessment.var_historical.var) or np.isnan(assessment.var_historical.cvar or 0)):
+            _log.warning("var_nan_detected", method="historical")
+            assessment.var_historical = None
+
         mu = float(np.mean(r))
         sigma = float(np.std(r, ddof=1))
-        assessment.var_parametric = parametric_var(mu, sigma, confidence=self.var_confidence)
-        assessment.cvar_value = cvar(r, confidence=self.var_confidence)
+        if sigma > 0 and not np.isnan(sigma):
+            assessment.var_parametric = parametric_var(mu, sigma, confidence=self.var_confidence)
+            if assessment.var_parametric is not None and np.isnan(assessment.var_parametric.var):
+                _log.warning("var_nan_detected", method="parametric")
+                assessment.var_parametric = None
+        else:
+            _log.warning("var_skipped", method="parametric", reason=f"sigma={sigma}")
+
+        cvar_val = cvar(r, confidence=self.var_confidence)
+        assessment.cvar_value = cvar_val if not np.isnan(cvar_val) else 0.0
+
         if len(r) >= 100:
             from scipy import stats as sp_stats
             skew = float(sp_stats.skew(r))
             kurt = float(sp_stats.kurtosis(r))
-            assessment.var_cornish_fisher = cornish_fisher_var(
-                mu, sigma, skew, kurt, confidence=self.var_confidence,
-            )
+            if not np.isnan(skew) and not np.isnan(kurt):
+                assessment.var_cornish_fisher = cornish_fisher_var(
+                    mu, sigma, skew, kurt, confidence=self.var_confidence,
+                )
+                if assessment.var_cornish_fisher is not None and np.isnan(assessment.var_cornish_fisher.var):
+                    _log.warning("var_nan_detected", method="cornish_fisher")
+                    assessment.var_cornish_fisher = None
         if len(r) >= 252:
             assessment.var_monte_carlo = monte_carlo_var(r, confidence=self.var_confidence, n_scenarios=10_000)
+            if assessment.var_monte_carlo is not None and np.isnan(assessment.var_monte_carlo.var):
+                _log.warning("var_nan_detected", method="monte_carlo")
+                assessment.var_monte_carlo = None
 
         # 2. Stress tests
         scenarios = build_scenario_library()
-        positions_dict = {
-            sym: pos for sym, pos in portfolio.positions.items()
-        }
         for scenario_name in self.stress_scenarios:
             if scenario_name in scenarios:
                 try:
                     assessment.stress_results[scenario_name] = apply_scenario(
-                        scenario_name, positions_dict, scenarios,
+                        portfolio, scenarios[scenario_name],
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _log.warning("stress_test_failed", scenario=scenario_name, error=str(exc))
 
-        # Concentration report
+        # Reverse stress + concentration report
+        reverse_results: list[Scenario] = []
+        if len(portfolio.positions) > 0:
+            try:
+                loss_threshold = -0.20
+                reverse_results = reverse_stress(portfolio, float(loss_threshold))
+                if reverse_results:
+                    assessment.reverse_stress_losses = np.array([
+                        sum(s.shocks.values()) for s in reverse_results
+                    ])
+            except Exception as exc:
+                _log.warning("reverse_stress_failed", error=str(exc))
+
         try:
-            assessment.stress_results["concentration"] = concentration_report(portfolio)
-        except Exception:
-            pass
-
-        # Reverse stress
-        if len(r) >= 100:
-            values = np.array([
-                float(pos.market_value) for pos in portfolio.positions.values()
-            ])
-            if len(values) > 0:
-                try:
-                    loss_threshold = -0.20 * float(portfolio.total_value)
-                    rev_result = reverse_stress(values, float(loss_threshold))
-                    assessment.reverse_stress_losses = rev_result.shocks if rev_result.converged else None
-                except Exception:
-                    pass
+            assessment.stress_results["concentration"] = concentration_report(reverse_results)
+        except Exception as exc:
+            _log.warning("concentration_report_failed", error=str(exc))
 
         # 3. Greeks
         try:
@@ -201,8 +245,8 @@ class RiskEngine:
                 portfolio,
                 option_greeks=option_greeks,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning("greeks_aggregation_failed", error=str(exc))
 
         # 4. Limits
         assessment.limit_breaches = check_post_trade(portfolio, self.limits)
@@ -218,22 +262,31 @@ class RiskEngine:
         # 6. Performance metrics
         assessment.metrics = compute_all_metrics(r)
 
-        # 7. Risk attribution (if we have weights and cov)
-        if len(portfolio.positions) >= 2 and len(r) >= 50:
-            try:
-                weights = np.array([
-                    float(abs(p.market_value)) / total_val
-                    for p in portfolio.positions.values()
-                    if float(abs(p.market_value)) > 0
-                ])
-                if len(weights) >= 2:
-                    # Approximate covariance from returns
-                    cov = np.cov(r.reshape(-1, 1).T) if r.ndim == 1 else np.eye(len(weights)) * np.var(r)
-                    if len(weights) == cov.shape[0]:
-                        attr = risk_attribution(weights, cov, confidence=self.var_confidence)
-                        assessment.risk_contributions = attr.component_var_pct
-            except Exception:
-                pass
+        # 7. Risk attribution (requires per-asset returns for proper decomposition)
+        if len(portfolio.positions) >= 2 and len(r) >= 50 and total_val > 0:
+            weights = np.array([
+                float(abs(p.market_value)) / total_val
+                for p in portfolio.positions.values()
+                if float(abs(p.market_value)) > 0
+            ])
+            # Invariant: weights should sum to ~1.0 within tolerance
+            weight_sum = np.sum(weights)
+            if abs(weight_sum - 1.0) > 0.01:
+                _log.warning("risk_attribution_weight_sum", sum=round(weight_sum, 4))
+                weights = weights / weight_sum  # Normalize
+            if len(weights) >= 2:
+                # Use per-asset returns if available (set via update_per_asset_returns)
+                if hasattr(self, '_per_asset_returns') and self._per_asset_returns is not None:
+                    per_asset = np.array(self._per_asset_returns)
+                    if per_asset.ndim == 2 and per_asset.shape[1] == len(weights) and per_asset.shape[0] >= 50:
+                        cov = np.cov(per_asset[-252:].T) if len(per_asset) >= 252 else np.cov(per_asset.T)
+                        # PSD projection: ensures portfolio variance is non-negative
+                        if cov.ndim == 2 and cov.shape[0] == len(weights):
+                            cov = _nearest_psd(cov)
+                            attr = risk_attribution(weights, cov, confidence=self.var_confidence)
+                            assessment.risk_contributions = attr.component_var_pct
+                else:
+                    _log.info("risk_attribution_skipped", reason="per-asset returns not available")
 
         # 8. Risk level and flags
         assessment.risk_level, assessment.risk_flags = self._classify_risk(assessment)
@@ -245,21 +298,23 @@ class RiskEngine:
         flags: list[str] = []
         score = 0
 
-        # VaR-based
+        # VaR-based (with NaN guard — NaN VaR must never set the risk level)
         if a.var_historical and a.portfolio_value > 0:
-            var_pct = abs(a.var_historical.var) / a.portfolio_value
-            if var_pct > 0.05:
-                score += 1
-                flags.append(f"VaR {var_pct:.1%} exceeds 5%")
-            if var_pct > 0.10:
-                score += 1
-                flags.append(f"VaR {var_pct:.1%} exceeds 10% (critical)")
+            var_val = a.var_historical.var
+            if not np.isnan(var_val):
+                var_pct = abs(var_val) / a.portfolio_value
+                if var_pct > 0.05:
+                    score += 1
+                    flags.append(f"VaR {var_pct:.1%} exceeds 5%")
+                if var_pct > 0.10:
+                    score += 1
+                    flags.append(f"VaR {var_pct:.1%} exceeds 10% (critical)")
 
         # Stress losses
         worst_stress = 0.0
         for name, result in a.stress_results.items():
-            if abs(result.total_pnl) > worst_stress:
-                worst_stress = abs(result.total_pnl)
+            if hasattr(result, "pnl") and abs(result.pnl) > worst_stress:
+                worst_stress = abs(result.pnl)
         if a.portfolio_value > 0:
             stress_pct = worst_stress / a.portfolio_value
             if stress_pct > 0.15:

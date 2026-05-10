@@ -487,8 +487,16 @@ class TestDrawdown:
 
 class TestMetrics:
     def test_sharpe_zero(self):
+        # Audit fix 2026-05-10: flat returns -> NaN (not 0.0).
+        # A flat return series has no meaningful Sharpe; returning 0.0 was
+        # misleading (implies a strategy with no risk and no return).
+        import math
         r = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
-        assert sharpe_ratio(r) == 0.0
+        result = sharpe_ratio(r)
+        assert math.isnan(result), (
+            f"Expected NaN for flat returns (audit fix), got {result}. "
+            "Update any code that treats sharpe==0 as a passing score."
+        )
 
     def test_sharpe_positive(self):
         rng = np.random.default_rng(42)

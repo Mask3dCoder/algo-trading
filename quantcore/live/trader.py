@@ -7,8 +7,10 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+from quantcore.core.cash import CashLedger
 from quantcore.core.types import PortfolioSnapshot, Position, Side
 from quantcore.execution.oms import OrderManager, market_order
+from quantcore.live.reconciliation_guard import GuardState, ReconciliationGuard
 from quantcore.live.runner import Broker, DataProvider, LiveConfig, LiveState
 from quantcore.risk.drawdown import DrawdownAction, DrawdownState, DrawdownTracker
 from quantcore.risk.limits import (
@@ -92,6 +94,10 @@ class LiveTrader:
         self._alerts: list[str] = []
         self._positions: dict[str, Position] = {}
         self._cash: float = 0.0
+        self._cash_ledger: CashLedger = CashLedger()
+        self._reconciliation_guard: ReconciliationGuard = ReconciliationGuard()
+        self._last_reconciliation: datetime | None = None
+        self._reconciliation_interval_sec: float = 300.0  # 5 min
 
     def startup(self) -> bool:
         """Run startup sequence: connect, sync, validate, enter pre-market."""
@@ -103,6 +109,25 @@ class LiveTrader:
         self._daily_start_value = self._current_value()
         self._weekly_start_value = self._daily_start_value
         self._start_time = datetime.now(UTC)
+
+        # Reconcile with broker immediately on startup
+        if self.broker and self.config.reconciliation_enabled:
+            self._reconciliation_guard.mark_connected()
+            self._reconciliation_guard.set_internal_state(
+                positions=self._positions,
+                cash=self._cash_ledger.settled_cash,
+                orders=self.oms.orders,
+            )
+            guard_result = self._reconciliation_guard.check(self.broker)
+            if guard_result.guard_state == GuardState.HALT:
+                self._alerts.append(
+                    f"STARTUP RECONCILIATION FAILED: {guard_result.details}"
+                )
+                self.state = TraderState.EMERGENCY
+                self.live_state = LiveState.HALTED
+                return False
+            self._last_reconciliation = datetime.now(UTC)
+
         self.state = TraderState.PRE_MARKET
         self.live_state = LiveState.RUNNING
         return True
@@ -137,6 +162,26 @@ class LiveTrader:
 
         if self.state == TraderState.TRADING:
             self._sync_portfolio()
+
+            # Periodic broker reconciliation
+            if self.config.reconciliation_enabled and self.broker is not None:
+                now = datetime.now(UTC)
+                if (self._last_reconciliation is None or
+                    (now - self._last_reconciliation).total_seconds() >= self._reconciliation_interval_sec):
+                    self._reconciliation_guard.set_internal_state(
+                        positions=self._positions,
+                        cash=self._cash_ledger.settled_cash,
+                        orders=self.oms.orders,
+                    )
+                    guard_result = self._reconciliation_guard.check(self.broker)
+                    self._last_reconciliation = now
+                    if guard_result.guard_state == GuardState.HALT:
+                        self._alerts.append(
+                            f"RECONCILIATION HALT: {guard_result.details}"
+                        )
+                        self._emergency_flatten()
+                        return self._snapshot()
+
             self._process_signals()
             dd = self.drawdown_tracker.update(self._current_value())
             if dd.action in (DrawdownAction.HALT, DrawdownAction.FLATTEN):
@@ -180,10 +225,23 @@ class LiveTrader:
             direction = str(sig.get("direction", "long"))
             if price <= 0 or not symbol:
                 continue
-            qty = int(self._cash * self.config.live_config.max_position_pct / price) if self._cash > 0 else 0
+            avail = self._cash_ledger.available()
+            qty = int(avail * self.config.live_config.max_position_pct / price) if avail > 0 else 0
             if qty <= 0:
                 continue
             side = Side.BUY if direction == "long" else Side.SELL
+            order_value = qty * price
+
+            # Pre-trade cash availability check (settlement constraint)
+            if order_value > avail + 1.0:
+                continue
+
+            # Reserve cash
+            try:
+                self._cash_ledger.reserve(order_value, order.id)
+            except Exception:
+                continue
+
             order = market_order(symbol=symbol, side=side, quantity=qty)
             snap = PortfolioSnapshot(
                 timestamp=datetime.now(UTC), positions=self._positions,
@@ -191,6 +249,7 @@ class LiveTrader:
             )
             result = check_pre_trade(order, snap, self.config.live_config.risk_limits or RiskLimits())
             if result.status == LimitStatus.REJECTED:
+                self._cash_ledger.release(order.id)
                 continue
             self.oms.submit(order)
             if self.broker:
@@ -198,6 +257,7 @@ class LiveTrader:
                     self.broker.submit_order(order)
                 except Exception:
                     self.oms.reject(order.id, "Broker submission failed")
+                    self._cash_ledger.release(order.id)
 
     def shutdown(self) -> None:
         """Graceful shutdown: cancel orders, final sync, exit."""
@@ -235,7 +295,12 @@ class LiveTrader:
         if self.broker:
             try:
                 acct = self.broker.get_account()
-                self._cash = float(acct.get("cash", 0))
+                broker_cash = float(acct.get("cash", 0))
+                self._cash_ledger.settle_pending()
+                diff = broker_cash - self._cash_ledger.total_cash
+                if abs(diff) > 1.0:
+                    self._cash_ledger.add_cash(diff)
+                self._cash = self._cash_ledger.settled_cash
                 self._positions = self.broker.get_positions()
             except Exception:
                 pass

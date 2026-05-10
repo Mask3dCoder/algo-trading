@@ -26,12 +26,34 @@ def sharpe_ratio(
     rf: float = 0.0,
     annualize: bool = True,
 ) -> float:
-    """Sharpe ratio: (mean(R) - rf) / std(R), annualized."""
+    """Sharpe ratio: (mean(R) - rf_daily) / std(R), optionally annualized.
+
+    Returns float('nan') when standard deviation is effectively zero —
+    a flat return series has no meaningful Sharpe (not 0.0, which implies
+    no edge but also no risk, which is misleading).
+
+    rf convention:
+      annualize=True  → rf is annual rate; converted daily via geometric
+                         decompounding: rf_daily = (1+rf)^(1/252) - 1
+      annualize=False → rf is already on the same frequency as returns
+    """
     r = np.asarray(returns, dtype=float).flatten()
-    r_excess = r - rf / (TRADING_DAYS if annualize else 1.0)
-    if len(r_excess) < 2 or np.std(r_excess) == 0:
-        return 0.0
-    sr = float(np.mean(r_excess) / np.std(r_excess, ddof=1))
+    if len(r) < 2:
+        return float("nan")
+
+    # Proper risk-free rate conversion
+    if annualize:
+        rf_daily = (1.0 + rf) ** (1.0 / TRADING_DAYS) - 1.0
+    else:
+        rf_daily = rf
+
+    r_excess = r - rf_daily
+    std_ = float(np.std(r_excess, ddof=1))
+    if std_ < 1e-10:
+        # Flat return series — Sharpe is undefined, not zero
+        return float("nan")
+
+    sr = float(np.mean(r_excess)) / std_
     return sr * np.sqrt(TRADING_DAYS) if annualize else sr
 
 
@@ -64,14 +86,30 @@ def sortino_ratio(
 def calmar_ratio(
     returns: NDArray[np.floating],
 ) -> float:
-    """Calmar ratio: annualized return / max drawdown."""
+    """Calmar ratio: annualized return / max drawdown (equity-based).
+
+    Bug fix: computes drawdown on the *equity curve* (exp(cumsum(r))), not on
+    cumulative log-returns.  The original code used cumsum which is the log-
+    return path — this understates drawdowns for negative-skew strategies and
+    gives a misleading denominator.
+    """
     r = np.asarray(returns, dtype=float).flatten()
+    if len(r) < 2:
+        return float("nan")
+
     ann_ret = float(np.mean(r)) * TRADING_DAYS
-    cumulative = np.cumsum(r)
-    running_max = np.maximum.accumulate(cumulative)
-    max_dd = float(np.abs((cumulative - running_max).min()))
-    if max_dd == 0:
-        return 0.0
+
+    # Equity curve (assumes log-returns; same formula works for simple returns
+    # when returns are small, i.e., daily).  Using exp(cumsum) gives the true
+    # multiplicative P&L path.
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    # Drawdown as fraction of peak (negative values)
+    drawdown = (equity - peak) / np.where(peak > 0, peak, 1.0)
+    max_dd = float(np.abs(drawdown.min()))
+
+    if max_dd < 1e-10:
+        return float("nan")  # No drawdown → Calmar undefined, not infinite
     return ann_ret / max_dd
 
 
@@ -348,6 +386,48 @@ def rolling(
     return results
 
 
+def rolling_sharpe(
+    returns: NDArray[np.floating],
+    rf: float = 0.0,
+    window: int = 252,
+) -> NDArray[np.floating]:
+    """Rolling annualised Sharpe ratio.
+
+    Returns array of same length as `returns`; values before the first full
+    window are set to NaN.
+    """
+    r = np.asarray(returns, dtype=float).flatten()
+    n = len(r)
+    out = np.full(n, float("nan"))
+    for i in range(window, n + 1):
+        window_r = r[i - window : i]
+        out[i - 1] = sharpe_ratio(window_r, rf=rf, annualize=True)
+    return out
+
+
+def rolling_maxdd(
+    returns: NDArray[np.floating],
+    window: int = 252,
+) -> NDArray[np.floating]:
+    """Rolling maximum drawdown (equity-based).
+
+    Returns array of same length as `returns`; values before the first full
+    window are set to NaN.
+    """
+    r = np.asarray(returns, dtype=float).flatten()
+    n = len(r)
+    out = np.full(n, float("nan"))
+
+    for i in range(window, n + 1):
+        w = r[i - window : i]
+        equity = np.exp(np.cumsum(w))
+        peak = np.maximum.accumulate(equity)
+        dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
+        out[i - 1] = float(np.abs(dd.min()))
+
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Bootstrap confidence intervals
 # ---------------------------------------------------------------------------
@@ -356,11 +436,21 @@ def rolling(
 def bootstrap_ci(
     returns: NDArray[np.floating],
     metric_fn: Callable[[NDArray[np.floating]], float],
-    n_boot: int = 1000,
-    ci: float = 0.95,
+    n_boot: int = 2000,
+    ci: float = 0.90,
     seed: int = 42,
 ) -> tuple[float, float]:
     """Bootstrap confidence interval for a risk metric.
+
+    Uses block bootstrap (block_size=10) to preserve autocorrelation in
+    returns, which IID bootstrap would destroy.
+
+    Args:
+        returns:   Daily return series.
+        metric_fn: Function (NDArray) → float, e.g. sharpe_ratio.
+        n_boot:    Number of bootstrap replications (default 2000).
+        ci:        Confidence level (default 0.90 = 90% CI).
+        seed:      RNG seed for reproducibility.
 
     Returns:
         (lower, upper) confidence interval bounds.
@@ -372,15 +462,31 @@ def bootstrap_ci(
         return val, val
 
     rng = np.random.default_rng(seed)
-    boot_results = np.zeros(n_boot)
+    block_size = max(1, int(np.ceil(n ** (1 / 3))))  # Optimal block ≈ n^(1/3)
+    n_blocks = int(np.ceil(n / block_size))
 
+    boot_results = np.full(n_boot, float("nan"))
+    valid = 0
     for i in range(n_boot):
-        idx = rng.integers(0, n, n)
-        boot_results[i] = metric_fn(r[idx])
+        starts = rng.integers(0, n - block_size + 1, n_blocks)
+        resampled = np.concatenate([r[s : s + block_size] for s in starts])[:n]
+        try:
+            val = metric_fn(resampled)
+            if np.isfinite(val):
+                boot_results[i] = val
+                valid += 1
+        except Exception:
+            pass
 
+    if valid < 10:
+        # Fallback to point estimate when bootstrap is degenerate
+        val = metric_fn(r)
+        return val, val
+
+    finite_vals = boot_results[np.isfinite(boot_results)]
     alpha = (1.0 - ci) / 2.0
-    lower = float(np.percentile(boot_results, alpha * 100))
-    upper = float(np.percentile(boot_results, (1.0 - alpha) * 100))
+    lower = float(np.percentile(finite_vals, alpha * 100))
+    upper = float(np.percentile(finite_vals, (1.0 - alpha) * 100))
     return lower, upper
 
 

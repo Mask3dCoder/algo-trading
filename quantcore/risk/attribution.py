@@ -4,6 +4,7 @@ Decomposes portfolio P&L into:
 - Allocation effect: how much comes from over/under-weighting sectors
 - Selection effect: how much comes from picking winners within sectors
 - Interaction effect: cross-term between allocation and selection
+- CAPM decomposition: alpha, beta, systematic / idiosyncratic
 - Risk contribution: how much risk each position contributes
 """
 
@@ -42,6 +43,88 @@ class RiskAttribution:
     component_var_pct: dict[str, float] = field(default_factory=dict)
     marginal_var: dict[str, float] = field(default_factory=dict)
     incremental_var: dict[str, float] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# PerformanceAttribution (CAPM + multi-factor)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PerformanceAttribution:
+    """CAPM and multi-factor performance decomposition.
+
+    CAPM: R_p - R_f = α + β * (R_m - R_f) + ε
+    Systematic return = β * mean(R_m - R_f)
+    Idiosyncratic return = α (the manager's skill component)
+    """
+    alpha: float = 0.0
+    beta: float = 0.0
+    systematic_return: float = 0.0
+    idiosyncratic_return: float = 0.0
+    r_squared: float = 0.0
+    factor_attribution: dict[str, float] = field(default_factory=dict)
+
+
+def capm_attribution(
+    portfolio_returns: NDArray[np.floating],
+    market_returns: NDArray[np.floating],
+    risk_free: float = 0.0,
+    annualize: bool = True,
+) -> PerformanceAttribution:
+    """CAPM decomposition of portfolio returns.
+
+    R_p = R_f + β * (R_m - R_f) + α
+
+    Args:
+        portfolio_returns: (n_periods,) portfolio returns.
+        market_returns: (n_periods,) market benchmark returns.
+        risk_free: Annualized risk-free rate.
+        annualize: If True, alpha is annualized.
+
+    Returns:
+        PerformanceAttribution with alpha, beta, systematic/idio returns.
+    """
+    r = np.asarray(portfolio_returns, dtype=float).flatten()
+    m = np.asarray(market_returns, dtype=float).flatten()
+    n = min(len(r), len(m))
+    r = r[:n]
+    m = m[:n]
+
+    from quantcore.risk.metrics import TRADING_DAYS
+    rf_daily = risk_free / TRADING_DAYS
+
+    r_excess = r - rf_daily
+    m_excess = m - rf_daily
+
+    cov = np.cov(r_excess, m_excess)
+    beta = cov[0, 1] / cov[1, 1] if cov[1, 1] > 0 else 0.0
+
+    mean_r = float(np.mean(r_excess))
+    mean_m = float(np.mean(m_excess))
+
+    alpha_daily = mean_r - beta * mean_m
+    ann_factor = TRADING_DAYS if annualize else 1.0
+    alpha = alpha_daily * ann_factor
+    systematic_return = beta * mean_m * ann_factor
+    idiosyncratic_return = alpha  # α is the manager-specific component
+
+    # R² = explained variance / total variance
+    total_var = float(np.var(r_excess))
+    if total_var > 0:
+        predicted = beta * m_excess
+        residual_var = float(np.var(r_excess - predicted))
+        r_squared = max(0.0, 1.0 - residual_var / total_var)
+    else:
+        r_squared = 0.0
+
+    return PerformanceAttribution(
+        alpha=alpha,
+        beta=beta,
+        systematic_return=systematic_return,
+        idiosyncratic_return=idiosyncratic_return,
+        r_squared=r_squared,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -20,9 +20,16 @@ from quantcore.risk.metrics import sharpe_ratio
 
 _EQUITY_PARAMS: dict[str, dict] = {
     "equity_momentum": {"rebalance_freq": 1, "lookback_months": 6, "skip_months": 1},
+    "equity_earnings_momentum": {"rebalance_freq": 1},  # DISABLED (audit) — minimal params for coverage
+    "equity_low_volatility": {"rebalance_freq": 1},   # RESEARCH — minimal params for coverage
     "equity_stat_arb": {"rescan_freq": 1, "entry_z": 1.5, "lookback": 100, "max_pairs": 2},
     "equity_mean_reversion": {"rsi_oversold": 30, "rsi_overbought": 70},
     "equity_trend_following": {"trend_window": 50, "fast_window": 10, "slow_window": 30},
+    "equity_multi_factor": {},
+    "equity_quality_factor": {},
+    "equity_value_factor": {},
+    "equity_volatility_breakout": {},
+    "equity_volume_profile": {},
 }
 
 _OPTIONS_PARAMS: dict[str, dict] = {
@@ -36,6 +43,18 @@ _MACRO_PARAMS: dict[str, dict] = {
     "macro_risk_parity": {"rebalance_freq": 1, "lookback": 100},
     "macro_cta_trend": {"rebalance_freq": 1, "slow_window": 100},
     "macro_carry": {"rebalance_freq": 1, "n_long": 2, "n_short": 2},
+    "macro_carry_trend_filter": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_factor_residual": {"rebalance_freq": 5, "reg_window": 252},
+    "macro_factor_residual_strict": {"rebalance_freq": 5, "reg_window": 252},
+    "macro_factor_residual_qp": {"rebalance_freq": 5, "reg_window": 252},
+    "macro_regime_adaptive_momentum": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_state_selective_momentum": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_cross_sectional_momentum": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_cross_sectional_momentum_v2": {
+        "rebalance_freq": 5, "mom_windows": "20,60,120", "mom_weights": "0.2,0.5,0.3",
+        "max_leverage": 1.0, "max_gross_exposure": 1.0,
+    },
+    "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
 }
 
 _INTRADAY_PARAMS: dict[str, dict] = {
@@ -299,6 +318,11 @@ class TestAllStrategiesWalkForward:
                 returns = _signal_returns(strat, test_data)
                 if len(returns) > 2:
                     oos_sr = sharpe_ratio(returns, annualize=False)
+                    # NaN is returned for flat/zero-variance returns (audit fix 2026-05-10).
+                    # NaN means "undefined Sharpe" NOT "extreme negative Sharpe" — skip the check.
+                    import math
+                    if math.isnan(oos_sr):
+                        continue  # flat strategy — not a failure, just uninformative
                     assert oos_sr > -5.0, f"{strategy_name}: OOS Sharpe {oos_sr:.2f} is extreme"
 
 

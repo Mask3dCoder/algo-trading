@@ -13,6 +13,7 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
+    StrategyStatus,
     TradeSignal,
 )
 from quantcore.strategies.registry import register
@@ -22,6 +23,13 @@ from quantcore.strategies.registry import register
 class MomentumStrategy(Strategy):
     """Cross-sectional momentum: long winners, short losers, inv-vol weighted.
 
+    .. deprecated::
+    STRATEGY_STATUS = StrategyStatus.DISABLED
+
+    Forensic audit (2026-05-09): Classic 12-1 momentum edge has decayed
+    post-2000 as it became widely known and arbitraged.  OOS validation
+    not completed (insufficient universe diversity).  Retained for reference.
+
     Config params:
         lookback_months: total lookback in months (default 12)
         skip_months: recent months to skip (default 1)
@@ -30,6 +38,8 @@ class MomentumStrategy(Strategy):
         vol_lookback: months for volatility estimation (default 6)
         rebalance_freq: rebalance frequency in trading days (default 21)
     """
+
+    STRATEGY_STATUS: StrategyStatus = StrategyStatus.DISABLED
 
     def __init__(self, config: StrategyConfig) -> None:
         super().__init__(config)
@@ -87,9 +97,11 @@ class MomentumStrategy(Strategy):
         # Rank by cumulative return
         ranks = np.argsort(np.argsort(cum_returns))
 
-        # Select top n_long and bottom n_short
-        long_mask = ranks >= (n_assets - self.n_long)
-        short_mask = ranks < self.n_short
+        # Select top n_long and bottom n_short (mutually exclusive)
+        n_long_actual = min(self.n_long, n_assets)
+        n_short_actual = min(self.n_short, n_assets - n_long_actual)
+        long_mask = ranks >= (n_assets - n_long_actual)
+        short_mask = ranks < n_short_actual
 
         # Inverse-vol weights
         inv_vol = 1.0 / vols

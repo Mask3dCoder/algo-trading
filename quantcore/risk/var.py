@@ -116,6 +116,7 @@ def parametric_var(
     sigma: float | NDArray[np.floating],
     confidence: float = 0.95,
     horizon_days: int = 1,
+    weights: NDArray[np.floating] | None = None,
 ) -> VaRResult:
     """Parametric (Gaussian) VaR: VaR_α = -μ - σ * Φ⁻¹(1-α).
 
@@ -124,14 +125,19 @@ def parametric_var(
         sigma: Volatility (scalar or covariance matrix).
         confidence: VaR confidence level.
         horizon_days: Scaling horizon.
+        weights: Portfolio weights. When provided with a covariance matrix,
+            computes portfolio vol as sqrt(w'Σw) instead of averaging.
     """
     sigma_arr = np.atleast_1d(np.asarray(sigma, dtype=float))
     mu_scalar = float(np.asarray(mu).mean())
 
     if sigma_arr.ndim <= 1:
         port_sigma = float(sigma_arr.mean())  # For scalar case
+    elif weights is not None:
+        w = np.asarray(weights, dtype=float).flatten()
+        port_sigma = float(np.sqrt(w @ sigma_arr @ w))
     else:
-        port_sigma = float(np.sqrt(np.mean(sigma_arr)))  # Simplified
+        port_sigma = float(np.sqrt(np.mean(sigma_arr)))  # Simplified fallback
 
     z_alpha = sp_stats.norm.ppf(1.0 - confidence)
     var_val = mu_scalar * horizon_days + port_sigma * np.sqrt(horizon_days) * z_alpha

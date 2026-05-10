@@ -79,7 +79,16 @@ class MomentumCrossoverStrategy:
             self._prev_fast = self._fast_sma
             self._prev_slow = self._slow_sma
             self._warm = True
-            return []
+            # Enter initial position if already in bullish configuration
+            if self._fast_sma > self._slow_sma and not self._in_position:
+                signals.append(SignalData(
+                    symbol=sym,
+                    direction="long",
+                    strength=1.0,
+                    strategy_id="momentum_crossover",
+                ))
+                self._in_position = True
+            return signals
 
         # Golden cross: fast crosses above slow
         if self._prev_fast <= self._prev_slow and self._fast_sma > self._slow_sma:
@@ -144,8 +153,15 @@ def main() -> None:
     parser.add_argument("--slippage", type=float, default=5.0, help="Slippage in bps")
     parser.add_argument("--fast", type=int, default=50, help="Fast SMA period")
     parser.add_argument("--slow", type=int, default=200, help="Slow SMA period")
+    parser.add_argument("--sizing", type=float, default=0.95, help="Fraction of cash to deploy per signal (0-1)")
+    parser.add_argument("--framework", default=None,
+                        help="Framework strategy to use (e.g., equity_mean_reversion, equity_momentum)")
+    parser.add_argument("--fw-params", default="{}",
+                        help="JSON dict of strategy params to override defaults")
     parser.add_argument("--plot", action="store_true", help="Save equity curve plot")
     parser.add_argument("--output", default="scripts/output", help="Output directory for plot")
+    parser.add_argument("--interval", default="1d",
+                        help="Bar interval: 1d, 1h, 15m, 5m, 1m (default: 1d)")
     args = parser.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",")]
@@ -163,12 +179,17 @@ def main() -> None:
     print(f"  Period:     {args.start} -> {args.end}")
     print(f"  Capital:    ${args.capital:,.0f}")
     print(f"  Slippage:   {args.slippage} bps")
-    print(f"  Strategy:   SMA({args.fast}/{args.slow}) crossover")
+    if args.framework:
+        print(f"  Strategy:   {args.framework} (framework)")
+    else:
+        print(f"  Strategy:   SMA({args.fast}/{args.slow}) crossover")
+    print(f"  Sizing:     {args.sizing:.0%} per signal")
+    print(f"  Interval:   {args.interval}")
     print("=" * 62)
 
     # ---- Load data ----
     print("\nLoading data via yfinance...")
-    data = load_combined(symbols, args.start, args.end, interval="1d")
+    data = load_combined(symbols, args.start, args.end, interval=args.interval)
     if data.empty:
         print("ERROR: No data loaded. Check your symbols and date range.")
         sys.exit(1)
@@ -178,13 +199,57 @@ def main() -> None:
     print(f"Loaded {n_bars:,} bars across {n_days} trading days")
     print(f"Date range: {data['timestamp'].min()} -> {data['timestamp'].max()}")
 
+    # ---- Create strategy ----
+    if args.framework:
+        from quantcore.backtest.adapter import FrameworkStrategyAdapter
+        from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.registry import create
+
+        # Import strategy modules so @register decorators fire
+        import quantcore.strategies.equity.momentum  # noqa: F811
+        import quantcore.strategies.equity.mean_reversion  # noqa: F811
+        import quantcore.strategies.equity.trend_following  # noqa: F811
+        import quantcore.strategies.equity.stat_arb  # noqa: F811
+        import quantcore.strategies.equity.intraday_mean_reversion  # noqa: F811
+        import quantcore.strategies.equity.intraday_momentum  # noqa: F811
+        import quantcore.strategies.equity.intraday_trend  # noqa: F811
+        import quantcore.strategies.equity.intraday_breakout  # noqa: F811
+        import quantcore.strategies.macro.cta_trend  # noqa: F811
+        import quantcore.strategies.macro.carry  # noqa: F811
+        import quantcore.strategies.macro.risk_parity  # noqa: F811
+        import quantcore.strategies.options.delta_neutral  # noqa: F811
+        import quantcore.strategies.options.earnings_vol  # noqa: F811
+        import quantcore.strategies.options.iron_condor  # noqa: F811
+        import quantcore.strategies.options.tail_hedge  # noqa: F811
+
+        if args.framework.startswith("macro_"):
+            stype = StrategyType.MACRO
+        elif args.framework.startswith("options_"):
+            stype = StrategyType.OPTIONS
+        else:
+            stype = StrategyType.EQUITY
+
+        import json
+        fw_params = json.loads(args.fw_params)
+        config = StrategyConfig(
+            name=args.framework,
+            strategy_type=stype,
+            max_position_notional=args.capital,
+            risk_budget_pct=0.02,
+            params=fw_params,
+        )
+        fw = create(args.framework, config)
+        strategy = FrameworkStrategyAdapter(fw, symbols)
+    else:
+        strategy = MomentumCrossoverStrategy(fast_period=args.fast, slow_period=args.slow)
+
     # ---- Run backtest ----
     print("\nRunning backtest...")
-    strategy = MomentumCrossoverStrategy(fast_period=args.fast, slow_period=args.slow)
     engine = BacktestEngine(
         strategy=strategy,
         initial_cash=args.capital,
         slippage_bps=args.slippage,
+        sizing_pct=args.sizing,
     )
     equity_curve = engine.run(data)
 
@@ -244,10 +309,11 @@ def _plot_equity(
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
+    strategy_label = args.framework.replace("_", " ").title() if args.framework else "SMA Crossover"
     ax.plot(
         equity_curve["timestamp"],
         equity_curve["equity"],
-        label="Strategy (SMA Crossover)",
+        label=f"Strategy ({strategy_label})",
         linewidth=1.5,
         color="#1f77b4",
     )
