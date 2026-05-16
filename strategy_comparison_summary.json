@@ -1,0 +1,23 @@
+{
+  "factor_neutral": {
+    "name": "Factor-Neutral StatArb",
+    "strategy_id": "macro_cross_sectional_factor_neutral",
+    "total_return_pct": -40.12,
+    "annual_return_pct": -8.48,
+    "sharpe_ratio": -4.7821,
+    "max_drawdown_pct": -40.21,
+    "turnover_pct": 47.5,
+    "oos_bars": 1459
+  },
+  "csm_v1": {
+    "name": "CSM v1 (Baseline)",
+    "strategy_id": "macro_cross_sectional_momentum",
+    "total_return_pct": -28.84,
+    "annual_return_pct": -5.71,
+    "sharpe_ratio": -0.9891,
+    "max_drawdown_pct": -35.79,
+    "turnover_pct": 51.27,
+    "oos_bars": 1459
+  },
+  "factor_exposures": null
+}

@@ -1,0 +1,382 @@
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+============================================================
+  Phase A: Real-Data Validation
+  Strategies:  ['macro_cta_trend', 'macro_risk_parity', 'macro_factor_residual', 'macro_factor_residual_v3', 'macro_cross_sectional_factor_neutral']
+  Full period: 2018-2024  
+  Regimes: ['gfc', 'q4_vol', 'covid', 'rate_hikes', 'bull']
+  Cache: enabled
+============================================================
+
+============================================================
+  Full period backtest: macro_cta_trend
+  Universe: cta (DBC, GLD, IEF, SPY, TLT)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  ERROR: No folds completed successfully
+
+  --------------------------------------------------
+  Regime backtest: macro_cta_trend / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_cta_trend / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_cta_trend / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_cta_trend / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_cta_trend / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+============================================================
+  Full period backtest: macro_risk_parity
+  Universe: rp (DBC, GLD, IEF, SPY, TLT)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  ERROR: No folds completed successfully
+
+  --------------------------------------------------
+  Regime backtest: macro_risk_parity / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_risk_parity / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_risk_parity / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_risk_parity / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_risk_parity / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+============================================================
+  Full period backtest: macro_factor_residual
+  Universe: expanded_15 (DBC, GLD, IEF, SPY, TLT, QQQ, IWM, EFA, EEM, HYG, LQD, USO, SLV, VNQ, DIA)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  ERROR: No folds completed successfully
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  ERROR: Data quality: macro_factor_residual/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual/gfc: SLV missing 8.0% bars (926/1006)
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+
+============================================================
+  Full period backtest: macro_factor_residual_v3
+  Universe: expanded_15 (DBC, GLD, IEF, SPY, TLT, QQQ, IWM, EFA, EEM, HYG, LQD, USO, SLV, VNQ, DIA)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  ERROR: No folds completed successfully
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual_v3 / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  ERROR: Data quality: macro_factor_residual_v3/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual_v3/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual_v3/gfc: SLV missing 8.0% bars (926/1006)
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual_v3 / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual_v3 / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual_v3 / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+
+  --------------------------------------------------
+  Regime backtest: macro_factor_residual_v3 / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+
+============================================================
+  Full period backtest: macro_cross_sectional_factor_neutral
+  Universe: ETF_EXPANDED (SPY, QQQ, IWM, MDY, VTI, MTUM, VLUE, EFA, EEM, VEU, FEZ, EWJ, EWZ, TLT, IEF, SHY, LQD, HYG, GLD, SLV, USO, UNG, DBA, VNQ, VNQI, XLF, XLK, XLV, XLE, XLY, XLP, XLI, XLU, XLRE, XLB, QUAL, USMV, SIZE, TIP, MBB, BKLN, VXX, UUP, FXE)
+  Period: 2018-01-01 -> 2024-12-31
+============================================================
+  OOS Sharpe: +0.6364  Sortino: +0.7296  Max DD: -94.58%  Win Rate: 37.0%
+  Folds: 31  OOS bars: 1404
+
+  --------------------------------------------------
+  Regime backtest: macro_cross_sectional_factor_neutral / 2008 GFC
+  Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
+  ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
+
+  --------------------------------------------------
+  Regime backtest: macro_cross_sectional_factor_neutral / 2018 Q4 Vol
+  Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
+  ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
+
+  --------------------------------------------------
+  Regime backtest: macro_cross_sectional_factor_neutral / 2020 COVID
+  Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
+  OOS Sharpe: -0.0580  Sortino: -0.0261  Max DD: -27.18%  Win Rate: 13.9%  OOS bars: 166
+
+  --------------------------------------------------
+  Regime backtest: macro_cross_sectional_factor_neutral / 2022 Rate Hikes
+  Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
+  OOS Sharpe: -1.5109  Sortino: -0.8012  Max DD: -93.93%  Win Rate: 22.5%  OOS bars: 227
+
+  --------------------------------------------------
+  Regime backtest: macro_cross_sectional_factor_neutral / 2023-2024 Bull
+  Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
+  OOS Sharpe: -0.1656  Sortino: -0.1282  Max DD: -78.53%  Win Rate: 32.3%  OOS bars: 334
+
+==============================================================================================================
+  PHASE A -- REAL-DATA VALIDATION RESULTS
+==============================================================================================================
+  Strategy             Period               OOS SR  Sortino   Max DD Win Rate   Bars   Status
+  -------------------- ------------------ -------- -------- -------- -------- ------ --------
+  macro_cta_trend      Full Period (2018-2024)    ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: No folds completed successfully
+  macro_cta_trend      2008 GFC              ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+  macro_cta_trend      2018 Q4 Vol           ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+  macro_cta_trend      2020 COVID            ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+  macro_cta_trend      2022 Rate Hikes       ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+  macro_cta_trend      2023-2024 Bull        ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+  macro_risk_parity    Full Period (2018-2024)    ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: No folds completed successfully
+  macro_risk_parity    2008 GFC              ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+  macro_risk_parity    2018 Q4 Vol           ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+  macro_risk_parity    2020 COVID            ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+  macro_risk_parity    2022 Rate Hikes       ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+  macro_risk_parity    2023-2024 Bull        ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+  macro_factor_residual Full Period (2018-2024)    ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: No folds completed successfully
+  macro_factor_residual 2008 GFC              ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_factor_residual/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual/gfc: SLV missing 8.0% bars (926/1006)
+  macro_factor_residual 2018 Q4 Vol           ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+  macro_factor_residual 2020 COVID            ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+  macro_factor_residual 2022 Rate Hikes       ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+  macro_factor_residual 2023-2024 Bull        ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+  macro_factor_residual_v3 Full Period (2018-2024)    ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: No folds completed successfully
+  macro_factor_residual_v3 2008 GFC              ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_factor_residual_v3/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual_v3/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual_v3/gfc: SLV missing 8.0% bars (926/1006)
+  macro_factor_residual_v3 2018 Q4 Vol           ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+  macro_factor_residual_v3 2020 COVID            ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+  macro_factor_residual_v3 2022 Rate Hikes       ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+  macro_factor_residual_v3 2023-2024 Bull        ERROR      N/A     0.0%     0.0%    N/A    ERROR
+                                          ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+  macro_cross_sectional_factor_neutral Full Period (2018-2024)   +0.636   +0.730   -94.6%    37.0%   1404     PASS
+  macro_cross_sectional_factor_neutral 2008 GFC              ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
+  macro_cross_sectional_factor_neutral 2018 Q4 Vol           ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
+  macro_cross_sectional_factor_neutral 2020 COVID           -0.058   -0.026   -27.2%    13.9%    166     FAIL
+  macro_cross_sectional_factor_neutral 2022 Rate Hikes      -1.511   -0.801   -93.9%    22.5%    227 SHOWSTOP
+  macro_cross_sectional_factor_neutral 2023-2024 Bull       -0.166   -0.128   -78.5%    32.3%    334 SHOWSTOP
+  -------------------- ------------------ -------- -------- -------- -------- ------ --------
+
+  PASS: 1  FAIL: 3  SHOWSTOPPER: 2  TOTAL: 30
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SHOWSTOPPER FAILURES -- review before deployment
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    macro_cross_sectional_factor_neutral/rate_hikes: OOS SR -1.511 < -0.20 (showstopper)
+    macro_cross_sectional_factor_neutral/bull: OOS SR -0.166 < -0.10 (showstopper)
+
+  ==================================================
+  PER-STRATEGY SUMMARY
+  ==================================================
+
+  macro_cross_sectional_factor_neutral:
+    Full Period (2018-2024) SR=+0.636  (req >0.30)  DD=  -94.6%  WR=   37.0%  [PASS]
+    2008 GFC           SR=ERROR  (req >0.00)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
+    2018 Q4 Vol        SR=ERROR  (req >-0.20)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
+    2020 COVID         SR=-0.058  (req >0.00)  DD=  -27.2%  WR=   13.9%  [FAIL]
+    2022 Rate Hikes    SR=-1.511  (req >-0.10)  DD=  -93.9%  WR=   22.5%  [FAIL]
+    2023-2024 Bull     SR=-0.166  (req >0.20)  DD=  -78.5%  WR=   32.3%  [FAIL]
+
+  macro_cta_trend:
+    Full Period (2018-2024) SR=ERROR  (req >0.50)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: No folds completed successfully
+    2008 GFC           SR=ERROR  (req >0.00)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+    2018 Q4 Vol        SR=ERROR  (req >-0.10)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+    2020 COVID         SR=ERROR  (req >0.20)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+    2022 Rate Hikes    SR=ERROR  (req >0.20)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+    2023-2024 Bull     SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'CTATrendStrategy' object has no attribute 'on_bar'
+
+  macro_factor_residual:
+    Full Period (2018-2024) SR=ERROR  (req >0.50)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: No folds completed successfully
+    2008 GFC           SR=ERROR  (req >0.30)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_factor_residual/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual/gfc: SLV missing 8.0% bars (926/1006)
+    2018 Q4 Vol        SR=ERROR  (req >-0.10)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+    2020 COVID         SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+    2022 Rate Hikes    SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+    2023-2024 Bull     SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategy' object has no attribute 'on_bar'
+
+  macro_factor_residual_v3:
+    Full Period (2018-2024) SR=ERROR  (req >0.50)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: No folds completed successfully
+    2008 GFC           SR=ERROR  (req >0.30)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_factor_residual_v3/gfc: Date alignment issue -- symbols with fewer dates: ['HYG', 'SLV', 'USO']; macro_factor_residual_v3/gfc: USO missing 6.7% bars (939/1006); macro_factor_residual_v3/gfc: SLV missing 8.0% bars (926/1006)
+    2018 Q4 Vol        SR=ERROR  (req >-0.10)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+    2020 COVID         SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+    2022 Rate Hikes    SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+    2023-2024 Bull     SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'FactorResidualStrategyV3' object has no attribute 'on_bar'
+
+  macro_risk_parity:
+    Full Period (2018-2024) SR=ERROR  (req >0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: No folds completed successfully
+    2008 GFC           SR=ERROR  (req >-0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+    2018 Q4 Vol        SR=ERROR  (req >-0.30)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+    2020 COVID         SR=ERROR  (req >0.00)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+    2022 Rate Hikes    SR=ERROR  (req >-0.20)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+    2023-2024 Bull     SR=ERROR  (req >0.20)  DD=    0.0%  WR=    0.0%  [INFO]
+                       ERROR: Backtest failed: 'RiskParityStrategy' object has no attribute 'on_bar'
+
+  ==================================================
+  OVERALL VERDICT
+  ==================================================
+
+  FAIL -- 2 SHOWSTOPPER(S) detected.
+  Review showstoppers before proceeding to Phase B.
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SHOWSTOPPER VIOLATIONS FOUND
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SHOWSTOPPER: macro_cross_sectional_factor_neutral/rate_hikes OOS SR -1.511 < -0.20
+  SHOWSTOPPER: macro_cross_sectional_factor_neutral/bull OOS SR -0.166 < -0.10
+
+  Results saved to: C:\Users\rochv\Downloads\projetcs\algo sw\results\real_data_validation.json
+
+  ============================================================
+  Phase A complete.
+  ============================================================

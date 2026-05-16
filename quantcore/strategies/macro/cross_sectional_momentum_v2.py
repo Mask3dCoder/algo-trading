@@ -78,7 +78,7 @@ class CrossSectionalMomentumV2Strategy(Strategy):
     - Position limits: ±3% per asset, max 100% gross exposure
     """
 
-    STRATEGY_STATUS: StrategyStatus = StrategyStatus.REJECTED
+    STRATEGY_STATUS: StrategyStatus = StrategyStatus.DISABLED
 
     def __init__(self, config: StrategyConfig) -> None:
         super().__init__(config)

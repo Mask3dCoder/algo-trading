@@ -51,6 +51,7 @@ _MACRO_PARAMS: dict[str, dict] = {
     "macro_regime_adaptive_momentum": {"rebalance_freq": 1, "slow_window": 100},
     "macro_state_selective_momentum": {"rebalance_freq": 1, "slow_window": 100},
     "macro_cross_sectional_momentum": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_cross_sectional_factor_neutral": {"rebalance_freq": 5, "reg_lookback": 252, "pred_window": 20},
     # DISABLED: CSM v2 (REJECTED per prospective_trial #1)
     # "macro_cross_sectional_momentum_v2": {
     #     "rebalance_freq": 5, "mom_windows": "20,60,120", "mom_weights": "0.2,0.5,0.3",
