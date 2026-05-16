@@ -224,11 +224,18 @@ def m_squared(
 def sterling_ratio(
     returns: NDArray[np.floating],
 ) -> float:
-    """Sterling ratio: annualized return / (max drawdown - 10%)."""
+    """Sterling ratio: annualized return / (max drawdown - 10%).
+
+    Drawdown is computed on the equity curve, not cumulative log returns.
+    """
     r = np.asarray(returns, dtype=float).flatten()
+    if len(r) < 2:
+        return 0.0
     ann_ret = float(np.mean(r)) * TRADING_DAYS
-    cumulative = np.cumsum(r)
-    max_dd = float(np.abs((cumulative - np.maximum.accumulate(cumulative)).min()))
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
+    max_dd = float(np.abs(dd.min()))
     denominator = max_dd + 0.10
     if denominator == 0:
         return 0.0
@@ -241,23 +248,31 @@ def sterling_ratio(
 
 
 def ulcer_index(returns: NDArray[np.floating]) -> float:
-    """Ulcer Index: sqrt(mean(squared_drawdowns))."""
+    """Ulcer Index: sqrt(mean(squared_drawdowns)).
+
+    Drawdown computed on equity curve, not cumulative log returns.
+    """
     r = np.asarray(returns, dtype=float).flatten()
-    cumulative = np.cumsum(r)
-    running_max = np.maximum.accumulate(cumulative)
-    # Avoid division by zero
-    drawdowns = np.where(running_max > 0, (cumulative - running_max) / running_max, 0.0)
-    squared_drawdowns = drawdowns**2
-    return float(np.sqrt(np.mean(squared_drawdowns)))
+    if len(r) < 2:
+        return 0.0
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    dd = np.where(peak > 0, (equity - peak) / peak, 0.0)
+    return float(np.sqrt(np.mean(dd**2)))
 
 
 def pain_index(returns: NDArray[np.floating]) -> float:
-    """Pain Index: mean(abs(drawdowns))."""
+    """Pain Index: mean(abs(drawdowns)).
+
+    Drawdown computed on equity curve, not cumulative log returns.
+    """
     r = np.asarray(returns, dtype=float).flatten()
-    cumulative = np.cumsum(r)
-    running_max = np.maximum.accumulate(cumulative)
-    drawdowns = np.where(running_max > 0, np.abs(cumulative - running_max) / running_max, 0.0)
-    return float(np.mean(drawdowns))
+    if len(r) < 2:
+        return 0.0
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    dd = np.where(peak > 0, np.abs(equity - peak) / peak, 0.0)
+    return float(np.mean(dd))
 
 
 def pain_ratio(returns: NDArray[np.floating]) -> float:
@@ -271,14 +286,19 @@ def pain_ratio(returns: NDArray[np.floating]) -> float:
 
 
 def burke_ratio(returns: NDArray[np.floating]) -> float:
-    """Burke Ratio: excess return / sqrt(sum(squared_drawdowns))."""
+    """Burke Ratio: excess return / sqrt(sum(squared_drawdowns)).
+
+    Drawdown computed on equity curve, not cumulative log returns.
+    """
     r = np.asarray(returns, dtype=float).flatten()
+    if len(r) < 2:
+        return 0.0
     ann_ret = float(np.mean(r)) * TRADING_DAYS
-    cumulative = np.cumsum(r)
-    running_max = np.maximum.accumulate(cumulative)
-    drawdowns = cumulative - running_max
-    denominator = float(np.sqrt(np.sum(np.maximum(drawdowns, 0)**2)))
-    if denominator == 0:
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    dd = np.where(peak > 0, (equity - peak) / peak, 0.0)
+    denominator = float(np.sqrt(np.sum(dd**2)))
+    if denominator < 1e-10:
         return 0.0
     return ann_ret / denominator
 
@@ -327,14 +347,24 @@ class DrawdownStats:
 
 
 def drawdown_stats(returns: NDArray[np.floating]) -> DrawdownStats:
-    """Compute comprehensive drawdown statistics."""
-    r = np.asarray(returns, dtype=float).flatten()
-    cumulative = np.cumsum(r)
-    running_max = np.maximum.accumulate(cumulative)
+    """Compute comprehensive drawdown statistics.
 
-    dd = cumulative - running_max
-    max_dd = float(dd.min())
-    avg_dd = float(np.mean(dd[dd < 0])) if np.any(dd < 0) else 0.0
+    Drawdown computed on the equity curve (exp(cumsum)), not on cumulative
+    log returns. This gives the true percentage drawdown experienced by
+    a portfolio with reinvestment.
+    """
+    r = np.asarray(returns, dtype=float).flatten()
+    if len(r) < 2:
+        return DrawdownStats(max_drawdown=0.0, avg_drawdown=0.0,
+                             max_drawdown_duration=0, avg_drawdown_duration=0.0)
+
+    equity = np.exp(np.cumsum(r))
+    peak = np.maximum.accumulate(equity)
+    dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
+
+    max_dd = float(np.abs(dd.min())) if np.any(dd < 0) else 0.0
+    neg = dd[dd < 0]
+    avg_dd = float(np.mean(neg)) if len(neg) > 0 else 0.0
 
     # Drawdown durations
     in_dd = False
@@ -354,7 +384,7 @@ def drawdown_stats(returns: NDArray[np.floating]) -> DrawdownStats:
     avg_dur = float(np.mean(durations)) if durations else 0.0
 
     return DrawdownStats(
-        max_drawdown=max_dd,
+        max_drawdown=-max_dd,
         avg_drawdown=avg_dd,
         max_drawdown_duration=max_dur,
         avg_drawdown_duration=avg_dur,

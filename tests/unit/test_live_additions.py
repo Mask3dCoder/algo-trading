@@ -34,7 +34,7 @@ class TestPaperConfig:
     def test_default(self):
         c = PaperConfig()
         assert c.initial_capital == 100_000.0
-        assert c.slippage_bps == 2.0
+        assert c.slippage_bps == 5.0  # Updated to reflect current default
 
     def test_custom(self):
         c = PaperConfig(initial_capital=50000, slippage_bps=5.0)

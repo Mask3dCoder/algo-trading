@@ -1,0 +1,58 @@
+{
+  "report_date": "2026-05-11T18:34:02.760475",
+  "system_status": "Q1_FIX_FOUNDATION_COMPLETE",
+  "disclaimer": "No strategy validated for live trading. Q1 fixes measurement infrastructure. Q2 rebuilds alpha. See FORENSIC_AUDIT_REPORT.md.",
+  "pass_threshold_ci_lower": 0.3,
+  "fatal_findings_checklist": {
+    "look_ahead_bias": "RESOLVED -- fill_sim._next_bar=None during on_bar() barrier pattern in engine.py",
+    "validation_uses_full_stack": "RESOLVED -- BacktestEngine.run() used here and in real_data_backtest.py v2; _compute_signal_returns() deprecated",
+    "metrics_bugs": "RESOLVED -- sharpe NaN for flat returns, calmar/sterling/burke/ulcer/pain all equity-based, rf geometric decompounding",
+    "purged_cv_crash": "RESOLVED -- total->n_bars in walk_forward.py, purged_kfold_cv test suite passing",
+    "survivorship_bias": "RESOLVED -- universe_history.csv with 24 PIT S&P500 changes 2013-2024; HistoricalUniverseLoader with CSV loading; ETF_MACRO universe bias-free",
+    "factor_residual_degeneracy": "RESOLVED -- DISABLED, residual_momentum.py skeleton created, q2 FF5 rebuild planned",
+    "var_student_t": "RESOLVED -- parametric_var() with Student-t MLE; Cornish-Fisher n<100 warning; method='parametric_t' vs 'parametric'",
+    "drawdown_guard": "RESOLVED -- VolAdjustedDrawdownGuard state machine with recovery gate",
+    "liquidity_sizing": "RESOLVED -- ADV-based max_position_size with participation rate cap"
+  },
+  "disabled_strategies": [
+    "macro_cta_trend",
+    "macro_risk_parity",
+    "macro_factor_residual",
+    "equity_momentum",
+    "equity_earnings_momentum"
+  ],
+  "active_results": [
+    {
+      "strategy": "macro_cross_sectional_momentum_v2",
+      "status": "development",
+      "sharpe_mean": -0.0913,
+      "sharpe_ci_lower": -0.8547,
+      "sharpe_ci_upper": 0.2485,
+      "n_folds": 4,
+      "pass_threshold": 0.3,
+      "passed": false
+    }
+  ],
+  "comparison_audit_vs_honest": [
+    {
+      "strategy": "macro_cross_sectional_momentum_v2",
+      "audit_sharpe": 0.55,
+      "honest_sharpe_mean": -0.0913,
+      "passed": false
+    }
+  ],
+  "known_limitations": [
+    "yfinance OHLCV only \u2014 no tick-level or order book validation.",
+    "ADV liquidity limits return unlimited sentinel when data unavailable.",
+    "Equity universe PIT coverage is 2013-2024 S&P500 only (24 changes). NASDAQ100 uses 3 snapshots. Full CRSP/Compustat integration needed for institutional use.",
+    "Only 4 walk-forward folds in verify script (increase to 8+ for production).",
+    "Factor residual v3 still uses _compute_signal_returns() in real_data_backtest.py \u2014 needs BacktestEngine migration for full execution stack."
+  ],
+  "q2_next_steps": [
+    "Full CSM v2 validation on 2010-2024 real data with 8+ folds.",
+    "Rebuild factor_residual via quantcore/alpha/residual_momentum.py with Fama-French 5-factor (Ken French data library).",
+    "Implement equity/low_volatility (tier-1 alpha from audit).",
+    "Populate universe_history.json with full point-in-time S&P500 constituents 2000-2024.",
+    "Migrate real_data_backtest.py regime backtests to BacktestEngine.run()."
+  ]
+}

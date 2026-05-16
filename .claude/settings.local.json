@@ -124,7 +124,12 @@
       "mcp__yahoo-finance__yfin_get_stock_info",
       "Bash(python3 -m pytest tests/unit/ -x --tb=short -q)",
       "Bash(python3 -m pytest tests/unit/execution/test_paper_broker_fixes.py tests/unit/test_live_additions.py --tb=line -q)",
-      "mcp__git__bulk_action"
+      "mcp__git__bulk_action",
+      "mcp__github__get_file_contents",
+      "Bash(Get-Content \"C:\\\\Users\\\\rochv\\\\.claude\\\\projects\\\\C--Users-rochv-Downloads-projetcs-algo-sw\\\\4c2db6a2-9092-4849-bf24-e539fffd319b\\\\tool-results\\\\bscr7jsqa.txt\")",
+      "Bash(Select-Object -Last 200)",
+      "Bash(tee backtest_output.txt)",
+      "Bash(C:/Users/rochv/Downloads/projetcs/algo sw/.venv/Scripts/python.exe *)"
     ]
   }
 }

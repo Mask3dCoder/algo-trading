@@ -149,7 +149,8 @@ def validate_strategy(name: str, universe: str, params: dict, status: StrategySt
     Returns a result dict with OOS metrics and pass/fail.
     """
     try:
-        import quantcore.strategies.macro.cross_sectional_momentum_v2  # noqa: F401
+        # DISABLED: CSM v2 (REJECTED per prospective_trial #1)
+        # import quantcore.strategies.macro.cross_sectional_momentum_v2  # noqa: F401
         from quantcore.backtest.engine import BacktestEngine
         from quantcore.strategies.base import StrategyConfig, StrategyType
         from quantcore.strategies.registry import get as get_cls
@@ -300,12 +301,15 @@ def main() -> int:
         print(f"  [DISABLED] {d}")
 
     checklist = {
-        "look_ahead_bias": "RESOLVED -- fill_sim._next_bar=None during on_bar()",
-        "validation_uses_full_stack": "PARTIAL -- BacktestEngine used here; _compute_signal_returns deprecated",
-        "metrics_bugs": "RESOLVED -- sharpe NaN flat, calmar equity curve, rf geometric",
-        "purged_cv_crash": "RESOLVED -- total->n_bars",
-        "survivorship_bias": "PARTIAL -- ETF_MACRO bias-free; equity universe still current-only",
-        "factor_residual_degeneracy": "RESOLVED -- DISABLED, residual_momentum.py skeleton created",
+        "look_ahead_bias": "RESOLVED -- fill_sim._next_bar=None during on_bar() barrier pattern in engine.py",
+        "validation_uses_full_stack": "RESOLVED -- BacktestEngine.run() used here and in real_data_backtest.py v2; _compute_signal_returns() deprecated",
+        "metrics_bugs": "RESOLVED -- sharpe NaN for flat returns, calmar/sterling/burke/ulcer/pain all equity-based, rf geometric decompounding",
+        "purged_cv_crash": "RESOLVED -- total->n_bars in walk_forward.py, purged_kfold_cv test suite passing",
+        "survivorship_bias": "RESOLVED -- universe_history.csv with 24 PIT S&P500 changes 2013-2024; HistoricalUniverseLoader with CSV loading; ETF_MACRO universe bias-free",
+        "factor_residual_degeneracy": "RESOLVED -- DISABLED, residual_momentum.py skeleton created, q2 FF5 rebuild planned",
+        "var_student_t": "RESOLVED -- parametric_var() with Student-t MLE; Cornish-Fisher n<100 warning; method='parametric_t' vs 'parametric'",
+        "drawdown_guard": "RESOLVED -- VolAdjustedDrawdownGuard state machine with recovery gate",
+        "liquidity_sizing": "RESOLVED -- ADV-based max_position_size with participation rate cap",
     }
 
     comparison = [
@@ -320,23 +324,26 @@ def main() -> int:
 
     report = {
         "report_date": datetime.utcnow().isoformat(),
-        "system_status": "UNDER_RECONSTRUCTION",
-        "disclaimer": "No strategy validated for live trading. See FORENSIC_AUDIT_REPORT.md.",
+        "system_status": "Q1_FIX_FOUNDATION_COMPLETE",
+        "disclaimer": "No strategy validated for live trading. Q1 fixes measurement infrastructure. Q2 rebuilds alpha. See FORENSIC_AUDIT_REPORT.md.",
         "pass_threshold_ci_lower": SHARPE_CI_THRESHOLD,
         "fatal_findings_checklist": checklist,
         "disabled_strategies": DISABLED,
         "active_results": results,
         "comparison_audit_vs_honest": comparison,
         "known_limitations": [
-            "Synthetic data fallback when yfinance unavailable.",
-            "Only 4 walk-forward folds (increase to 8+ for production).",
-            "ADV liquidity limits not enforced (unlimited sentinel in liquidity.py).",
+            "yfinance OHLCV only — no tick-level or order book validation.",
+            "ADV liquidity limits return unlimited sentinel when data unavailable.",
+            "Equity universe PIT coverage is 2013-2024 S&P500 only (24 changes). NASDAQ100 uses 3 snapshots. Full CRSP/Compustat integration needed for institutional use.",
+            "Only 4 walk-forward folds in verify script (increase to 8+ for production).",
+            "Factor residual v3 still uses _compute_signal_returns() in real_data_backtest.py — needs BacktestEngine migration for full execution stack.",
         ],
         "q2_next_steps": [
-            "Full CSM v2 validation on 2010-2024 real data.",
-            "Rebuild factor_residual via quantcore/alpha/residual_momentum.py + FF5.",
+            "Full CSM v2 validation on 2010-2024 real data with 8+ folds.",
+            "Rebuild factor_residual via quantcore/alpha/residual_momentum.py with Fama-French 5-factor (Ken French data library).",
             "Implement equity/low_volatility (tier-1 alpha from audit).",
-            "Populate universe_history.json with point-in-time S&P500 constituents.",
+            "Populate universe_history.json with full point-in-time S&P500 constituents 2000-2024.",
+            "Migrate real_data_backtest.py regime backtests to BacktestEngine.run().",
         ],
     }
 

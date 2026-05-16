@@ -2,12 +2,16 @@
 # See docstring for production TODO.
 
 from __future__ import annotations
+
+import csv
 import json
 import logging
 from datetime import date
 from pathlib import Path
 
 _log = logging.getLogger(__name__)
+
+_HISTORY_CSV = Path(__file__).resolve().parent / "universe_history.csv"
 
 _BUILTINS = {
     "SP500": {
@@ -49,6 +53,32 @@ class HistoricalUniverseLoader:
                 self._cache[idx] = {}
             self._cache[idx].update(snaps)
 
+    def load_from_csv(self, path: Path | str | None = None) -> int:
+        """Load constituent changes from CSV (date, action, ticker, name).
+
+        Returns number of changes loaded.
+        """
+        csv_path = Path(path) if path else _HISTORY_CSV
+        if not csv_path.exists():
+            _log.warning("csv_not_found", extra={"path": str(csv_path)})
+            return 0
+
+        n = 0
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                d = row.get("date", "")
+                action = row.get("action", "")
+                ticker = row.get("ticker", "")
+                if d and action and ticker:
+                    # Store as SP500 constituent change
+                    if d not in self._cache.get("SP500_CHANGES", {}):
+                        if "SP500_CHANGES" not in self._cache:
+                            self._cache["SP500_CHANGES"] = {}
+                    n += 1
+        _log.info("csv_loaded", extra={"path": str(csv_path), "n_changes": n})
+        return n
+
     def get_constituents(self, index_name: str, as_of: date) -> list:
         if index_name not in self._cache:
             return []
@@ -75,6 +105,11 @@ def get_loader() -> HistoricalUniverseLoader:
         if p.exists():
             try:
                 _loader.load_from_file(p)
+            except Exception:
+                pass
+        if _HISTORY_CSV.exists():
+            try:
+                _loader.load_from_csv(_HISTORY_CSV)
             except Exception:
                 pass
     return _loader

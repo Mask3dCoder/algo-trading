@@ -58,7 +58,41 @@ _ETF_MACRO = [
     # Factor ETFs
     "MTUM", "VLUE", "QUAL", "USMV", "SIZE",
 ]
-_ETF_MACRO = list(dict.fromkeys(_ETF_MACRO))
+_ETF_EXPANDED = [
+    # US Broad Market (2)
+    "SPY", "QQQ",
+    # Size / style factors (5)
+    "IWM", "MDY", "VTI", "MTUM", "VLUE",
+    # International developed (4)
+    "EFA", "EEM", "VEU", "FEZ",
+    # International emerging / regional (2)
+    "EWJ", "EWZ",
+    # Treasury rates (3)
+    "TLT", "IEF", "SHY",
+    # Credit / corporate (2)
+    "LQD", "HYG",
+    # Commodities (5) — keep both precious and industrial for diversification
+    "GLD", "SLV", "USO", "UNG", "DBA",
+    # Real estate (2)
+    "VNQ", "VNQI",
+    # Sector SPDRs (10) — full coverage
+    "XLF", "XLK", "XLV", "XLE", "XLY",
+    "XLP", "XLI", "XLU", "XLRE", "XLB",
+    # Factor / smart beta (3)
+    "QUAL", "USMV", "SIZE",
+    # Inflation / TIPS (1)
+    "TIP",
+    # Mortgage / muni (2)
+    "MBB", "BKLN",
+    # Volatility (1) — regime indicator only
+    "VXX",
+    # Currency (2)
+    "UUP", "FXE",
+    # Utilities  — already in sectors
+    # Materials — already in sectors
+]
+_ETF_EXPANDED = list(dict.fromkeys(_ETF_EXPANDED))  # remove accidental dupes
+
 
 _ETF_MACRO_CORE = [
     "SPY", "QQQ", "IWM", "EFA", "EEM",
@@ -115,6 +149,10 @@ UNIVERSES = {
          "TLT", "IEF", "SHY", "LQD", "HYG",
          "GLD", "SLV", "DBC", "UUP", "VNQ"],
         is_static=True, survivorship_bias_free=True, data_start="2008-01-01",
+    ),
+    "ETF_EXPANDED": UniverseDef(
+        "Expanded ETF Universe — 44 liquid cross-sectional assets for CSM",
+        _ETF_EXPANDED, is_static=True, survivorship_bias_free=True, data_start="2010-01-01",
     ),
 }
 

@@ -49,14 +49,24 @@ REGIME_SCALE: dict[VolRegime, float] = {
 }
 
 
-@register("macro_cross_sectional_momentum_v2")
+# DISABLED (Phase 0 / prospective trial #1 — REJECTED)
+# See prospective_trials.csv for rejection rationale.
+# @register("macro_cross_sectional_momentum_v2")
 class CrossSectionalMomentumV2Strategy(Strategy):
     """Cross-sectional momentum with composable institutional risk controls.
 
-    STATUS: DEVELOPMENT — real signal (OOS Sharpe +0.55 reported) but OOS max
-    drawdown was 88% before leverage cap fix.  Under active validation with the
-    corrected look-ahead-free backtest engine.  Do NOT graduate to PAPER_TRADING
-    until OOS Sharpe lower CI (90%) >= 0.3 confirmed post-fix.
+    STATUS: REJECTED — OOS Sharpe −0.091 (90% CI −0.855 to +0.248) on
+    expanded_15 universe 2018-2024.
+
+    Rationale for rejection:
+      - Cross-sectional momentum signal with only 5-15 macro ETFs has
+        insufficient cross-sectional variation (degrees of freedom ≈ 13).
+      - Score vs forward-return r = 0.055 (p < 0.00001) is statistically
+        significant but economically too weak to overcome transaction costs.
+      - Even with 15 assets the signal-to-noise ratio is below threshold.
+      - The strategy is believed to need ≥40 independent cross-sectional
+        securities (e.g. sector SPDRs + international + commodities) to
+        produce a reliable diversified portfolio.
 
     Risk controls (updated post-audit):
     - Volatility scaling: dynamic leverage [0.5, 1.0] targeting 12% ann. vol
@@ -68,7 +78,7 @@ class CrossSectionalMomentumV2Strategy(Strategy):
     - Position limits: ±3% per asset, max 100% gross exposure
     """
 
-    STRATEGY_STATUS: StrategyStatus = StrategyStatus.DEVELOPMENT
+    STRATEGY_STATUS: StrategyStatus = StrategyStatus.REJECTED
 
     def __init__(self, config: StrategyConfig) -> None:
         super().__init__(config)

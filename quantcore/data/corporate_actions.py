@@ -26,6 +26,16 @@ class AdjustmentEvent:
     description: str = ""
 
 
+def _split_on_date(
+    actions: list[AdjustmentEvent], date: date
+) -> float | None:
+    """Return split ratio for any split on the given date, or None."""
+    for a in actions:
+        if a.action_type == ActionType.SPLIT and a.date == date:
+            return a.value
+    return None
+
+
 def adjust_for_split(
     prices: pd.DataFrame,
     split_ratio: float,
@@ -53,22 +63,34 @@ def adjust_for_dividend(
     prices: pd.DataFrame,
     div_amount: float,
     ex_date: date,
+    split_ratio: float | None = None,
 ) -> pd.DataFrame:
     """Adjust prices for dividend (proportional price adjustment).
 
-    On ex-date, price drops by approximately div_amount * (1 - tax_rate).
-    We adjust pre-ex-date prices: adj_close = close * (1 - div/close) for each prior day.
+    On the ex-date the price drops by the dividend amount (modulo taxes).
+    We back-adjust all pre-ex-date `adj_close` by multiplying by the
+    proportional factor (1 - div_amount / cum_close), where cum_close
+    is the closing price on the last cum-dividend day.
+
+    If `split_ratio` is provided, the dividend is first divided by the split
+    ratio (dividends are declared on a per-share basis and therefore shrink
+    after a stock split).
     """
     df = prices.copy()
     ex_ts = pd.Timestamp(ex_date)
     mask = pd.to_datetime(df["timestamp"]) < ex_ts
 
-    # Proportional adjustment: multiply pre-ex-date adj_close by (1 - div/close)
+    # Normalize dividend for any same-date split
+    adj_div = div_amount / split_ratio if split_ratio and split_ratio > 0 else div_amount
+
+    # Proportional adjustment using the cum-dividend close
     if "adj_close" in df.columns:
-        for idx in df.index[mask]:
-            close = df.loc[idx, "close"]
-            if close > 0:
-                df.loc[idx, "adj_close"] = df.loc[idx, "adj_close"] * (1.0 - div_amount / close)
+        pre_ex = df[mask]
+        if not pre_ex.empty:
+            cum_close = float(pre_ex["close"].iloc[-1])
+            if cum_close > 0:
+                factor = 1.0 - adj_div / cum_close
+                df.loc[mask, "adj_close"] *= factor
 
     return df
 
@@ -110,8 +132,19 @@ def handle_delisting(
 def get_adjustment_factors(
     actions: list[AdjustmentEvent],
     date_range: pd.DatetimeIndex,
+    price_data: pd.DataFrame | None = None,
 ) -> pd.Series:
-    """Compute cumulative adjustment factor for each date in the range."""
+    """Compute cumulative adjustment factor for each date in the range.
+
+    For dividends, the exact proportional factor is:
+        factor = 1.0 - (div_amount / cum_close)
+    where cum_close is the closing price on the last cum-dividend day.
+    If price_data is not provided, falls back to a heuristic.
+
+    When a dividend and split occur on the same ex-date, the dividend is
+    applied *post-split*: the dividend amount is divided by the split ratio
+    before computing the proportional factor.
+    """
     factors = pd.Series(1.0, index=date_range)
 
     for action in sorted(actions, key=lambda a: a.date, reverse=True):
@@ -120,8 +153,21 @@ def get_adjustment_factors(
             # Pre-split prices need to be divided by ratio
             factors[factors.index < action_ts] /= action.value
         elif action.action_type == ActionType.DIVIDEND:
-            # Apply proportional adjustment
-            # This is simplified; exact adjustment depends on close price
-            factors[factors.index < action_ts] *= (1.0 - action.value * 0.01)  # Approx
+            # Adjust dividend for any split on the same ex-date
+            split_ratio = _split_on_date(actions, action.date)
+            div_value = action.value
+            if split_ratio is not None and split_ratio > 0:
+                div_value /= split_ratio
+
+            if price_data is not None and "close" in price_data.columns:
+                pre = price_data[pd.to_datetime(price_data["timestamp"]) < action_ts]
+                if not pre.empty:
+                    cum_close = float(pre["close"].iloc[-1])
+                    factor = 1.0 - div_value / cum_close if cum_close > 0 else 1.0
+                else:
+                    factor = 1.0 - div_value * 0.01
+            else:
+                factor = 1.0 - div_value * 0.01
+            factors[factors.index < action_ts] *= factor
 
     return factors

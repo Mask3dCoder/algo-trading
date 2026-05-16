@@ -1,76 +1,874 @@
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2018-01-01_2024-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2018-01-01_2024-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2018-01-01_2024-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2018-01-01_2024-12-31_1d.parquet
+INFO Loading MTUM from cache: C:\Users\rochv\.quantcore\cache\MTUM_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VLUE from cache: C:\Users\rochv\.quantcore\cache\VLUE_2018-01-01_2024-12-31_1d.parquet
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2018-01-01_2024-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2018-01-01_2024-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2018-01-01_2024-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2018-01-01_2024-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2018-01-01_2024-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2018-01-01_2024-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2018-01-01_2024-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2018-01-01_2024-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2018-01-01_2024-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2018-01-01_2024-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2018-01-01_2024-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2018-01-01_2024-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2018-01-01_2024-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2018-01-01_2024-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VNQI from cache: C:\Users\rochv\.quantcore\cache\VNQI_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLRE from cache: C:\Users\rochv\.quantcore\cache\XLRE_2018-01-01_2024-12-31_1d.parquet
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2018-01-01_2024-12-31_1d.parquet
+INFO Loading QUAL from cache: C:\Users\rochv\.quantcore\cache\QUAL_2018-01-01_2024-12-31_1d.parquet
+INFO Loading USMV from cache: C:\Users\rochv\.quantcore\cache\USMV_2018-01-01_2024-12-31_1d.parquet
+INFO Loading SIZE from cache: C:\Users\rochv\.quantcore\cache\SIZE_2018-01-01_2024-12-31_1d.parquet
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2018-01-01_2024-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2018-01-01_2024-12-31_1d.parquet
+INFO Loading BKLN from cache: C:\Users\rochv\.quantcore\cache\BKLN_2018-01-01_2024-12-31_1d.parquet
+INFO Loading VXX from cache: C:\Users\rochv\.quantcore\cache\VXX_2018-01-01_2024-12-31_1d.parquet
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2018-01-01_2024-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2018-01-01_2024-12-31_1d.parquet
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2006-01-01_2009-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2006-01-01_2009-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2006-01-01_2009-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2006-01-01_2009-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2006-01-01_2009-12-31_1d.parquet
+INFO Downloading MTUM from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('CREATE TABLE IF NOT EXISTS "_tz_kv" ("key" VARCHAR(255) NOT NULL PRIMARY KEY, "value" VARCHAR(255)) WITHOUT ROWID', [])
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['MTUM', 1, 0])
+DEBUG  Entering history()
+DEBUG MTUM: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/MTUM
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('CREATE TABLE IF NOT EXISTS "_cookieschema" ("strategy" VARCHAR(255) NOT NULL PRIMARY KEY, "fetch_date" DATETIME NOT NULL, "cookie_bytes" BLOB NOT NULL) WITHOUT ROWID', [])
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG        Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG        Exiting _get_cookie_basic()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy basic -> csrf
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG       Entering _get_cookie_csrf()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_csrf()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+INFO Downloading MTUM from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['MTUM', 1, 0])
+DEBUG  Entering history()
+DEBUG MTUM: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+INFO Downloading MTUM from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['MTUM', 1, 0])
+DEBUG  Entering history()
+DEBUG MTUM: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $MTUM: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for MTUM (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VLUE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VLUE', 1, 0])
+DEBUG  Entering history()
+DEBUG VLUE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/VLUE
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG reusing crumb
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy csrf -> basic
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG        Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG        Exiting _get_cookie_basic()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VLUE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VLUE', 1, 0])
+DEBUG  Entering history()
+DEBUG VLUE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VLUE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VLUE', 1, 0])
+DEBUG  Entering history()
+DEBUG VLUE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VLUE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VLUE (2006-01-01 \u2192 2009-12-31)
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2006-01-01_2009-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2006-01-01_2009-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2006-01-01_2009-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2006-01-01_2009-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2006-01-01_2009-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2006-01-01_2009-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2006-01-01_2009-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2006-01-01_2009-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2006-01-01_2009-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2006-01-01_2009-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2006-01-01_2009-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2006-01-01_2009-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2006-01-01_2009-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2006-01-01_2009-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2006-01-01_2009-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2006-01-01_2009-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2006-01-01_2009-12-31_1d.parquet
+INFO Downloading VNQI from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VNQI', 1, 0])
+DEBUG  Entering history()
+DEBUG VNQI: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/VNQI
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG reusing crumb
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy basic -> csrf
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG       Entering _get_cookie_csrf()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_csrf()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VNQI from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VNQI', 1, 0])
+DEBUG  Entering history()
+DEBUG VNQI: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VNQI from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VNQI', 1, 0])
+DEBUG  Entering history()
+DEBUG VNQI: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VNQI: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VNQI (2006-01-01 \u2192 2009-12-31)
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2006-01-01_2009-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2006-01-01_2009-12-31_1d.parquet
+INFO Downloading XLRE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['XLRE', 1, 0])
+DEBUG  Entering history()
+DEBUG XLRE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/XLRE
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG reusing crumb
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy csrf -> basic
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG        Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG        Exiting _get_cookie_basic()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading XLRE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['XLRE', 1, 0])
+DEBUG  Entering history()
+DEBUG XLRE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading XLRE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['XLRE', 1, 0])
+DEBUG  Entering history()
+DEBUG XLRE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $XLRE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for XLRE (2006-01-01 \u2192 2009-12-31)
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2006-01-01_2009-12-31_1d.parquet
+INFO Downloading QUAL from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['QUAL', 1, 0])
+DEBUG  Entering history()
+DEBUG QUAL: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/QUAL
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG reusing crumb
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy basic -> csrf
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG       Entering _get_cookie_csrf()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_csrf()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+INFO Downloading QUAL from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['QUAL', 1, 0])
+DEBUG  Entering history()
+DEBUG QUAL: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+INFO Downloading QUAL from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['QUAL', 1, 0])
+DEBUG  Entering history()
+DEBUG QUAL: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $QUAL: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for QUAL (2006-01-01 \u2192 2009-12-31)
+INFO Downloading USMV from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['USMV', 1, 0])
+DEBUG  Entering history()
+DEBUG USMV: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/USMV
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG reusing crumb
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy csrf -> basic
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG        Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG        Exiting _get_cookie_basic()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+INFO Downloading USMV from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['USMV', 1, 0])
+DEBUG  Entering history()
+DEBUG USMV: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+INFO Downloading USMV from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['USMV', 1, 0])
+DEBUG  Entering history()
+DEBUG USMV: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $USMV: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for USMV (2006-01-01 \u2192 2009-12-31)
+INFO Downloading SIZE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['SIZE', 1, 0])
+DEBUG  Entering history()
+DEBUG SIZE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/SIZE
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG reusing crumb
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy basic -> csrf
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG       Entering _get_cookie_csrf()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_csrf()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading SIZE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['SIZE', 1, 0])
+DEBUG  Entering history()
+DEBUG SIZE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+INFO Downloading SIZE from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['SIZE', 1, 0])
+DEBUG  Entering history()
+DEBUG SIZE: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $SIZE: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for SIZE (2006-01-01 \u2192 2009-12-31)
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2006-01-01_2009-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2006-01-01_2009-12-31_1d.parquet
+INFO Downloading BKLN from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['BKLN', 1, 0])
+DEBUG  Entering history()
+DEBUG BKLN: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/BKLN
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG reusing crumb
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy csrf -> basic
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG        Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG        Exiting _get_cookie_basic()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+INFO Downloading BKLN from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['BKLN', 1, 0])
+DEBUG  Entering history()
+DEBUG BKLN: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+INFO Downloading BKLN from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['BKLN', 1, 0])
+DEBUG  Entering history()
+DEBUG BKLN: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $BKLN: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for BKLN (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VXX from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VXX', 1, 0])
+DEBUG  Entering history()
+DEBUG VXX: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+DEBUG   Entering get()
+DEBUG    Entering _make_request()
+DEBUG url=https://query2.finance.yahoo.com/v8/finance/chart/VXX
+DEBUG params=frozendict.frozendict({'period1': 1136091600, 'period2': 1262235600, 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'})
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'basic'
+DEBUG      Entering _get_cookie_and_crumb_basic()
+DEBUG       Entering _get_cookie_basic()
+DEBUG reusing cookie
+DEBUG       Exiting _get_cookie_basic()
+DEBUG       Entering _get_crumb_basic()
+DEBUG reusing crumb
+DEBUG       Exiting _get_crumb_basic()
+DEBUG      Exiting _get_cookie_and_crumb_basic()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG toggling cookie strategy basic -> csrf
+DEBUG     Entering _get_cookie_and_crumb()
+DEBUG cookie_mode = 'csrf'
+DEBUG      Entering _get_crumb_csrf()
+DEBUG       Entering _get_cookie_csrf()
+DEBUG        Entering _load_cookie_curlCffi()
+DEBUG ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['curlCffi', 1, 0])
+DEBUG        Exiting _load_cookie_curlCffi()
+DEBUG reusing persistent cookie
+DEBUG       Exiting _get_cookie_csrf()
+DEBUG crumb = 'kEvIV7SFEt6'
+DEBUG      Exiting _get_crumb_csrf()
+DEBUG     Exiting _get_cookie_and_crumb()
+DEBUG response code=400
+DEBUG    Exiting _make_request()
+DEBUG   Exiting get()
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VXX from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VXX', 1, 0])
+DEBUG  Entering history()
+DEBUG VXX: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+INFO Downloading VXX from 2006-01-01 to 2009-12-31 (1d)
+DEBUG Entering history()
+DEBUG ('SELECT "t1"."key", "t1"."value" FROM "_tz_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['VXX', 1, 0])
+DEBUG  Entering history()
+DEBUG VXX: Yahoo GET parameters: {'period1': '2006-01-01 00:00:00-05:00', 'period2': '2009-12-31 00:00:00-05:00', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+ERROR $VXX: possibly delisted; no price data found  (1d 2006-01-01 -> 2009-12-31) (Yahoo error = "Data doesn't exist for startDate = 1136091600, endDate = 1262235600")
+DEBUG  Exiting history()
+DEBUG Exiting history()
+WARNING No data returned for VXX (2006-01-01 \u2192 2009-12-31)
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2006-01-01_2009-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2006-01-01_2009-12-31_1d.parquet
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2018-01-01_2018-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2018-01-01_2018-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2018-01-01_2018-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2018-01-01_2018-12-31_1d.parquet
+INFO Loading MTUM from cache: C:\Users\rochv\.quantcore\cache\MTUM_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VLUE from cache: C:\Users\rochv\.quantcore\cache\VLUE_2018-01-01_2018-12-31_1d.parquet
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2018-01-01_2018-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2018-01-01_2018-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2018-01-01_2018-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2018-01-01_2018-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2018-01-01_2018-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2018-01-01_2018-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2018-01-01_2018-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2018-01-01_2018-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2018-01-01_2018-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2018-01-01_2018-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2018-01-01_2018-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2018-01-01_2018-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2018-01-01_2018-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2018-01-01_2018-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VNQI from cache: C:\Users\rochv\.quantcore\cache\VNQI_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLRE from cache: C:\Users\rochv\.quantcore\cache\XLRE_2018-01-01_2018-12-31_1d.parquet
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2018-01-01_2018-12-31_1d.parquet
+INFO Loading QUAL from cache: C:\Users\rochv\.quantcore\cache\QUAL_2018-01-01_2018-12-31_1d.parquet
+INFO Loading USMV from cache: C:\Users\rochv\.quantcore\cache\USMV_2018-01-01_2018-12-31_1d.parquet
+INFO Loading SIZE from cache: C:\Users\rochv\.quantcore\cache\SIZE_2018-01-01_2018-12-31_1d.parquet
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2018-01-01_2018-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2018-01-01_2018-12-31_1d.parquet
+INFO Loading BKLN from cache: C:\Users\rochv\.quantcore\cache\BKLN_2018-01-01_2018-12-31_1d.parquet
+INFO Loading VXX from cache: C:\Users\rochv\.quantcore\cache\VXX_2018-01-01_2018-12-31_1d.parquet
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2018-01-01_2018-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2018-01-01_2018-12-31_1d.parquet
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2019-06-01_2021-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2019-06-01_2021-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2019-06-01_2021-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2019-06-01_2021-12-31_1d.parquet
+INFO Loading MTUM from cache: C:\Users\rochv\.quantcore\cache\MTUM_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VLUE from cache: C:\Users\rochv\.quantcore\cache\VLUE_2019-06-01_2021-12-31_1d.parquet
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2019-06-01_2021-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2019-06-01_2021-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2019-06-01_2021-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2019-06-01_2021-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2019-06-01_2021-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2019-06-01_2021-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2019-06-01_2021-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2019-06-01_2021-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2019-06-01_2021-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2019-06-01_2021-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2019-06-01_2021-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2019-06-01_2021-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2019-06-01_2021-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2019-06-01_2021-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VNQI from cache: C:\Users\rochv\.quantcore\cache\VNQI_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLRE from cache: C:\Users\rochv\.quantcore\cache\XLRE_2019-06-01_2021-12-31_1d.parquet
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2019-06-01_2021-12-31_1d.parquet
+INFO Loading QUAL from cache: C:\Users\rochv\.quantcore\cache\QUAL_2019-06-01_2021-12-31_1d.parquet
+INFO Loading USMV from cache: C:\Users\rochv\.quantcore\cache\USMV_2019-06-01_2021-12-31_1d.parquet
+INFO Loading SIZE from cache: C:\Users\rochv\.quantcore\cache\SIZE_2019-06-01_2021-12-31_1d.parquet
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2019-06-01_2021-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2019-06-01_2021-12-31_1d.parquet
+INFO Loading BKLN from cache: C:\Users\rochv\.quantcore\cache\BKLN_2019-06-01_2021-12-31_1d.parquet
+INFO Loading VXX from cache: C:\Users\rochv\.quantcore\cache\VXX_2019-06-01_2021-12-31_1d.parquet
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2019-06-01_2021-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2019-06-01_2021-12-31_1d.parquet
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2021-06-01_2023-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2021-06-01_2023-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2021-06-01_2023-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2021-06-01_2023-12-31_1d.parquet
+INFO Loading MTUM from cache: C:\Users\rochv\.quantcore\cache\MTUM_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VLUE from cache: C:\Users\rochv\.quantcore\cache\VLUE_2021-06-01_2023-12-31_1d.parquet
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2021-06-01_2023-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2021-06-01_2023-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2021-06-01_2023-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2021-06-01_2023-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2021-06-01_2023-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2021-06-01_2023-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2021-06-01_2023-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2021-06-01_2023-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2021-06-01_2023-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2021-06-01_2023-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2021-06-01_2023-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2021-06-01_2023-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2021-06-01_2023-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2021-06-01_2023-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VNQI from cache: C:\Users\rochv\.quantcore\cache\VNQI_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLRE from cache: C:\Users\rochv\.quantcore\cache\XLRE_2021-06-01_2023-12-31_1d.parquet
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2021-06-01_2023-12-31_1d.parquet
+INFO Loading QUAL from cache: C:\Users\rochv\.quantcore\cache\QUAL_2021-06-01_2023-12-31_1d.parquet
+INFO Loading USMV from cache: C:\Users\rochv\.quantcore\cache\USMV_2021-06-01_2023-12-31_1d.parquet
+INFO Loading SIZE from cache: C:\Users\rochv\.quantcore\cache\SIZE_2021-06-01_2023-12-31_1d.parquet
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2021-06-01_2023-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2021-06-01_2023-12-31_1d.parquet
+INFO Loading BKLN from cache: C:\Users\rochv\.quantcore\cache\BKLN_2021-06-01_2023-12-31_1d.parquet
+INFO Loading VXX from cache: C:\Users\rochv\.quantcore\cache\VXX_2021-06-01_2023-12-31_1d.parquet
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2021-06-01_2023-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2021-06-01_2023-12-31_1d.parquet
+INFO Loading SPY from cache: C:\Users\rochv\.quantcore\cache\SPY_2022-06-01_2024-12-31_1d.parquet
+INFO Loading QQQ from cache: C:\Users\rochv\.quantcore\cache\QQQ_2022-06-01_2024-12-31_1d.parquet
+INFO Loading IWM from cache: C:\Users\rochv\.quantcore\cache\IWM_2022-06-01_2024-12-31_1d.parquet
+INFO Loading MDY from cache: C:\Users\rochv\.quantcore\cache\MDY_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VTI from cache: C:\Users\rochv\.quantcore\cache\VTI_2022-06-01_2024-12-31_1d.parquet
+INFO Loading MTUM from cache: C:\Users\rochv\.quantcore\cache\MTUM_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VLUE from cache: C:\Users\rochv\.quantcore\cache\VLUE_2022-06-01_2024-12-31_1d.parquet
+INFO Loading EFA from cache: C:\Users\rochv\.quantcore\cache\EFA_2022-06-01_2024-12-31_1d.parquet
+INFO Loading EEM from cache: C:\Users\rochv\.quantcore\cache\EEM_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VEU from cache: C:\Users\rochv\.quantcore\cache\VEU_2022-06-01_2024-12-31_1d.parquet
+INFO Loading FEZ from cache: C:\Users\rochv\.quantcore\cache\FEZ_2022-06-01_2024-12-31_1d.parquet
+INFO Loading EWJ from cache: C:\Users\rochv\.quantcore\cache\EWJ_2022-06-01_2024-12-31_1d.parquet
+INFO Loading EWZ from cache: C:\Users\rochv\.quantcore\cache\EWZ_2022-06-01_2024-12-31_1d.parquet
+INFO Loading TLT from cache: C:\Users\rochv\.quantcore\cache\TLT_2022-06-01_2024-12-31_1d.parquet
+INFO Loading IEF from cache: C:\Users\rochv\.quantcore\cache\IEF_2022-06-01_2024-12-31_1d.parquet
+INFO Loading SHY from cache: C:\Users\rochv\.quantcore\cache\SHY_2022-06-01_2024-12-31_1d.parquet
+INFO Loading LQD from cache: C:\Users\rochv\.quantcore\cache\LQD_2022-06-01_2024-12-31_1d.parquet
+INFO Loading HYG from cache: C:\Users\rochv\.quantcore\cache\HYG_2022-06-01_2024-12-31_1d.parquet
+INFO Loading GLD from cache: C:\Users\rochv\.quantcore\cache\GLD_2022-06-01_2024-12-31_1d.parquet
+INFO Loading SLV from cache: C:\Users\rochv\.quantcore\cache\SLV_2022-06-01_2024-12-31_1d.parquet
+INFO Loading USO from cache: C:\Users\rochv\.quantcore\cache\USO_2022-06-01_2024-12-31_1d.parquet
+INFO Loading UNG from cache: C:\Users\rochv\.quantcore\cache\UNG_2022-06-01_2024-12-31_1d.parquet
+INFO Loading DBA from cache: C:\Users\rochv\.quantcore\cache\DBA_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VNQ from cache: C:\Users\rochv\.quantcore\cache\VNQ_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VNQI from cache: C:\Users\rochv\.quantcore\cache\VNQI_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLF from cache: C:\Users\rochv\.quantcore\cache\XLF_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLK from cache: C:\Users\rochv\.quantcore\cache\XLK_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLV from cache: C:\Users\rochv\.quantcore\cache\XLV_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLE from cache: C:\Users\rochv\.quantcore\cache\XLE_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLY from cache: C:\Users\rochv\.quantcore\cache\XLY_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLP from cache: C:\Users\rochv\.quantcore\cache\XLP_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLI from cache: C:\Users\rochv\.quantcore\cache\XLI_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLU from cache: C:\Users\rochv\.quantcore\cache\XLU_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLRE from cache: C:\Users\rochv\.quantcore\cache\XLRE_2022-06-01_2024-12-31_1d.parquet
+INFO Loading XLB from cache: C:\Users\rochv\.quantcore\cache\XLB_2022-06-01_2024-12-31_1d.parquet
+INFO Loading QUAL from cache: C:\Users\rochv\.quantcore\cache\QUAL_2022-06-01_2024-12-31_1d.parquet
+INFO Loading USMV from cache: C:\Users\rochv\.quantcore\cache\USMV_2022-06-01_2024-12-31_1d.parquet
+INFO Loading SIZE from cache: C:\Users\rochv\.quantcore\cache\SIZE_2022-06-01_2024-12-31_1d.parquet
+INFO Loading TIP from cache: C:\Users\rochv\.quantcore\cache\TIP_2022-06-01_2024-12-31_1d.parquet
+INFO Loading MBB from cache: C:\Users\rochv\.quantcore\cache\MBB_2022-06-01_2024-12-31_1d.parquet
+INFO Loading BKLN from cache: C:\Users\rochv\.quantcore\cache\BKLN_2022-06-01_2024-12-31_1d.parquet
+INFO Loading VXX from cache: C:\Users\rochv\.quantcore\cache\VXX_2022-06-01_2024-12-31_1d.parquet
+INFO Loading UUP from cache: C:\Users\rochv\.quantcore\cache\UUP_2022-06-01_2024-12-31_1d.parquet
+INFO Loading FXE from cache: C:\Users\rochv\.quantcore\cache\FXE_2022-06-01_2024-12-31_1d.parquet
 ============================================================
   Phase A: Real-Data Validation
-  Strategies:  ['macro_factor_residual']
+  Strategies:  ['macro_cross_sectional_factor_neutral']
   Full period: 2018-2024  
   Regimes: ['gfc', 'q4_vol', 'covid', 'rate_hikes', 'bull']
-  Cache: disabled
+  Cache: enabled
 ============================================================
 
 ============================================================
-  Full period backtest: macro_factor_residual
-  Universe: original_5 (DBC, GLD, IEF, SPY, TLT)
+  Full period backtest: macro_cross_sectional_factor_neutral
+  Universe: ETF_EXPANDED (SPY, QQQ, IWM, MDY, VTI, MTUM, VLUE, EFA, EEM, VEU, FEZ, EWJ, EWZ, TLT, IEF, SHY, LQD, HYG, GLD, SLV, USO, UNG, DBA, VNQ, VNQI, XLF, XLK, XLV, XLE, XLY, XLP, XLI, XLU, XLRE, XLB, QUAL, USMV, SIZE, TIP, MBB, BKLN, VXX, UUP, FXE)
   Period: 2018-01-01 -> 2024-12-31
 ============================================================
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%
-  Folds: 31  OOS bars: 1519
+  OOS Sharpe: +0.0546  Sortino: +0.0523  Max DD: -99.96%  Win Rate: 36.8%
+  Folds: 31  OOS bars: 63196
 
   --------------------------------------------------
-  Regime backtest: macro_factor_residual / 2008 GFC
+  Regime backtest: macro_cross_sectional_factor_neutral / 2008 GFC
   Data: 2006-01-01 (warmup) -> 2008-01-01 (OOS) -> 2009-12-31
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 503
+  ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
 
   --------------------------------------------------
-  Regime backtest: macro_factor_residual / 2018 Q4 Vol
+  Regime backtest: macro_cross_sectional_factor_neutral / 2018 Q4 Vol
   Data: 2018-01-01 (warmup) -> 2018-10-01 (OOS) -> 2018-12-31
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 61
+  ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
 
   --------------------------------------------------
-  Regime backtest: macro_factor_residual / 2020 COVID
+  Regime backtest: macro_cross_sectional_factor_neutral / 2020 COVID
   Data: 2019-06-01 (warmup) -> 2020-01-01 (OOS) -> 2021-12-31
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 503
+  OOS Sharpe: +0.0078  Sortino: +0.0033  Max DD: -53.14%  Win Rate: 12.4%  OOS bars: 7356
 
   --------------------------------------------------
-  Regime backtest: macro_factor_residual / 2022 Rate Hikes
+  Regime backtest: macro_cross_sectional_factor_neutral / 2022 Rate Hikes
   Data: 2021-06-01 (warmup) -> 2022-01-01 (OOS) -> 2023-12-31
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 500
+  OOS Sharpe: -0.0698  Sortino: -0.0659  Max DD: -99.80%  Win Rate: 19.0%  OOS bars: 10023
 
   --------------------------------------------------
-  Regime backtest: macro_factor_residual / 2023-2024 Bull
+  Regime backtest: macro_cross_sectional_factor_neutral / 2023-2024 Bull
   Data: 2022-06-01 (warmup) -> 2023-01-01 (OOS) -> 2024-12-31
-  OOS Sharpe: +0.0000  Sortino: +0.0000  Max DD: 0.00%  Win Rate: 0.0%  OOS bars: 500
+  OOS Sharpe: -0.0315  Sortino: -0.0209  Max DD: -99.67%  Win Rate: 30.5%  OOS bars: 14792
 
 ==============================================================================================================
   PHASE A -- REAL-DATA VALIDATION RESULTS
 ==============================================================================================================
   Strategy             Period               OOS SR  Sortino   Max DD Win Rate   Bars   Status
   -------------------- ------------------ -------- -------- -------- -------- ------ --------
-  macro_factor_residual Full Period (2018-2024)   +0.000   +0.000     0.0%     0.0%   1519     FAIL
-  macro_factor_residual 2008 GFC             +0.000   +0.000     0.0%     0.0%    503     PASS
-  macro_factor_residual 2018 Q4 Vol          +0.000   +0.000     0.0%     0.0%     61     PASS
-  macro_factor_residual 2020 COVID           +0.000   +0.000     0.0%     0.0%    503     PASS
-  macro_factor_residual 2022 Rate Hikes      +0.000   +0.000     0.0%     0.0%    500     PASS
-  macro_factor_residual 2023-2024 Bull       +0.000   +0.000     0.0%     0.0%    500     PASS
+  macro_cross_sectional_factor_neutral Full Period (2018-2024)   +0.055   +0.052  -100.0%    36.8%  63196     FAIL
+  macro_cross_sectional_factor_neutral 2008 GFC              ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
+  macro_cross_sectional_factor_neutral 2018 Q4 Vol           ERROR      N/A      N/A      N/A    N/A    ERROR
+                                          ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
+  macro_cross_sectional_factor_neutral 2020 COVID           +0.008   +0.003   -53.1%    12.4%   7356     PASS
+  macro_cross_sectional_factor_neutral 2022 Rate Hikes      -0.070   -0.066   -99.8%    19.0%  10023     PASS
+  macro_cross_sectional_factor_neutral 2023-2024 Bull       -0.031   -0.021   -99.7%    30.5%  14792     FAIL
   -------------------- ------------------ -------- -------- -------- -------- ------ --------
 
-  PASS: 5  FAIL: 1  SHOWSTOPPER: 0  TOTAL: 6
+  PASS: 2  FAIL: 2  SHOWSTOPPER: 0  TOTAL: 6
 
   ==================================================
   PER-STRATEGY SUMMARY
   ==================================================
 
-  macro_factor_residual:
-    Full Period (2018-2024) SR=+0.000  (req >0.50)  DD=    0.0%  WR=    0.0%  [FAIL]
-    2008 GFC           SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
-    2018 Q4 Vol        SR=+0.000  (req >-0.10)  DD=    0.0%  WR=    0.0%  [PASS]
-    2020 COVID         SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
-    2022 Rate Hikes    SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
-    2023-2024 Bull     SR=+0.000  (req >0.00)  DD=    0.0%  WR=    0.0%  [PASS]
+  macro_cross_sectional_factor_neutral:
+    Full Period (2018-2024) SR=+0.055  (req >0.30)  DD= -100.0%  WR=   36.8%  [FAIL]
+    2008 GFC           SR=ERROR  (req >0.00)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_cross_sectional_factor_neutral/gfc: Missing symbols from data: ['BKLN', 'MTUM', 'QUAL', 'SIZE', 'USMV', 'VLUE', 'VNQI', 'VXX', 'XLRE']; macro_cross_sectional_factor_neutral/gfc: Date alignment issue -- symbols with fewer dates: ['DBA', 'HYG', 'MBB', 'SLV', 'UNG', 'USO', 'UUP', 'VEU']; macro_cross_sectional_factor_neutral/gfc: USO missing 6.7% bars (939/1006)
+    2018 Q4 Vol        SR=ERROR  (req >-0.20)  DD=N/A  WR=N/A  [INFO]
+                       ERROR: Data quality: macro_cross_sectional_factor_neutral/q4_vol: Date alignment issue -- symbols with fewer dates: ['VXX']; macro_cross_sectional_factor_neutral/q4_vol: VXX missing 6.4% bars (234/250)
+    2020 COVID         SR=+0.008  (req >0.00)  DD=  -53.1%  WR=   12.4%  [PASS]
+    2022 Rate Hikes    SR=-0.070  (req >-0.10)  DD=  -99.8%  WR=   19.0%  [PASS]
+    2023-2024 Bull     SR=-0.031  (req >0.20)  DD=  -99.7%  WR=   30.5%  [FAIL]
 
   ==================================================
   OVERALL VERDICT
   ==================================================
 
-  5/6 criteria passed (1 failure(s)).
+  2/6 criteria passed (2 failure(s)).
 
   Results saved to: C:\Users\rochv\Downloads\projetcs\algo sw\results\real_data_validation.json
 

@@ -121,18 +121,18 @@ def purged_kfold_cv(
         embargo_pct: Fraction of test_size to embargo between train/test (default 1%)
     """
     embargo = int(np.ceil(embargo_pct * test_size))
-    fold_size = test_size  # Use standardized test size
+    fold_size = test_size
 
     folds: list[Fold] = []
     for i in range(n_splits):
         test_start = i * fold_size
-        test_end = min(test_start + fold_size, n_bars)  # FIX: was undefined `total`
+        if test_start >= n_bars:
+            break
+        test_end = min(test_start + fold_size, n_bars)
 
-        # Training set: everything before test (with embargo purge)
         train_end = test_start - embargo
         train_start_next = test_end + embargo
 
-        # For simplicity, use data before test as training (purged CV style)
         if train_end > 0:
             folds.append(Fold(
                 train_start=0,
@@ -142,10 +142,9 @@ def purged_kfold_cv(
                 embargo_start=test_start - embargo if embargo > 0 else None,
             ))
         else:
-            # First fold — use data after test as training
             folds.append(Fold(
                 train_start=min(train_start_next, n_bars),
-                train_end=n_bars,  # FIX: was undefined `total`
+                train_end=n_bars,
                 test_start=test_start,
                 test_end=test_end,
             ))

@@ -40,14 +40,56 @@ def _normalize_columns(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
                 df = df.rename(columns={col: "timestamp"})
                 break
 
-    # yfinance returns 'adj close' or 'adj_close' — drop it, we don't need it
-    for adj_col in ("adj_close", "adj close"):
-        if adj_col in df.columns:
-            df = df.drop(columns=[adj_col])
+    # yfinance returns 'adj close' or 'adj_close'.
+    # We keep it as adj_close_yahoo for validation, but first we apply the
+    # adjustment ratio to raw OHLC so the returned close matches the Yahoo
+    # adjusted close (which is what auto_adjust=True used to give us).
+    if "adj_close" in df.columns:
+        if "close" in df.columns:
+            # Ratio of adj / raw — handles all splits and dividends
+            adj_ratio = df["adj_close"] / df["close"].replace(0, float("nan"))
+            for col in ("open", "high", "low", "close"):
+                if col in df.columns:
+                    df[col] = df[col] * adj_ratio
+            # Heal tiny float rounding artefacts that violate OHLC ordering
+            if "high" in df.columns and "close" in df.columns and "high" in df.columns:
+                from numpy import nextafter
+                adj_tol = float(df["high"].abs().max() or 1.0) * 1e-12  # dynamic tolerance
+                # Ensure high >= max(open, close) after rounding
+                df["high"] = df[["high", "open", "close"]].max(axis=1)  # type: ignore[index]
+                # Ensure low <= min(open, close) after rounding
+                df["low"] = df[["low", "open", "close"]].min(axis=1)  # type: ignore[index]
+
+        # Preserve Yahoo's original adj_close for later validation
+        df["adj_close_yahoo"] = df["adj_close"]
+        df = df.drop(columns=["adj_close"])
+
+        # Validation: our adjusted close should match Yahoo's within 0.1%
+        if "close" in df.columns and "adj_close_yahoo" in df.columns:
+            abs_diff = (df["close"] - df["adj_close_yahoo"]).abs()
+            yahoo_abs = df["adj_close_yahoo"].abs().clip(lower=1e-10)
+            pct_diff = abs_diff / yahoo_abs
+            max_val = pct_diff.max()
+            if pd.notna(max_val) and max_val > 0.001:
+                worst_label = pct_diff.idxmax()
+                worst_row = df.loc[worst_label]
+                log.warning(
+                    "adj_close mismatch for %s on %s: adjusted=%.6f vs yahoo=%.6f "
+                    "(deviation %.6f%%)",
+                    symbol,
+                    worst_row["timestamp"],
+                    worst_row["close"],
+                    worst_row["adj_close_yahoo"],
+                    max_val * 100,
+                )
+    elif "adj_close" in df.columns:
+        # Fallback: no close column present (shouldn't happen for equities)
+        df = df.rename(columns={"adj_close": "adj_close_yahoo"})
+        log.warning("%s: adj_close present but no close column; cannot validate", symbol)
 
     df["symbol"] = symbol
 
-    keep_cols = ["symbol", "timestamp", "open", "high", "low", "close", "volume"]
+    keep_cols = ["symbol", "timestamp", "open", "high", "low", "close", "volume", "adj_close_yahoo"]
     available = [c for c in keep_cols if c in df.columns]
     return df[available]
 
@@ -83,7 +125,7 @@ def load_bars(
 
     log.info("Downloading %s from %s to %s (%s)", symbol, start, end, interval)
     ticker = yf.Ticker(symbol)
-    raw = ticker.history(start=start, end=end, interval=interval, auto_adjust=True)
+    raw = ticker.history(start=start, end=end, interval=interval, auto_adjust=False)
 
     if raw.empty:
         log.warning("No data returned for %s (%s → %s)", symbol, start, end)

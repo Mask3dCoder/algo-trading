@@ -10,7 +10,10 @@ from quantcore.strategies.macro.regime_adaptive_momentum import RegimeAdaptiveMo
 from quantcore.strategies.macro.state_selective_momentum import StateSelectiveMomentumStrategy
 from quantcore.strategies.macro.true_carry_strategy import TrueCarryStrategy
 from quantcore.strategies.macro.cross_sectional_momentum import CrossSectionalMomentumStrategy
-from quantcore.strategies.macro.cross_sectional_momentum_v2 import CrossSectionalMomentumV2Strategy
+# DISABLED — CrossSectionalMomentumV2Strategy registration removed per
+# prospective_trials.csv entry #1 (REJECTED). Class preserved for reference.
+# from quantcore.strategies.macro.cross_sectional_momentum_v2 import CrossSectionalMomentumV2Strategy
+from quantcore.strategies.macro.cross_sectional_factor_neutral import CrossSectionalFactorNeutralStatArb
 from quantcore.strategies.macro.factor_residual_qp import FactorResidualQPStrategy
 
 __all__ = [
@@ -24,6 +27,7 @@ __all__ = [
     "StateSelectiveMomentumStrategy",
     "TrueCarryStrategy",
     "CrossSectionalMomentumStrategy",
-    "CrossSectionalMomentumV2Strategy",
+    "CrossSectionalFactorNeutralStatArb",
+    # "CrossSectionalMomentumV2Strategy",  # disabled per prospective trial #1
     "FactorResidualQPStrategy",
 ]

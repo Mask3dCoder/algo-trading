@@ -69,8 +69,19 @@ ORIG_PARAMS = {
 
 def df_to_data(df: pd.DataFrame) -> dict:
     symbols = sorted(df["symbol"].unique())
+    # Causal forward-fill ONLY -- bfill is banned to avoid look-ahead.
+    # Remaining NaN become zero after ffill + first-valid back-propagation.
     pivoted = df.pivot_table(index="timestamp", columns="symbol", values="close")
-    pivoted = pivoted.ffill().bfill().fillna(0.0)
+    for col in pivoted.columns:
+        col_series = pivoted[col]
+        if col_series.isna().all():
+            continue
+        first_valid = col_series.first_valid_index()
+        if first_valid is not None:
+            col_series = col_series.ffill()
+            col_series = col_series.fillna(col_series.loc[first_valid])
+            pivoted[col] = col_series
+    pivoted = pivoted.fillna(0.0)
     if pivoted.empty:
         return {"close": np.array([[]], dtype=float), "symbols": symbols}
     return {"close": pivoted.values, "symbols": symbols}

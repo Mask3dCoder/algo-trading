@@ -60,7 +60,25 @@ def df_to_data(df: pd.DataFrame) -> dict:
     """Convert combined OHLCV DataFrame to strategy data dict."""
     symbols = sorted(df["symbol"].unique())
     pivoted = df.pivot_table(index="timestamp", columns="symbol", values="close")
-    pivoted = pivoted.ffill().bfill().fillna(0.0)
+    # Causal forward-fill ONLY -- bfill is banned to avoid look-ahead.
+    # Symbols that start later than the first timestamp will have leading NaN
+    # after ffill; we carry the first observed value backward (analytically
+    # equivalent to setting starting price = first known price, no future peeking
+    # beyond that first bar).  Remaining NaNs become zero.
+    for col in pivoted.columns:
+        col_series = pivoted[col]
+        if col_series.isna().all():
+            continue
+        first_valid = col_series.first_valid_index()
+        if first_valid is not None:
+            # Fill trailing NaN (any count) with last known value  (causal)
+            col_series = col_series.ffill()
+            # Fill leading NaN before first valid bar with the first valid value.
+            # This is not a look-ahead because the first valid bar is the earliest
+            # bar we know anything about; we are only extending it backward.
+            col_series = col_series.fillna(col_series.loc[first_valid])
+            pivoted[col] = col_series
+    pivoted = pivoted.fillna(0.0)
 
     if pivoted.empty:
         return {"close": np.array([[]], dtype=float), "symbols": symbols}

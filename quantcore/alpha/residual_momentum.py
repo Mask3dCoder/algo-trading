@@ -1,29 +1,70 @@
-"""Factor-neutral residual momentum — Q2 alpha rebuild skeleton.
+"""Factor-neutral residual momentum — Q2 alpha rebuild.
 
 ALGORITHM:
   1. Universe: 50+ liquid ETFs (ETF_MACRO).
-  2. External factors: Fama-French 5 + rates/commodities.
+  2. External factors: Fama-French 5 (Mkt-RF, SMB, HML, RMW, CMA) via Ken
+     French data library, augmented with rates/commodities proxies.
   3. Rolling Ridge regression per asset: R = alpha + B*F + epsilon.
   4. Rank epsilon cross-sectionally; z-score weights.
      Residuals should be mean-zero and orthogonal to factors.
-
-STATUS: SKELETON (Q2) — PlaceholderFactorSource returns zeros.
 """
 
 from __future__ import annotations
 import logging
+import warnings
 import numpy as np
 from numpy.typing import NDArray
 
 _log = logging.getLogger(__name__)
 
+# Optional import — gracefully degrades to placeholder on missing deps.
+try:
+    from quantcore.data.sources.fama_french import FamaFrenchLoader
+    _HAS_FF = True
+except ImportError:  # pragma: no cover
+    _HAS_FF = False  # type: ignore[assignment]
 
-class PlaceholderFactorSource:
-    """Zero-return placeholder. Replace with FamaFrenchLoader in Q2."""
+
+class _PlaceholderFactorSource:
+    """Zero-return placeholder for environments without Ken French data."""
 
     def get_factor_returns(self, n_periods: int, n_factors: int = 5) -> NDArray:
-        _log.warning("PlaceholderFactorSource: returning zeros.")
+        _log.warning("PlaceholderFactorSource: returning zeros (no FamaFrenchLoader).")
         return np.zeros((n_periods, n_factors))
+
+
+class FactorSource:
+    """Real-time wrapper around FamaFrenchLoader.
+
+    On import, attempts to instantiate a default loader.  If pandas/requests
+    are unavailable, falls back to the zero placeholder.
+    """
+
+    def __init__(self) -> None:
+        self._loader = None
+        if _HAS_FF:
+            try:
+                self._loader = FamaFrenchLoader()
+            except Exception as exc:
+                _log.warning("FamaFrenchLoader init failed: %s", exc)
+
+    def get_factor_returns(self, n_periods: int, n_factors: int = 5) -> NDArray:
+        if self._loader is None:
+            return _PlaceholderFactorSource().get_factor_returns(n_periods, n_factors)
+
+        try:
+            arr = self._loader.get_factor_returns(freq="daily")
+            if arr.shape[0] < n_periods:
+                return _PlaceholderFactorSource().get_factor_returns(n_periods, n_factors)
+            # Return the last *n_periods* rows, first *n_factors* columns
+            return arr[-n_periods:, :n_factors]
+        except Exception as exc:
+            _log.warning("FactorSource download failed: %s", exc)
+            return _PlaceholderFactorSource().get_factor_returns(n_periods, n_factors)
+
+
+# Module-level default instance (lazy — actual IO only on first call)
+_default_factor_source = FactorSource()
 
 
 class ResidualMomentumSignal:
@@ -36,10 +77,10 @@ class ResidualMomentumSignal:
 
     def __init__(
         self,
-        factor_source: PlaceholderFactorSource | None = None,
+        factor_source: FactorSource | None = None,
         ridge_alpha: float = 1.0,
     ) -> None:
-        self._factor_source = factor_source or PlaceholderFactorSource()
+        self._factor_source = factor_source or _default_factor_source
         self.ridge_alpha = ridge_alpha
 
     def _ridge_residuals(

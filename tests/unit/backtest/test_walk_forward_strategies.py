@@ -47,13 +47,15 @@ _MACRO_PARAMS: dict[str, dict] = {
     "macro_factor_residual": {"rebalance_freq": 5, "reg_window": 252},
     "macro_factor_residual_strict": {"rebalance_freq": 5, "reg_window": 252},
     "macro_factor_residual_qp": {"rebalance_freq": 5, "reg_window": 252},
+    "macro_factor_residual_v3": {"rebalance_freq": 5, "reg_window": 252, "residual_window": 63},
     "macro_regime_adaptive_momentum": {"rebalance_freq": 1, "slow_window": 100},
     "macro_state_selective_momentum": {"rebalance_freq": 1, "slow_window": 100},
     "macro_cross_sectional_momentum": {"rebalance_freq": 1, "slow_window": 100},
-    "macro_cross_sectional_momentum_v2": {
-        "rebalance_freq": 5, "mom_windows": "20,60,120", "mom_weights": "0.2,0.5,0.3",
-        "max_leverage": 1.0, "max_gross_exposure": 1.0,
-    },
+    # DISABLED: CSM v2 (REJECTED per prospective_trial #1)
+    # "macro_cross_sectional_momentum_v2": {
+    #     "rebalance_freq": 5, "mom_windows": "20,60,120", "mom_weights": "0.2,0.5,0.3",
+    #     "max_leverage": 1.0, "max_gross_exposure": 1.0,
+    # },
     "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
 }
 

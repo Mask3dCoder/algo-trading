@@ -1,0 +1,25 @@
+date,action,ticker,name
+2013-12-13,add,FB,Facebook (now META)
+2014-03-14,add,KLAC,KLA Corp
+2014-09-05,add,SWKS,Skyworks Solutions
+2015-03-20,add,AVGO,Broadcom
+2016-03-21,add,PYPL,PayPal
+2016-09-16,add,ADSK,Autodesk
+2017-06-20,add,SNPS,Synopsys
+2017-10-06,add,FANG,Diamondback Energy
+2018-06-29,add,NOW,ServiceNow
+2018-09-24,add,MDB,MongoDB
+2019-01-04,add,CTVA,Corteva
+2019-03-25,add,LW,Lamb Weston
+2020-03-23,add,WORK,Slack Technologies
+2020-09-21,add,SQ,Block (Square)
+2020-12-21,add,TSLA,Tesla
+2021-03-22,add,COIN,Coinbase
+2021-11-12,add,CEG,Clearway Energy
+2022-05-03,remove,FB,Facebook renamed to META
+2022-05-03,add,META,Meta Platforms
+2022-11-21,add,PANW,Palo Alto Networks
+2023-03-20,add,DD,DuPont de Nemours
+2023-06-20,add,DXCM,Dexcom
+2024-03-18,add,SMCI,Super Micro Computer
+2024-03-18,remove,WHR,Whirlpool

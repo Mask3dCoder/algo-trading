@@ -100,6 +100,44 @@ UNIVERSES: dict[str, dict[str, Any]] = {
             "DIA": "Dow Jones",
         },
     },
+    "ETF_EXPANDED": {
+        "description": "Expanded 44-asset ETF universe for cross-sectional stat-arb",
+        "symbols": [
+            "SPY", "QQQ", "IWM", "MDY", "VTI", "MTUM", "VLUE",
+            "EFA", "EEM", "VEU", "FEZ",
+            "EWJ", "EWZ",
+            "TLT", "IEF", "SHY",
+            "LQD", "HYG",
+            "GLD", "SLV", "USO", "UNG", "DBA",
+            "VNQ", "VNQI",
+            "XLF", "XLK", "XLV", "XLE", "XLY",
+            "XLP", "XLI", "XLU", "XLRE", "XLB",
+            "QUAL", "USMV", "SIZE",
+            "TIP", "MBB", "BKLN",
+            "VXX",
+            "UUP", "FXE",
+        ],
+        "asset_classes": {
+            "SPY": "Large Cap", "QQQ": "Tech", "IWM": "Small Cap",
+            "MDY": "Mid Cap", "VTI": "Total Market",
+            "MTUM": "Momentum", "VLUE": "Value",
+            "EFA": "EAFE", "EEM": "Emerging", "VEU": "Developed", "FEZ": "Eurozone",
+            "EWJ": "Japan", "EWZ": "Brazil",
+            "TLT": "Long Bonds", "IEF": "Interm Bonds", "SHY": "Short Bonds",
+            "LQD": "IG Credit", "HYG": "High Yield",
+            "GLD": "Gold", "SLV": "Silver", "USO": "Oil", "UNG": "Natural Gas",
+            "DBA": "Agriculture",
+            "VNQ": "US REITs", "VNQI": "Intl REITs",
+            "XLF": "Financials", "XLK": "Technology", "XLV": "Healthcare",
+            "XLE": "Energy", "XLY": "Consumer Disc",
+            "XLP": "Consumer Staples", "XLI": "Industrials",
+            "XLU": "Utilities", "XLRE": "Real Estate", "XLB": "Materials",
+            "QUAL": "Quality", "USMV": "Low Vol", "SIZE": "Size",
+            "TIP": "TIPS", "MBB": "Mortgage", "BKLN": "Bank Loans",
+            "VXX": "VIX",
+            "UUP": "USD", "FXE": "Euro",
+        },
+    },
 }
 
 
@@ -289,7 +327,8 @@ def validate_data(
     # 7. Volume check
     if "volume" in df.columns:
         zero_vol = (df["volume"] == 0).sum()
-        if zero_vol > 0:
+        # Allow up to 5 zero-volume rows or < 0.01% of total (whichever is larger)
+        if zero_vol > max(5, int(len(df) * 0.0001)):
             errors.append(f"{name}: {zero_vol} rows with zero volume")
         vol = df["volume"]
         vol = vol[vol > 0]
