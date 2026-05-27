@@ -1,88 +1,33 @@
-version: "3.9"
-
 services:
-  timescaledb:
-    image: timescale/timescaledb:latest-pg16
-    container_name: quantcore-db
+  quantcore:
+    build: .
+    container_name: quantcore-live
+    restart: always
     ports:
-      - "5432:5432"
+      - "8000:8000"
+    volumes:
+      - ./quantcore:/app/quantcore
+      - ./config:/app/config:ro
+      - ./reports:/app/reports
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./scripts:/app/scripts:ro
+      - ./KILL_SWITCH:/app/KILL_SWITCH:ro
     environment:
-      POSTGRES_USER: quantcore
-      POSTGRES_PASSWORD: quantcore
-      POSTGRES_DB: quantcore
-    volumes:
-      - timescale_data:/var/lib/postgresql/data
+      - PYTHONUNBUFFERED=1
+      - QUANTCORE_LIVE_CONFIG=config/live.yaml
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_API_SECRET=${ALPACA_API_SECRET}
+      - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+      - QUANTCORE_ALERTING__SLACK__WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U quantcore"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - quantcore-net
-
-  redis:
-    image: redis:7
-    container_name: quantcore-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - quantcore-net
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: quantcore-zk
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    volumes:
-      - zk_data:/var/lib/zookeeper/data
-      - zk_logs:/var/lib/zookeeper/log
-    healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc localhost 2181 | grep imok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - quantcore-net
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: quantcore-kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    volumes:
-      - kafka_data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
-      interval: 10s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 60s
       timeout: 10s
-      retries: 5
-    networks:
-      - quantcore-net
-
-volumes:
-  timescale_data:
-  redis_data:
-  zk_data:
-  zk_logs:
-  kafka_data:
-
-networks:
-  quantcore-net:
-    driver: bridge
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

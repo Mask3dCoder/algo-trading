@@ -58,8 +58,8 @@ class StateSelectiveMomentumStrategy(Strategy):
         self.rebalance_freq = int(config.params.get("rebalance_freq", 5))
         self.min_position = float(config.params.get("min_position", 0.05))
 
-        # State
-        self._days_since_rebalance = 0
+        # State — start at rebalance_freq so the first tick triggers immediately
+        self._days_since_rebalance = self.rebalance_freq
 
         # Per-asset instability tracking (deques for rolling percentile)
         buf_size = int(config.params.get("instability_buffer", 252))
@@ -112,7 +112,7 @@ class StateSelectiveMomentumStrategy(Strategy):
         buf.append(instability)
 
         if len(buf) < 10:
-            return 0.5  # moderate — safe default
+            return 0.2  # default to stable zone — use medium-term signal on startup
 
         below = sum(1 for v in buf if v < instability)
         return below / len(buf)
@@ -184,7 +184,8 @@ class StateSelectiveMomentumStrategy(Strategy):
         asset_vols = np.std(vol_rets, axis=0, ddof=1) * np.sqrt(252)
         asset_vols[asset_vols < 1e-10] = 1e-10
 
-        signals: list[TradeSignal] = []
+        # --- Phase 1: compute raw positions for all assets ---
+        raw_positions: list[tuple[str, float, dict]] = []  # (symbol, position, metadata)
 
         for i in range(n_assets):
             prices = close[:, i]
@@ -215,25 +216,47 @@ class StateSelectiveMomentumStrategy(Strategy):
             if abs(position) < self.min_position:
                 continue
 
-            direction = 1 if position > 0 else -1
-            strength = min(abs(position), 1.0)
+            raw_positions.append((sym, position, {
+                "state": state,
+                "instability_pctile": round(inst_pctile, 3),
+                "sig_short": round(sig_short, 4),
+                "sig_medium": round(sig_medium, 4),
+                "final_signal": round(final_signal, 4),
+                "vol_scale": round(vol_scale, 4),
+            }))
+
+        if is_rebalance:
+            self._days_since_rebalance = 0
+
+        if not raw_positions:
+            return []
+
+        # --- Phase 2: normalize to target gross exposure (2.0 = 100% long + 100% short) ---
+        target_gross = 2.0
+        total_abs = sum(abs(p) for _, p, _ in raw_positions)
+        if total_abs < 1e-10:
+            return []
+        scale = target_gross / total_abs
+
+        # --- Phase 3: emit signals with per-name cap (25% of portfolio) ---
+        max_per_name = 0.25
+        signals: list[TradeSignal] = []
+        for sym, pos, meta in raw_positions:
+            scaled = pos * scale
+            # Per-name concentration cap
+            if abs(scaled) > max_per_name:
+                scaled = max_per_name if scaled > 0 else -max_per_name
+
+            direction = 1 if scaled > 0 else -1
+            strength = min(abs(scaled), 1.0)
+            notional = abs(scaled) * float(self.config.max_position_notional)
 
             signals.append(TradeSignal(
                 symbol=sym,
                 direction=direction,
                 strength=strength,
-                size=abs(position) * float(self.config.max_position_notional),
-                metadata={
-                    "state": state,
-                    "instability_pctile": round(inst_pctile, 3),
-                    "sig_short": round(sig_short, 4),
-                    "sig_medium": round(sig_medium, 4),
-                    "final_signal": round(final_signal, 4),
-                    "vol_scale": round(vol_scale, 4),
-                },
+                size=notional,
+                metadata=meta,
             ))
-
-        if is_rebalance:
-            self._days_since_rebalance = 0
 
         return signals
