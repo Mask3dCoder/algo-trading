@@ -423,7 +423,7 @@ def main() -> dict:
     print(f"  - Sharpe annualization: sqrt(252)")
     print(f"  - Fill model:           Signal-weighted; no fill rejection or partial fills")
     print(f"  - Short selling:        Allowed (no borrow cost beyond tc_bps)")
-    print(f"  - Slippage:             Embedded in tc_bps (5 bps ≈ IBKR Pro + impact)")
+    print(f"  - Slippage:             Embedded in tc_bps (5 bps ~ IBKR Pro + impact)")
     print(f"  - Warmup:               {warmup_bars} bars excluded from performance")
     print(f"  - Drawdown:             Based on equity curve from signal-weighted returns")
 

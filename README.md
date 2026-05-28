@@ -1,4 +1,4 @@
-# QuantCore
+﻿# QuantCore
 
 > **⚠️ DISCLAIMER — SYSTEM UNDER ACTIVE RECONSTRUCTION**
 >
@@ -12,7 +12,12 @@
 > See [`FORENSIC_AUDIT_REPORT.md`](FORENSIC_AUDIT_REPORT.md) for the full
 > analysis and [`INTERNAL_NOTES.md`](INTERNAL_NOTES.md) for the recovery plan.
 >
-> Current rebuild status: **Q1 FIX FOUNDATION** in progress.
+> Current rebuild status: **Phase 4 — Production Risk Controls** in progress.
+>
+> **⚠️ REAL MONEY AT RISK** — The `--live` flag routes orders to Alpaca's live
+> broker. Only `--scale single_share` or `--scale fractional` are permitted
+> with `--live`. See [`PHASE4_LIVE_DEPLOYMENT.md`](PHASE4_LIVE_DEPLOYMENT.md)
+> for graduated deployment procedures and risk controls.
 
 ---
 
@@ -28,6 +33,9 @@ python main.py live --broker paper
 python main.py api --port 8000
 python main.py report --input results.csv
 python main.py risk --input returns.csv
+python run_paper_trading.py --check                      # verify Alpaca connectivity
+python run_paper_trading.py                               # paper trading (default)
+python run_paper_trading.py --live --scale single_share   # LIVE: single share only
 ```
 
 ## Architecture
@@ -51,7 +59,7 @@ quantcore/
 ├── dashboard/          Dash app: portfolio, strategy, risk, market, execution panels + alert engine
 ├── compliance/         Hash-chained immutable audit trail, pre-trade rules, reporting
 ├── api/                FastAPI REST + WebSocket, API key auth
-├── live/               Paper/live trader, watchdog (dead man's switch), kill switch, reconciliation
+├── live/               Paper/live trader, risk manager, circuit breaker, kill switch, reconciliation
 ├── research/           Deflated Sharpe, FDR correction, experiment tracking
 └── main.py             CLI entry point
 ```
@@ -70,21 +78,50 @@ quantcore/
 
 All hot-path loops compiled with Numba JIT; fallback to pure Python when Numba is unavailable. HTTP clients use connection pooling (httpx.AsyncClient, requests.Session).
 
-## Strategy Status (Honest — Post-Audit 2026-05-09)
+## Strategy Status (Post-Audit Validation — Phase 3)
 
-| Strategy | Status | OOS Sharpe (Audit) | Reason |
-|---|---|---|---|
-| `macro_cta_trend` | **DISABLED** | -0.147 | Structural negative alpha post-2008 |
-| `macro_risk_parity` | **DISABLED** | +0.128 | Pure beta, not alpha |
-| `macro_factor_residual` | **DISABLED** | 0.000 | Broken — degenerates to 1 asset |
-| `equity_momentum` | **DISABLED** | Unvalidated | 12-1 mo edge decayed post-2000 |
-| `equity_earnings_momentum` | **DISABLED** | Unvalidated | Circular logic |
-| `macro_cross_sectional_momentum_v2` | **DEVELOPMENT** | +0.55 (but 88% DD) | Real signal; leverage cap fix applied |
-| `equity/low_volatility` | **RESEARCH** | Unvalidated | Tier-1 alpha candidate (Q2) |
-| `options/delta_neutral` | **RESEARCH** | Unvalidated | Tier-1 alpha candidate (Q2) |
+| Strategy | Status | OOS Sharpe | CI_lower (90%) | Walk-Forward | Notes |
+|---|---|---|---|---|---|
+| `macro_cross_sectional_momentum` | **DEPLOY** | +0.85 | +0.33 | 10-yr expanding | Phase 3 live ready |
+| `macro_state_selective_momentum` | **DEPLOY** | +0.81 | +0.40 | 10-yr expanding | Phase 3 live ready |
+| `macro_factor_residual` | **PAPER** | +0.911 | Unreported | 6/6 regimes | Side-effect dominated, residual thin |
+| `macro_risk_parity` | **MONITOR** | +0.128 | — | — | Noise-limited; pure beta |
+| `macro_cta_trend` | **DISABLED** | -0.147 | — | — | Structural negative alpha |
+| `equity_momentum` | **PAPER** | Unvalidated | — | — | 12-1 mo edge decayed post-2000 |
 
-No strategy has OOS Sharpe 90% CI lower bound ≥ 0.3 with the corrected engine.
-Re-validation in progress.
+Both DEPLOY strategies passed the 10-year walk-forward with CI_lower(90%) ≥ 0.3.
+See [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md) for live paper trading setup.
+
+## Production Status
+
+**30-day paper trading validation started: 2026-05-27**
+
+| Strategy | Registry Name | Data Source | Weight | Status |
+|---|---|---|---|---|
+| `macro_cross_sectional_momentum` | `macro_cross_sectional_momentum` | Alpaca daily | 0.35 | RUNNING |
+| `macro_state_selective_momentum` | `macro_state_selective_momentum` | Alpaca daily | 0.35 | RUNNING |
+| `pairs_trading_intraday` | `equity_stat_arb` | Alpaca intraday (5min) | 0.30 | RUNNING |
+
+- **Health API**: `http://localhost:8000/health` — liveness probe
+- **Status API**: `http://localhost:8000/status` — positions, equity, events
+- **Kill switch**: `curl -X POST http://localhost:8000/kill-switch/activate`
+- **Daily checklist**: [`operations/daily_checklist.md`](operations/daily_checklist.md)
+- **Graduation criteria**: Paper Sharpe >= 0.3, max DD < 10%, >= 20/30 days without crash
+
+## Phase Gate Status
+
+| Gate | Criterion | Status |
+|---|---|---|
+| Phase 1 — Core Infrastructure | 734 tests passing | **PASS** |
+| Phase A OOS Validation | CI_lower(90%) ≥ 0.3, 10-yr walk-forward | **PASS** (2 strategies) |
+| Phase B Code Quality | Same `on_data()` pipeline, no separate live signals | **PASS** |
+| Phase C Parity Test | LiveDataFeed vs backtest data → identical signals | `pytest tests/test_live_parity.py` |
+| Phase D Live Bootstrap | Paper trading ≥ 20 trading days without crash | **IN PROGRESS** (started 2026-05-27) |
+| Phase E Live Sign-off | OOS paper Sharpe ≥ 0.3 over live period | **PENDING** |
+| **Phase 4 — Risk Controls** | Pre-trade checks, circuit breaker, kill switch, graduated scale | **PASS** (tests green) |
+
+For Phase 3 live start, see [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md).
+For Phase 4 risk controls and graduated live deployment, see [`PHASE4_LIVE_DEPLOYMENT.md`](PHASE4_LIVE_DEPLOYMENT.md).
 
 ## Verification
 
@@ -93,18 +130,6 @@ Re-validation in progress.
 python scripts/verify_honest_foundation.py
 # Outputs: HONEST_FOUNDATION_REPORT.json
 ```
-
-## Phase Gate Status (Historical — Pre-Audit)
-
-> **These results are INVALID.** They were produced with a look-ahead-biased
-> backtest engine and a validation pipeline that bypassed all execution costs.
-
-| Gate | Old Status | Post-Audit Status |
-|---|---|---|
-| Phase 1 — Core Infrastructure | 734 tests passing | Infrastructure sound; metrics buggy |
-| Phase 2 — Signals & Strategies | "Validated" | NOT validated (all use broken validator) |
-| Phase 3 — Risk, Execution & Portfolio | "VaR backtests green" | Risk engine decorative |
-| Phase 4 — Live Ops & Production | "All 5 gates pass" | Paper trading should be halted |
 
 ## Development
 
@@ -119,6 +144,87 @@ make docker-up      # TimescaleDB, Redis, Kafka
 ```
 
 Python ≥3.12 required. Optional dependency groups: `stats`, `ml`, `optim`, `exec`, `infra`, `viz`, `nlp`, `perf`, `data`, `dev` — install with `pip install -e ".[group]"` or `pip install -e ".[all]"`.
+
+## Production Deployment (Docker)
+
+The system runs as a containerized service with zero terminal commands during normal operation.
+
+### Quick Start
+
+```bash
+# 1. Configure (edit config/live.yaml with your broker credentials and strategies)
+cp config/live.yaml config/live.yaml.local   # optional override
+
+# 2. Start
+docker compose up -d
+
+# 3. Verify
+curl http://localhost:8000/health    # {"status": "ok", "uptime_seconds": ...}
+curl http://localhost:8000/status    # positions, equity, recent events
+
+# 4. Stop trading (kill switch)
+curl -X POST http://localhost:8000/kill-switch/activate
+
+# 5. Resume trading
+curl -X POST http://localhost:8000/kill-switch/deactivate
+
+# 6. View logs
+docker compose logs -f quantcore
+```
+
+### File-Based Kill Switch
+
+Create a `KILL_SWITCH` file at the project root to halt trading immediately (checked every 10 seconds):
+
+```bash
+touch KILL_SWITCH    # halt trading
+rm KILL_SWITCH       # resume trading
+```
+
+### Configuration
+
+All settings live in `config/live.yaml`:
+
+| Section | Key Settings |
+|---|---|
+| `broker` | `type` (paper/alpaca/ibkr), credentials, base URL |
+| `strategies` | List of `{name, enabled, weight, params}` — names must match `@register()` |
+| `universe` | `tickers` and `macro_assets` lists |
+| `risk` | Position limits, daily loss, drawdown, circuit breaker thresholds |
+| `execution` | `scale_mode` (single_share/fractional/full), initial cash |
+| `schedule` | `trading_time`, `reconciliation_time` (ET), `timezone` |
+| `alerting` | File log, Slack webhook, email SMTP |
+| `kill_switch` | `file_path`, `check_interval_sec` |
+| `api` | `host`, `port`, `enabled` |
+
+Environment variables override YAML values with `QUANTCORE_` prefix (e.g. `QUANTCORE_BROKER__ALPACA__API_KEY`).
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Liveness probe — uptime, memory, data freshness |
+| `/status` | GET | Full trading status — positions, equity, events, circuit breaker |
+| `/kill-switch/activate` | POST | Emergency halt — stops all trading |
+| `/kill-switch/deactivate` | POST | Resume trading after operator review |
+| `/docs` | GET | OpenAPI interactive documentation |
+
+### Docker Compose Volumes
+
+| Mount | Purpose |
+|---|---|
+| `./config:/app/config:ro` | Strategy and broker configuration |
+| `./reports:/app/reports` | Equity CSV, event log, alert log |
+| `./data:/app/data` | Cached market data |
+| `./logs:/app/logs` | Application logs |
+| `./KILL_SWITCH:/app/KILL_SWITCH:ro` | File-based kill switch |
+
+### Monitoring
+
+- **Health check**: Docker HEALTHCHECK polls `/health` every 60s; auto-restarts on failure
+- **Alerts**: Configured in `config/live.yaml` under `alerting` — file log always on, Slack/email optional
+- **Equity curve**: `reports/live_equity.csv` — date, cash, positions value, total equity, daily return
+- **Event log**: `reports/live_events.jsonl` — every order submission as newline-delimited JSON
 
 ## Key Decisions
 

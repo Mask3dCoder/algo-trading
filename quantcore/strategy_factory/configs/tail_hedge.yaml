@@ -1,0 +1,54 @@
+name: tail_hedge
+type: options
+universe: options_underlying
+universe_tickers:
+  - SPY
+  - QQQ
+  - IWM
+description: >
+  Tail risk hedging strategy. Allocates ~2% of portfolio monthly to
+  purchase deep OTM puts (20% below spot) as portfolio insurance.
+  Profits during market crashes (COVID, GFC-type events) while
+  having minimal drag during normal markets. Systematic roll
+  at 7 DTE to maintain continuous protection.
+status: active
+
+signal:
+  formula: "constant_allocation"
+  rank: null
+  parameters:
+    allocation_pct: 0.02
+
+rebalance: monthly
+market_neutral: false
+position_limit: 0.05
+leverage_cap: 1.0
+
+filters:
+  min_volume: 1000
+  min_price: 100
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 10.0
+  slippage_bps: 5.0
+  max_participation: 0.01
+
+regime_filter:
+  enabled: false
+  signal: null
+  threshold: 0.0
+  inverse: false
+
+strategy_params:
+  otm_pct: 20
+  dte_target: 30
+  roll_dte: 7
+  max_allocation_pct: 0.05
+  ivr_entry: 0
+  ivr_exit: 999
+
+warmup_bars: 21
+risk_free_rate: 0.04

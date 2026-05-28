@@ -1,5 +1,7 @@
 """Live trading: real-time execution loop, monitoring, paper trading, and reconciliation."""
 
+from quantcore.live.production_runner import ProductionRunner, load_config
+
 from quantcore.live.monitor import (
     HealthSnapshot,
     HealthStatus,
@@ -45,6 +47,8 @@ from quantcore.live.watchdog import (
 )
 
 __all__ = [
+    "ProductionRunner",
+    "load_config",
     "Broker",
     "DataProvider",
     "HealthSnapshot",

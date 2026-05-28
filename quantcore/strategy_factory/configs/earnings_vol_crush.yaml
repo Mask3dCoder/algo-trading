@@ -1,0 +1,60 @@
+name: earnings_vol_crush
+type: options
+universe: options_underlying
+universe_tickers:
+  - SPY
+  - QQQ
+  - AAPL
+  - MSFT
+  - NVDA
+  - GOOGL
+  - META
+  - AMZN
+  - TSLA
+description: >
+  Earnings volatility crush strategy. Sells straddles/strangles on
+  high-IV-rank underlyings before earnings announcements, profiting
+  from the post-earnings IV collapse. Uses tight DTE (5-14 days)
+  to maximize theta decay. Exits immediately after earnings release.
+status: active
+
+signal:
+  formula: "earnings_iv_premium"
+  rank: null
+  parameters:
+    ivr_entry: 60
+    min_iv_premium: 0.3
+
+rebalance: daily
+market_neutral: true
+position_limit: 0.10
+leverage_cap: 1.0
+
+filters:
+  min_volume: 1000
+  min_price: 50
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 15.0
+  slippage_bps: 8.0
+  max_participation: 0.01
+
+regime_filter:
+  enabled: false
+  signal: null
+  threshold: 0.0
+  inverse: false
+
+strategy_params:
+  dte_min: 5
+  dte_max: 14
+  delta_target: 0.3
+  profit_target_pct: 30
+  max_loss_pct: 150
+  hold_through_earnings: false
+
+warmup_bars: 60
+risk_free_rate: 0.04

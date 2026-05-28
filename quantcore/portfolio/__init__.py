@@ -34,6 +34,12 @@ from quantcore.portfolio.tax import (
     TaxLot,
     TaxLotTracker,
 )
+from quantcore.portfolio.aggregator import (
+    AggregatorConfig,
+    MultiStrategyAggregator,
+    SubStrategy,
+)
+from quantcore.portfolio.hrp import compute_hrp_weights
 
 __all__ = [
     # sizing
@@ -48,4 +54,8 @@ __all__ = [
     # tax
     "LotMethod", "TaxLot", "RealizedGain", "TaxLotTracker",
     "TAX_LONG_TERM_DAYS", "WASH_SALE_WINDOW",
+    # aggregator
+    "AggregatorConfig", "MultiStrategyAggregator", "SubStrategy",
+    # hrp
+    "compute_hrp_weights",
 ]

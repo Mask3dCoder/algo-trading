@@ -129,7 +129,39 @@
       "Bash(Get-Content \"C:\\\\Users\\\\rochv\\\\.claude\\\\projects\\\\C--Users-rochv-Downloads-projetcs-algo-sw\\\\4c2db6a2-9092-4849-bf24-e539fffd319b\\\\tool-results\\\\bscr7jsqa.txt\")",
       "Bash(Select-Object -Last 200)",
       "Bash(tee backtest_output.txt)",
-      "Bash(C:/Users/rochv/Downloads/projetcs/algo sw/.venv/Scripts/python.exe *)"
+      "Bash(C:/Users/rochv/Downloads/projetcs/algo sw/.venv/Scripts/python.exe *)",
+      "Bash(tee equity_run.log)",
+      "mcp__filesystem__list_directory_with_sizes",
+      "mcp__filesystem__get_file_info",
+      "PowerShell(python -m pytest tests/alpha/test_residual_momentum.py -v --tb=short 2>&1)",
+      "mcp__ruflo__hooks_list",
+      "mcp__filesystem__read_file",
+      "mcp__ruflo__session_current",
+      "mcp__ruflo__config_list",
+      "mcp__filesystem__list_allowed_directories",
+      "Bash(python scripts/paper_trade.py --framework macro_cross_sectional_momentum --duration 432000)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(.venv/Scripts/python.exe -m pip install \"setuptools<70\")",
+      "Bash(.venv/Scripts/python.exe -m pip install -e \".[dev,stats,data]\")",
+      "Bash(.venv/Scripts/python.exe --version)",
+      "Bash(.venv/Scripts/python.exe -m pip install --upgrade pip \"setuptools>=75\")",
+      "Bash(uv pip *)",
+      "Bash(powershell *)",
+      "Bash(Get-Process python *)",
+      "Bash(Select-Object Id, StartTime, CPU)",
+      "Bash(Format-Table)",
+      "Bash(mkdir \"C:\\\\Users\\\\rochv\\\\OneDrive\\\\projetcs\\\\algo sw\\\\quantcore\\\\strategy_factory\")",
+      "Bash(mkdir \"C:\\\\Users\\\\rochv\\\\OneDrive\\\\projetcs\\\\algo sw\\\\quantcore\\\\strategy_factory\\\\configs\")",
+      "Bash(powershell -Command '$env:ALPACA_API_KEY; $env:ALPACA_API_SECRET')",
+      "Bash(.venv/Scripts/python.exe -c \"from alpaca.data.historical import StockHistoricalDataClient; print\\('alpaca-py OK'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from alpaca.data.historical import OptionHistoricalDataClient; print\\('OptionHistoricalDataClient available'\\)\")",
+      "Bash(Select-Object Id, StartTime, CommandLine)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(docker compose *)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "ruflo"
+  ]
 }

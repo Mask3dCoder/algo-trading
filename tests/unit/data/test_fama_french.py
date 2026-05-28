@@ -26,7 +26,7 @@ def _sample_csv() -> str:
     lines = [
         "Dummy header line 1",
         "Dummy header line 2",
-        "Date,Mkt-RF,SMB,HML,RMW,CMA,RF",
+        ",Mkt-RF,SMB,HML,RMW,CMA,RF",
         "20240102,0.05,-0.02,0.01,0.00,0.03,0.02",
         "20240103,-0.01,0.03,0.00,0.01,-0.02,0.02",
         "20240104,0.02,0.01,-0.01,0.00,0.01,0.02",

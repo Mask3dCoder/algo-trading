@@ -1,0 +1,45 @@
+name: liquidity_rebate
+type: hft
+universe: expanded_15
+universe_tickers: null
+description: >
+  Liquidity rebate capture — provide limit orders to earn exchange rebates.
+  Requires direct exchange membership with rebate fee schedules (maker-taker
+  programs). Not feasible without exchange membership and colocation.
+status: requires_infra
+requires: >
+  Direct exchange membership with maker-taker rebate fee schedule.
+  Colocated infrastructure with sub-millisecond latency. Exchange
+  membership is a hard prerequisite — retail broker access does not
+  provide liquidity rebates sufficient for a standalone strategy.
+
+signal:
+  formula: "zscore(5)"
+  rank: null
+  parameters: {}
+
+rebalance: continuous
+market_neutral: true
+position_limit: 0.03
+leverage_cap: 3.0
+
+filters:
+  min_volume: 5000000
+  min_price: 20
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 0.5
+  slippage_bps: 0.3
+  max_participation: 0.02
+
+regime_filter:
+  enabled: false
+  signal: financial_conditions
+  threshold: 0.0
+  inverse: false
+
+warmup_bars: 30
+risk_free_rate: 0.04

@@ -1,0 +1,41 @@
+name: moving_average_rebalance
+type: time_series
+universe: expanded_15
+universe_tickers: null
+description: >
+  Moving average crossover rebalance. Long when 50-day MA is above
+  200-day MA (golden cross), flat otherwise (death cross). FRED yield
+  curve regime filter: only trade in direction of macro trend when
+  yield curve is not inverted (normal/steepening regime).
+status: active
+
+signal:
+  formula: "moving_average_cross(50,200)"
+  rank: null
+  parameters: {}
+
+rebalance: weekly
+market_neutral: false
+position_limit: 0.15
+leverage_cap: 1.5
+
+filters:
+  min_volume: 0
+  min_price: 1
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 5.0
+  slippage_bps: 2.0
+  max_participation: 0.05
+
+regime_filter:
+  enabled: true
+  signal: yield_curve_regime
+  threshold: 0.0
+  inverse: false
+
+warmup_bars: 252
+risk_free_rate: 0.04

@@ -1,0 +1,44 @@
+name: value_factor
+type: factor
+universe: expanded_15
+universe_tickers: null
+description: >
+  Value factor investing. Factor loading on HML (High Minus Low) via
+  rolling 60-day Fama-French regression. Long top quintile (high HML
+  exposure = value), short bottom quintile (low HML exposure = growth).
+  FRED regime overlay uses economic_momentum to avoid value traps during
+  aggressive rate hike cycles (zero out weights when economic momentum
+  turns negative — value stocks get crushed in recessions).
+status: active
+
+signal:
+  formula: "factor_loading(HML)"
+  rank: "quintile"
+  parameters:
+    regression_window: 60
+
+rebalance: monthly
+market_neutral: true
+position_limit: 0.10
+leverage_cap: 2.0
+
+filters:
+  min_volume: 0
+  min_price: 1
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 5.0
+  slippage_bps: 2.0
+  max_participation: 0.05
+
+regime_filter:
+  enabled: true
+  signal: economic_momentum
+  threshold: 0.0
+  inverse: false
+
+warmup_bars: 260
+risk_free_rate: 0.04

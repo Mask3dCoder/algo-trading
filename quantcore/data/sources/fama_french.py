@@ -46,22 +46,22 @@ _START_1926: date = date(1926, 7, 1)
 _FAMAFRENCH_URLS = {
     "5_factors_2x3": {
         "daily": (
-            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library/"
-            "f-f_5_factor_2x3_daily_csv.zip"
+            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+            "F-F_Research_Data_5_Factors_2x3_daily_CSV.zip"
         ),
         "monthly": (
-            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library/"
-            "f-f_5_factor_2x3_csv.zip"
+            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+            "F-F_Research_Data_5_Factors_2x3_CSV.zip"
         ),
     },
-    "3_factors": {
+    "momentum": {
         "daily": (
-            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library/"
-            "f-factors_daily_csv.zip"
+            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+            "F-F_Momentum_Factor_daily_CSV.zip"
         ),
         "monthly": (
-            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library/"
-            "f-factors_csv.zip"
+            "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
+            "F-F_Momentum_Factor_CSV.zip"
         ),
     },
 }
@@ -115,6 +115,19 @@ class FamaFrenchLoader:
         if pd is None:
             raise ImportError("pandas is required for FamaFrenchLoader")  # type: ignore[unreachable]
         return self._load("3_factors", freq)
+
+    def load_momentum(
+        self,
+        freq: Literal["daily", "monthly"] = "daily",
+    ) -> "pd.DataFrame":
+        """Load the momentum factor dataset as a DataFrame.
+
+        Columns returned: [Mom]
+        All values are **fraction returns**.
+        """
+        if pd is None:
+            raise ImportError("pandas is required for FamaFrenchLoader")  # type: ignore[unreachable]
+        return self._load("momentum", freq)
 
     def get_factor_returns(
         self,
@@ -184,9 +197,6 @@ class FamaFrenchLoader:
         if pd is None:
             raise ImportError("pandas is required")  # type: ignore[unreachable]
 
-        # The Ken French CSVs have a few header rows that describe the data,
-        # then the CSV starts. The first column is always 'Date' (YYYYMMDD or YYYYMM).
-        # Strategy: read raw, find where the header row starts, skip to it.
         raw = f.read()
         if isinstance(raw, bytes):
             text = raw.decode("utf-8", errors="replace")
@@ -194,14 +204,31 @@ class FamaFrenchLoader:
             text = raw
 
         lines = text.splitlines()
+
+        # Ken French CSVs have comment lines followed by a header row that
+        # starts with a comma (empty first column -> date index).  Find it.
         header_idx = 0
         for i, line in enumerate(lines):
-            if line.strip().startswith("Date"):
+            stripped = line.strip()
+            # Header line starts with comma and contains a known column name
+            if stripped.startswith(",") and any(
+                name in stripped for name in ("Mkt-RF", "Mom", "SMB", "HML")
+            ):
                 header_idx = i
+
+        # Build CSV from the header line onwards
+        from io import StringIO
+        # Strip trailing junk (copyright line, empty lines, etc.)
+        footer_idx = len(lines)
+        for j in range(header_idx + 1, len(lines)):
+            if "Copyright" in lines[j] or "Fama and" in lines[j] or "Ken French" in lines[j]:
+                footer_idx = j
                 break
 
+        csv_text = "\n".join(lines[header_idx:footer_idx])
+
         df = pd.read_csv(
-            io.StringIO("\n".join(lines[header_idx:])),
+            StringIO(csv_text),
             index_col=0,
             parse_dates=False,
         )
@@ -209,21 +236,20 @@ class FamaFrenchLoader:
 
         # Convert index to datetime. Daily: YYYYMMDD, Monthly: YYYYMM
         if freq == "daily":
-            df.index = pd.to_datetime(df.index, format="%Y%m%d")
+            df.index = pd.to_datetime(df.index, format="%Y%m%d", errors="coerce")
         else:
             # Monthly: use first day of month
-            df.index = pd.to_datetime(df.index, format="%Y%m")
+            df.index = pd.to_datetime(df.index, format="%Y%m", errors="coerce")
 
-        # Rename columns to canonical names
+        # Rename columns to canonical names (Ken French files already use canon)
         col_map = {
-            "Mkt-RF": "Mkt-RF",
-            "SMB": "SMB",
-            "HML": "HML",
-            "RMW": "RMW",
-            "CMA": "CMA",
-            "RF": "RF",
+            "Mkt-RF": "Mkt-RF", "SMB": "SMB", "HML": "HML",
+            "RMW": "RMW", "CMA": "CMA", "RF": "RF", "Mom": "Mom",
         }
         df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+        # Drop any empty columns that may appear
+        df = df.loc[:, df.columns.notna()]
+        df = df.loc[:, df.columns != ""]
 
         # Ken French returns are in **percent** (e.g. 0.05). We store as fraction.
         df = df / 100.0

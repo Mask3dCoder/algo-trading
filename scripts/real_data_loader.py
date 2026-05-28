@@ -101,39 +101,55 @@ UNIVERSES: dict[str, dict[str, Any]] = {
         },
     },
     "ETF_EXPANDED": {
-        "description": "Expanded 44-asset ETF universe for cross-sectional stat-arb",
+        "description": "Expanded 57-asset ETF universe for cross-sectional stat-arb",
         "symbols": [
-            "SPY", "QQQ", "IWM", "MDY", "VTI", "MTUM", "VLUE",
-            "EFA", "EEM", "VEU", "FEZ",
-            "EWJ", "EWZ",
-            "TLT", "IEF", "SHY",
-            "LQD", "HYG",
-            "GLD", "SLV", "USO", "UNG", "DBA",
-            "VNQ", "VNQI",
-            "XLF", "XLK", "XLV", "XLE", "XLY",
-            "XLP", "XLI", "XLU", "XLRE", "XLB",
-            "QUAL", "USMV", "SIZE",
-            "TIP", "MBB", "BKLN",
+            # Equities - US Broad
+            "SPY", "QQQ", "IWM", "MDY", "VTI", "VO", "VUG", "VBR",
+            # Factors
+            "MTUM", "VLUE", "QUAL", "USMV", "SIZE", "VIG",
+            # International Equity
+            "EFA", "EEM", "VEU", "FEZ", "EWJ", "EWZ", "VWO", "ACWI", "VXUS", "MCHI", "EZU",
+            # Bonds - Government
+            "TLT", "IEF", "SHY", "TIP", "AGG", "BND",
+            # Bonds - Credit & Other
+            "LQD", "HYG", "MBB", "BKLN",
+            # Commodities
+            "GLD", "SLV", "USO", "UNG", "DBA", "DJP",
+            # REITs
+            "VNQ", "VNQI", "REET",
+            # US Sectors
+            "XLF", "XLK", "XLV", "XLE", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB",
+            "FTEC", "IHI",
+            # Preferred / Others
+            "PFF",
+            # Volatility
             "VXX",
+            # Currencies
             "UUP", "FXE",
         ],
         "asset_classes": {
             "SPY": "Large Cap", "QQQ": "Tech", "IWM": "Small Cap",
-            "MDY": "Mid Cap", "VTI": "Total Market",
-            "MTUM": "Momentum", "VLUE": "Value",
-            "EFA": "EAFE", "EEM": "Emerging", "VEU": "Developed", "FEZ": "Eurozone",
-            "EWJ": "Japan", "EWZ": "Brazil",
+            "MDY": "Mid Cap", "VTI": "Total Market", "VO": "Mid Cap Growth",
+            "VUG": "Large Cap Growth", "VBR": "Small Cap Value",
+            "MTUM": "Momentum", "VLUE": "Value", "VIG": "Dividend Growth",
+            "EFA": "EAFE", "EEM": "Emerging", "VEU": "Developed",
+            "FEZ": "Eurozone", "EWJ": "Japan", "EWZ": "Brazil",
+            "VWO": "Emerging Markets", "ACWI": "Global", "VXUS": "Ex-US",
+            "MCHI": "China", "EZU": "Eurozone",
             "TLT": "Long Bonds", "IEF": "Interm Bonds", "SHY": "Short Bonds",
+            "TIP": "TIPS", "AGG": "Aggregate Bonds", "BND": "Total Bonds",
             "LQD": "IG Credit", "HYG": "High Yield",
-            "GLD": "Gold", "SLV": "Silver", "USO": "Oil", "UNG": "Natural Gas",
-            "DBA": "Agriculture",
-            "VNQ": "US REITs", "VNQI": "Intl REITs",
+            "MBB": "Mortgage", "BKLN": "Bank Loans",
+            "GLD": "Gold", "SLV": "Silver", "USO": "Oil",
+            "UNG": "Natural Gas", "DBA": "Agriculture", "DJP": "Commodities",
+            "VNQ": "US REITs", "VNQI": "Intl REITs", "REET": "Global REITs",
             "XLF": "Financials", "XLK": "Technology", "XLV": "Healthcare",
             "XLE": "Energy", "XLY": "Consumer Disc",
             "XLP": "Consumer Staples", "XLI": "Industrials",
             "XLU": "Utilities", "XLRE": "Real Estate", "XLB": "Materials",
+            "FTEC": "Tech Sector", "IHI": "Medical Devices",
             "QUAL": "Quality", "USMV": "Low Vol", "SIZE": "Size",
-            "TIP": "TIPS", "MBB": "Mortgage", "BKLN": "Bank Loans",
+            "PFF": "Preferred",
             "VXX": "VIX",
             "UUP": "USD", "FXE": "Euro",
         },

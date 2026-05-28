@@ -114,8 +114,11 @@ class FactorResidualStrategyV3(Strategy):
                 if np.std(y_train) < 1e-10:
                     residuals[t, i] = 0.0
                     continue
-                beta = XtX_inv @ (X_train_std.T @ y_train)
-                y_pred = float(X_t_std @ beta)
+                # BUGFIX: Add intercept by demeaning y_train and adding mean back to pred
+                y_mean = np.mean(y_train)
+                y_train_dm = y_train - y_mean
+                beta = XtX_inv @ (X_train_std.T @ y_train_dm)
+                y_pred = float(X_t_std @ beta) + y_mean
                 residuals[t, i] = float(rets[t, i]) - y_pred
 
         return residuals
@@ -143,14 +146,17 @@ class FactorResidualStrategyV3(Strategy):
                 signals[i] = 0.0
                 continue
 
-            current = valid[-1]
             window_data = valid[-window:] if len(valid) >= window else valid
             std = np.std(window_data)
             if std < 1e-10:
                 signals[i] = 0.0
                 continue
 
-            # Signal: positive residual → Long, negative → Short
+            # BUGFIX: Use trailing average of residuals (smoothing), not single-day noise
+            smooth_window = min(5, len(window_data))
+            current = np.mean(window_data[-smooth_window:])
+
+            # Signal: residual MOMENTUM (positive residual → long)
             signals[i] = current / std
 
         return signals
@@ -164,18 +170,24 @@ class FactorResidualStrategyV3(Strategy):
         if n_assets == 0:
             return np.zeros(0)
 
-        # Zero out factor assets
-        for i in range(n_assets):
-            if i < len(symbols) and symbols[i] in FACTOR_ASSETS:
-                signals[i] = 0.0
+        # BUGFIX: Exclude factor assets from z-score computation entirely
+        non_factor_idx = [
+            i for i in range(n_assets)
+            if i < len(symbols) and symbols[i] not in FACTOR_ASSETS
+        ]
+        if len(non_factor_idx) < 2:
+            return np.zeros(n_assets)
 
-        # Z-score signals
-        sig_mean = np.mean(signals)
-        sig_std = np.std(signals, ddof=1)
+        non_factor_signals = np.array([signals[i] for i in non_factor_idx])
+
+        sig_mean = np.mean(non_factor_signals)
+        sig_std = np.std(non_factor_signals, ddof=1)
         if sig_std < 1e-10:
             return np.zeros(n_assets)
 
-        weights = (signals - sig_mean) / sig_std
+        weights = np.zeros(n_assets)
+        for j, i in enumerate(non_factor_idx):
+            weights[i] = (non_factor_signals[j] - sig_mean) / sig_std
 
         # Vol scaling
         if rets.shape[0] >= self.vol_lookback + 2:
@@ -183,8 +195,11 @@ class FactorResidualStrategyV3(Strategy):
             vol = np.maximum(vol, 1e-10)
             weights = weights / vol
 
-        # Re-center (market neutral)
-        weights = weights - np.mean(weights)
+        # BUGFIX: Re-center ONLY non-factor assets (market neutral)
+        non_factor_weights = np.array([weights[i] for i in non_factor_idx])
+        re_center = np.mean(non_factor_weights)
+        for i in non_factor_idx:
+            weights[i] -= re_center
 
         # Normalize
         max_abs = np.max(np.abs(weights))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 from quantcore.core.constants import TRADING_DAYS_PER_YEAR
@@ -513,3 +514,144 @@ def garman_klass_vol(
         result[i] = np.sqrt(gk_sum / period) * np.sqrt(TRADING_DAYS_PER_YEAR)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Volatility Risk Premium (VRP) Signals
+# ---------------------------------------------------------------------------
+
+
+def vrp_raw(implied_vol: NDArray, realized_vol: NDArray) -> NDArray:
+    """Raw volatility risk premium: (IV - RV) / RV.
+
+    Positive = IV > RV (vol is expensive, sell vol opportunity).
+    Guards against RV=0 by clamping to a minimum.
+
+    Args:
+        implied_vol: Implied volatility series (e.g., VIX/100).
+        realized_vol: Realized volatility series (e.g., Garman-Klass).
+
+    Returns:
+        VRP ratio series.
+    """
+    iv = np.asarray(implied_vol, dtype=np.float64)
+    rv = np.asarray(realized_vol, dtype=np.float64)
+    rv_safe = np.maximum(rv, 1e-10)
+    return (iv - rv) / rv_safe
+
+
+def ts_regime_multiplier(
+    ts_slope: NDArray,
+    lookback: int = 252,
+    steepness: float = 10.0,
+    midpoint: float = 0.0,
+) -> NDArray:
+    """Term-structure regime multiplier via sigmoid of z-scored slope.
+
+    Maps contango (positive slope) → values > 1 (amplify short vol).
+    Maps backwardation (negative slope) → values < 1 (dampen short vol).
+    Output range: [0.5, 1.5].
+
+    Args:
+        ts_slope: Term structure slope series (back - front) / front.
+        lookback: Rolling window for z-scoring.
+        steepness: Sigmoid steepness (higher = sharper transition).
+        midpoint: Sigmoid midpoint in z-score space.
+
+    Returns:
+        Multiplier series in [0.5, 1.5].
+    """
+    slope = np.asarray(ts_slope, dtype=np.float64)
+    n = len(slope)
+    result = np.full(n, 1.0, dtype=float)
+
+    for i in range(lookback - 1, n):
+        window = slope[i - lookback + 1: i + 1]
+        valid = window[~np.isnan(window)]
+        if len(valid) < 20:
+            continue
+        mu = np.mean(valid)
+        sigma = np.std(valid, ddof=1)
+        if sigma < 1e-10:
+            continue
+        z = (slope[i] - mu) / sigma if not np.isnan(slope[i]) else 0.0
+        # Sigmoid: 1 / (1 + exp(-steepness * (z - midpoint)))
+        sig = 1.0 / (1.0 + np.exp(-steepness * (z - midpoint)))
+        # Map [0, 1] → [0.5, 1.5]
+        result[i] = 0.5 + sig
+
+    return result
+
+
+def vvix_conviction(vvix: NDArray, lookback: int = 252) -> NDArray:
+    """VVIX-based conviction signal.
+
+    High VVIX = uncertainty in vol market → low conviction (smaller position).
+    Low VVIX = complacency → high conviction.
+
+    Output range: [0, 1].  1 = full conviction, 0 = no conviction.
+
+    Args:
+        vvix: VVIX index series.
+        lookback: Rolling window for z-scoring.
+
+    Returns:
+        Conviction series in [0, 1].
+    """
+    vvix_arr = np.asarray(vvix, dtype=np.float64)
+    n = len(vvix_arr)
+    result = np.full(n, 0.5, dtype=float)
+
+    for i in range(lookback - 1, n):
+        window = vvix_arr[i - lookback + 1: i + 1]
+        valid = window[~np.isnan(window)]
+        if len(valid) < 20:
+            continue
+        mu = np.mean(valid)
+        sigma = np.std(valid, ddof=1)
+        if sigma < 1e-10:
+            continue
+        if np.isnan(vvix_arr[i]):
+            continue
+        z = (vvix_arr[i] - mu) / sigma
+        # High VVIX → low conviction
+        conviction = np.clip(1.0 - z / 2.0, 0.0, 1.0)
+        result[i] = conviction
+
+    return result
+
+
+def vrp_composite_signal(
+    implied_vol: NDArray,
+    realized_vol: NDArray,
+    ts_slope: NDArray,
+    vvix: NDArray,
+    lookback: int = 252,
+    ewm_span: int = 5,
+) -> NDArray:
+    """Composite VRP signal: vrp_raw × ts_regime_multiplier × vvix_conviction.
+
+    EWM-smoothed for noise reduction.  Positive = sell vol opportunity.
+
+    Args:
+        implied_vol: Implied volatility series.
+        realized_vol: Realized volatility series.
+        ts_slope: Term structure slope series.
+        vvix: VVIX index series.
+        lookback: Rolling window for z-scoring.
+        ewm_span: Exponential weighted moving average span.
+
+    Returns:
+        Composite signal series.
+    """
+    raw = vrp_raw(implied_vol, realized_vol)
+    ts_mult = ts_regime_multiplier(ts_slope, lookback=lookback)
+    conviction = vvix_conviction(vvix, lookback=lookback)
+
+    composite = raw * ts_mult * conviction
+
+    # EWM smoothing via pandas
+    s = pd.Series(composite)
+    smoothed = s.ewm(span=ewm_span, min_periods=1).mean().values
+
+    return smoothed

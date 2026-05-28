@@ -15,6 +15,7 @@ from quantcore.strategies.macro.cross_sectional_momentum import CrossSectionalMo
 # from quantcore.strategies.macro.cross_sectional_momentum_v2 import CrossSectionalMomentumV2Strategy
 from quantcore.strategies.macro.cross_sectional_factor_neutral import CrossSectionalFactorNeutralStatArb
 from quantcore.strategies.macro.factor_residual_qp import FactorResidualQPStrategy
+from quantcore.strategies.macro.volatility_risk_premium import VolatilityRiskPremiumStrategy
 
 __all__ = [
     "CTATrendStrategy",
@@ -30,4 +31,5 @@ __all__ = [
     "CrossSectionalFactorNeutralStatArb",
     # "CrossSectionalMomentumV2Strategy",  # disabled per prospective trial #1
     "FactorResidualQPStrategy",
+    "VolatilityRiskPremiumStrategy",
 ]

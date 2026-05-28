@@ -67,10 +67,34 @@ import quantcore.strategies.equity.intraday_breakout  # noqa: F401, E402
 import quantcore.strategies.macro.cta_trend  # noqa: F401, E402
 import quantcore.strategies.macro.carry  # noqa: F401, E402
 import quantcore.strategies.macro.risk_parity  # noqa: F401, E402
+import quantcore.strategies.macro.cross_sectional_momentum  # noqa: F401, E402
+import quantcore.strategies.macro.cross_sectional_factor_neutral  # noqa: F401, E402
+import quantcore.strategies.macro.state_selective_momentum  # noqa: F401, E402
+import quantcore.strategies.macro.factor_residual  # noqa: F401, E402
+import quantcore.strategies.macro.factor_residual_qp  # noqa: F401, E402
+import quantcore.strategies.macro.factor_residual_strict  # noqa: F401, E402
+import quantcore.strategies.macro.factor_residual_v3  # noqa: F401, E402
+import quantcore.strategies.macro.carry_trend_filter  # noqa: F401, E402
+import quantcore.strategies.macro.regime_adaptive_momentum  # noqa: F401, E402
+import quantcore.strategies.macro.true_carry_strategy  # noqa: F401, E402
+import quantcore.strategies.macro.simple_test_strategy  # noqa: F401, E402
+import quantcore.strategies.equity.earnings_momentum  # noqa: F401, E402
+import quantcore.strategies.equity.low_volatility  # noqa: F401, E402
+import quantcore.strategies.equity.multifactor_composite  # noqa: F401, E402
+import quantcore.strategies.equity.quality_factor  # noqa: F401, E402
+import quantcore.strategies.equity.multi_factor  # noqa: F401, E402
+import quantcore.strategies.equity.quality_factor_rmw_cma  # noqa: F401, E402
+import quantcore.strategies.equity.tsmom  # noqa: F401, E402
+import quantcore.strategies.equity.value_factor_hml  # noqa: F401, E402
+import quantcore.strategies.equity.cross_sectional_momentum  # noqa: F401, E402
+import quantcore.strategies.equity.volume_profile  # noqa: F401, E402
+import quantcore.strategies.equity.volatility_breakout  # noqa: F401, E402
+import quantcore.strategies.equity.value_factor  # noqa: F401, E402
 import quantcore.strategies.options.delta_neutral  # noqa: F401, E402
 import quantcore.strategies.options.earnings_vol  # noqa: F401, E402
 import quantcore.strategies.options.iron_condor  # noqa: F401, E402
 import quantcore.strategies.options.tail_hedge  # noqa: F401, E402
+import quantcore.strategies.macro.fred_regime_strategy  # noqa: F401, E402
 
 # ---------------------------------------------------------------------------
 # Duration parsing
@@ -322,6 +346,77 @@ class MockDataFeed:
         return self._last_tick
 
 
+class IntradayDataFeed:
+    """Provides intraday bars from Alpaca IEX via AlpacaIntradayLoader.
+
+    Uses load_snapshot() to get the latest available bar per ticker.
+    Falls back to mock data outside market hours.
+    """
+
+    def __init__(
+        self,
+        symbols: list[str],
+        resample_minutes: int = 5,
+    ):
+        self.symbols = symbols
+        self.resample_minutes = resample_minutes
+        self._last_tick: datetime | None = None
+        self._loader = None
+        self._mock_fallback = MockDataFeed(symbols=symbols, interval_sec=1.0)
+
+        try:
+            from quantcore.data.intraday_loader import AlpacaIntradayLoader
+            self._loader = AlpacaIntradayLoader()
+        except Exception:
+            pass
+
+    def is_market_open(self) -> bool:
+        """Check if US market is open (9:30-16:00 ET, weekdays)."""
+        from datetime import timezone
+        import pytz
+        et = pytz.timezone("US/Eastern")
+        now = datetime.now(et)
+        if now.weekday() >= 5:
+            return False
+        market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+        return market_open <= now <= market_close
+
+    def get_latest(self) -> list[dict[str, Any]]:
+        """Get latest intraday bars for all symbols."""
+        if self._loader is None:
+            return self._mock_fallback.get_latest()
+
+        now = datetime.now(UTC)
+        self._last_tick = now
+
+        try:
+            snapshot = self._loader.load_snapshot(self.symbols, now)
+        except Exception:
+            return self._mock_fallback.get_latest()
+
+        if snapshot is None or snapshot.empty:
+            return self._mock_fallback.get_latest()
+
+        events = []
+        for _, row in snapshot.iterrows():
+            events.append({
+                "symbol": str(row["symbol"]),
+                "price": float(row["close"]),
+                "timestamp": row.get("timestamp", now),
+                "close": float(row["close"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "open": float(row["open"]),
+                "volume": int(row.get("volume", 0)),
+            })
+        return events
+
+    @property
+    def last_data_timestamp(self) -> datetime | None:
+        return self._last_tick
+
+
 # ---------------------------------------------------------------------------
 # Simple moving-average crossover strategy for paper trading
 # ---------------------------------------------------------------------------
@@ -412,17 +507,45 @@ _STRATEGIES: dict[str, type] = {
 # Framework strategies available via --framework flag.
 # Keys must match registry names from @register decorators.
 _FRAMEWORK_STRATEGIES: set[str] = {
+    # Equity
     "equity_mean_reversion",
     "equity_momentum",
     "equity_trend_following",
     "equity_stat_arb",
+    "equity_earnings_momentum",
+    "equity_cross_sectional_momentum",
+    "equity_low_volatility",
+    "equity_multifactor_composite",
+    "equity_quality_factor",
+    "equity_multi_factor",
+    "equity_quality_rmw_cma",
+    "equity_tsmom",
+    "equity_value_hml",
+    "equity_volume_profile",
+    "equity_volatility_breakout",
+    "equity_value_factor",
+    # Intraday
     "intraday_mean_reversion",
     "intraday_momentum",
     "intraday_trend",
     "intraday_breakout",
+    # Macro
     "macro_cta_trend",
     "macro_carry",
+    "macro_carry_trend_filter",
     "macro_risk_parity",
+    "macro_cross_sectional_momentum",
+    "macro_cross_sectional_factor_neutral",
+    "macro_state_selective_momentum",
+    "macro_factor_residual",
+    "macro_factor_residual_qp",
+    "macro_factor_residual_strict",
+    "macro_factor_residual_v3",
+    "macro_regime_adaptive_momentum",
+    "macro_true_carry",
+    "macro_fred_regime",
+    "simple_buy_hold",
+    # Options
     "options_delta_neutral",
     "options_earnings_vol",
     "options_iron_condor",
@@ -566,6 +689,8 @@ def create_feed_and_broker(
     symbols: list[str],
     risk_cfg: RiskConfig,
     logger: logging.Logger,
+    live_mode: bool = False,
+    resample_minutes: int = 1,
 ) -> tuple[Any, Any]:
     """Factory that creates the correct feed and broker based on configuration.
 
@@ -599,6 +724,9 @@ def create_feed_and_broker(
         from quantcore.feeds.ibkr_feed import IBKRFeed
         feed = IBKRFeed(symbols=symbols)
         logger.info("Using IBKR data feed — symbols: %s", symbols)
+    elif data_source == "intraday":
+        feed = IntradayDataFeed(symbols=symbols, resample_minutes=resample_minutes)
+        logger.info("Using intraday data feed (Alpaca IEX) — symbols: %s", symbols)
     elif data_source == "yahoo":
         logger.error("Yahoo data feed not yet wired into paper_trade.py")
         raise ValueError("Yahoo data feed not available")
@@ -607,18 +735,26 @@ def create_feed_and_broker(
 
     # ---- Broker ----
     if broker_mode == "alpaca":
-        from quantcore.live.paper import PaperBroker, PaperConfig
-        from quantcore.risk.drawdown import DrawdownTracker
+        if live_mode:
+            from quantcore.brokers.alpaca_broker import AlpacaBroker
+            from quantcore.risk.drawdown import DrawdownTracker
 
-        paper_cfg = PaperConfig(initial_capital=100_000.0)  # capital set by caller
-        broker = PaperBroker(config=paper_cfg)
-        broker.drawdown_tracker = DrawdownTracker(config=risk_cfg.drawdown)
-        logger.info("Using Alpaca paper broker")
+            broker = AlpacaBroker(mode="live")
+            broker.drawdown_tracker = DrawdownTracker(config=risk_cfg.drawdown)
+            logger.warning("Using Alpaca LIVE broker — real money orders")
+        else:
+            from quantcore.live.paper import PaperBroker, PaperConfig
+            from quantcore.risk.drawdown import DrawdownTracker
+
+            paper_cfg = PaperConfig(initial_capital=100_000.0)  # capital set by caller
+            broker = PaperBroker(config=paper_cfg)
+            broker.drawdown_tracker = DrawdownTracker(config=risk_cfg.drawdown)
+            logger.info("Using Alpaca paper broker")
     elif broker_mode == "ibkr":
         from quantcore.brokers.ibkr_broker import IBKRBroker
         from quantcore.risk.drawdown import DrawdownTracker
 
-        broker = IBKRBroker()
+        broker = IBKRBroker(timeout=30.0)
         broker.connect_sync()
         broker.drawdown_tracker = DrawdownTracker(config=risk_cfg.drawdown)
         logger.info("Using IBKR broker — %s mode", "PAPER" if broker.is_paper else "LIVE")
@@ -632,6 +768,17 @@ def create_feed_and_broker(
         logger.info("Using mock paper broker")
     else:
         raise ValueError(f"Unknown broker mode: {broker_mode}")
+
+    # ---- Smart execution router (env-var activated) ----
+    if os.environ.get("QUANTCORE_SMART_EXECUTION") == "1":
+        from quantcore.execution.smart_router import SmartExecutionRouter, SmartRouterConfig
+        cost_report = os.environ.get(
+            "QUANTCORE_COST_REPORT",
+            str(Path(__file__).resolve().parent.parent / "reports" / "execution_costs.csv"),
+        )
+        router_cfg = SmartRouterConfig(cost_report_path=cost_report)
+        broker = SmartExecutionRouter(inner_broker=broker, config=router_cfg)
+        logger.info("SmartExecutionRouter active — cost report: %s", cost_report)
 
     # Validate combination
     if broker_mode == "ibkr" and data_source in ("alpaca", "alpaca_ws"):
@@ -657,6 +804,10 @@ def run_paper_trade(
     symbols: list[str] | None = None,
     framework_params: str | None = None,
     resample_minutes: int = 1,
+    live_mode: bool = False,
+    scale_mode: str = "full",
+    session_id: str = "",
+    factory_config: str | None = None,
 ) -> int:
     """Run the paper trading loop for the specified duration. Returns exit code.
 
@@ -666,6 +817,10 @@ def run_paper_trade(
         If set, loads a framework strategy from the registry (e.g.
         ``equity_mean_reversion``) and wraps it in ``LiveStrategyAdapter``.
         Overrides the built-in ``strategy_name``.
+    factory_config:
+        If set, loads a ConfigurableStrategy from a YAML config file in
+        ``quantcore/strategy_factory/configs/``. Overrides both ``framework``
+        and ``strategy_name``.
     symbols:
         List of symbols to trade. Defaults to ``["SPY"]`` for live data
         or ``["STK0000"]`` for mock.
@@ -675,11 +830,11 @@ def run_paper_trade(
     """
     logger, log_path = setup_logging()
     csv_path, csv_writer, csv_file = setup_metrics_csv()
-    session_store = SessionStore()
+    session_store = SessionStore(session_id=session_id)
     risk_cfg = risk_config or load_risk_config()
 
     # ---- Preflight checks ----
-    data_feed_ok = data_source in ("mock", "alpaca", "alpaca_ws")
+    data_feed_ok = data_source in ("mock", "alpaca", "alpaca_ws", "intraday")
     resume_age_hours: float | None = None
     if resume and session_store.has_saved_state():
         saved = session_store.load()
@@ -729,6 +884,8 @@ def run_paper_trade(
         symbols = ["SPY"] if data_source != "mock" else ["STK0000"]
 
     logger.info("=" * 60)
+    if live_mode:
+        logger.warning("*** LIVE TRADING MODE — REAL MONEY ***")
     logger.info("Paper Trading Run Starting")
     logger.info(f"  Duration: {duration_seconds}s ({duration_seconds/3600:.1f}h)")
     if framework:
@@ -738,6 +895,7 @@ def run_paper_trade(
     logger.info(f"  Data source: {data_source}")
     logger.info(f"  Broker: {broker_mode}")
     logger.info(f"  Initial capital: ${initial_capital:,.0f}")
+    logger.info(f"  Scale mode: {scale_mode}")
     logger.info(f"  Resume: {'yes' if resume_state else 'no'}")
     logger.info("  Risk config: config/risk.yaml")
     logger.info(f"  Log file: {log_path}")
@@ -752,6 +910,8 @@ def run_paper_trade(
             symbols=symbols,
             risk_cfg=risk_cfg,
             logger=logger,
+            live_mode=live_mode,
+            resample_minutes=resample_minutes,
         )
     except ValueError as e:
         logger.error(str(e))
@@ -771,8 +931,46 @@ def run_paper_trade(
         broker.config.initial_capital = initial_capital
 
     # Initialize strategy
-    is_framework = bool(framework)
-    if is_framework:
+    is_factory = bool(factory_config)
+    is_framework = bool(framework) and not is_factory
+    if is_factory:
+        from quantcore.backtest.adapter import LiveStrategyAdapter
+        from quantcore.strategy_factory.configurable_strategy import (
+            ConfigurableStrategy,
+            load_factory_config_by_name,
+        )
+
+        try:
+            fc = load_factory_config_by_name(factory_config)
+        except FileNotFoundError as e:
+            logger.error("Factory config not found: %s", e)
+            return 2
+
+        strat = ConfigurableStrategy(fc)
+        if not symbols:
+            symbols = ["SPY"]
+        strategy = LiveStrategyAdapter(strat, symbols, resample_minutes=resample_minutes)
+        logger.info(
+            "Factory strategy initialized: %s (signal=%s) on %s",
+            fc.name, fc.signal.formula, symbols,
+        )
+
+        # Preload historical bars for warmup
+        if data_source in ("alpaca", "ibkr"):
+            logger.info("Preloading historical bars for strategy warmup...")
+            historical = _preload_historical_bars(symbols, lookback_minutes=120)
+            if historical:
+                strategy.warmup(historical)
+                logger.info(
+                    "Warmed up with %d historical bars across %d symbols",
+                    len(historical), len(symbols),
+                )
+            else:
+                logger.warning(
+                    "No historical bars loaded — strategy starts cold "
+                    "(may need ~21 bars to generate first signal)"
+                )
+    elif is_framework:
         if framework not in _FRAMEWORK_STRATEGIES:
             logger.error(
                 "Unknown framework strategy: %s. Available: %s",
@@ -976,10 +1174,17 @@ def run_paper_trade(
                     min_qty = risk_cfg.paper_execution.min_trade_quantity
                     qty = max(min_qty, int(equity * trade_pct / price))
 
+                # Scale mode override
+                if scale_mode == "single_share":
+                    qty = 1
+                elif scale_mode == "fractional":
+                    qty = max(1, qty // 10)
+
                 order = Order(
                     id=f"paper_{int(time.time() * 1e6)}_{symbol}",
                     symbol=symbol, side=side, type=OrderType.MARKET,
                     quantity=Decimal(str(qty)), strategy_id=strategy_name,
+                    limit_price=Decimal(str(round(price, 4))),
                 )
 
                 # Pre-trade risk check
@@ -1015,10 +1220,20 @@ def run_paper_trade(
                 sl_dec = Decimal(str(sl)) if sl else None
                 tp_dec = Decimal(str(tp)) if tp else None
 
-                _submit_order(broker, order, broker_mode,
-                              stop_loss=sl_dec, take_profit=tp_dec)
-                orders_submitted += 1
-                consecutive_rejections = 0
+                try:
+                    _submit_order(broker, order, broker_mode,
+                                  stop_loss=sl_dec, take_profit=tp_dec)
+                    orders_submitted += 1
+                    consecutive_rejections = 0
+                except Exception as e:
+                    logger.warning("Order submission failed: %s", e)
+                    consecutive_rejections += 1
+                    if consecutive_rejections >= 5:
+                        logger.error(
+                            "5 consecutive order failures — activating circuit breaker"
+                        )
+                        kill_switch_active = True
+                        break
 
             # Process fills
             fills = _process_fills(broker, broker_mode, ibkr_pending_fills)
@@ -1215,6 +1430,8 @@ def main() -> int:
             "  python scripts/paper_trade.py --duration 5d --capital 500000\n"
             "  python scripts/paper_trade.py --duration 5d --resume\n"
             "  python scripts/paper_trade.py --duration 5d --data-source alpaca --broker ibkr\n"
+            "  python scripts/paper_trade.py --duration 5d --factory-config carry\n"
+            "  python scripts/paper_trade.py --duration 5d --factory-config time_series_momentum\n"
         ),
     )
     parser.add_argument(
@@ -1228,8 +1445,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--data-source", default="mock",
-        choices=["mock", "alpaca", "alpaca_ws", "ibkr", "yahoo"],
-        help="Data feed source (default: mock). 'alpaca' = Alpaca REST, 'alpaca_ws' = Alpaca WebSocket.",
+        choices=["mock", "alpaca", "alpaca_ws", "ibkr", "yahoo", "intraday"],
+        help="Data feed source (default: mock). 'alpaca' = Alpaca REST, 'alpaca_ws' = Alpaca WebSocket. 'intraday' = Alpaca IEX intraday bars.",
     )
     parser.add_argument(
         "--broker", default="mock",
@@ -1280,8 +1497,74 @@ def main() -> int:
             "E.g., 5 for 5-min bars, 15 for 15-min bars."
         ),
     )
+    parser.add_argument(
+        "--live", action="store_true",
+        help="Switch to LIVE trading with real money. Use --broker to select: "
+        "'alpaca' (requires ALPACA_API_KEY/ALPACA_API_SECRET) or "
+        "'ibkr' (requires IBKR_HOST/IBKR_PORT/IBKR_CLIENT_ID).",
+    )
+    parser.add_argument(
+        "--yes", "-y", action="store_true",
+        help="Skip the interactive 'Type YES' confirmation (for non-interactive launches).",
+    )
+    parser.add_argument(
+        "--scale", default="full", choices=["single_share", "fractional", "full"],
+        help="Position scaling mode: single_share (1 share per order), "
+        "fractional (10%% of normal size), full (100%% strategy signals). Default: full.",
+    )
+    parser.add_argument(
+        "--session-id", default="",
+        help="Unique session identifier for state file isolation. "
+        "Each strategy should use a different ID to avoid file conflicts.",
+    )
+    parser.add_argument(
+        "--factory-config", default=None,
+        help=(
+            "Strategy factory YAML config name (without .yaml extension). "
+            "Loads a ConfigurableStrategy from quantcore/strategy_factory/configs/. "
+            "E.g., 'time_series_momentum', 'carry', 'pairs_trading'. "
+            "Overrides --framework and --strategy."
+        ),
+    )
 
     args = parser.parse_args()
+
+    # ---- Live trading safety gate ----
+    if args.live:
+        _broker_display = {
+            "alpaca": "Alpaca LIVE (ALPACA_API_KEY / ALPACA_API_SECRET)",
+            "ibkr": "Interactive Brokers LIVE (IBKR_HOST / IBKR_PORT / IBKR_CLIENT_ID)",
+        }
+        _broker_name = _broker_display.get(args.broker, args.broker.upper())
+        print("=" * 60)
+        print("  *** WARNING: LIVE TRADING WITH REAL MONEY ***")
+        print("=" * 60)
+        print(f"  Broker:   {_broker_name}")
+        print(f"  Scale:    {args.scale}")
+        print(f"  Capital:  ${args.capital:,.0f}")
+        print(f"  Duration: {args.duration}")
+        print(f"  Strategy: {args.factory_config or args.framework or args.strategy}")
+        print()
+        if args.broker == "ibkr":
+            port = int(os.environ.get("IBKR_PORT", "7497"))
+            _mode = {7497: "TWS Paper", 7496: "TWS Live", 4002: "Gateway Paper", 4001: "Gateway Live"}.get(port, f"port {port}")
+            print(f"  IBKR connection: {_mode} (port {port})")
+            if port in (7497, 4002):
+                print("  WARNING: IBKR port is a PAPER trading port. Set IBKR_PORT=7496 or 4001 for live.")
+        else:
+            print("  Real orders will be submitted to Alpaca's live trading API.")
+        print("  You may lose money. Confirm you accept this risk.")
+        print()
+
+        if args.yes:
+            print("  --yes flag set. Proceeding with live trading.")
+        elif not sys.stdin.isatty():
+            print("  Non-interactive mode detected (no tty). Proceeding with live trading.")
+        else:
+            resp = input("  Type 'YES' to proceed with live trading: ").strip()
+            if resp != "YES":
+                print("Aborted. No live orders sent.")
+                return 0
 
     # Kill switch verification mode
     if args.verify_kill_switch:
@@ -1335,6 +1618,10 @@ def main() -> int:
         symbols=symbols_list,
         framework_params=args.fw_params,
         resample_minutes=args.resample or 1,
+        live_mode=args.live,
+        scale_mode=args.scale,
+        session_id=args.session_id,
+        factory_config=args.factory_config,
     )
 
 

@@ -1,0 +1,47 @@
+name: pairs_trading_intraday
+type: pairs
+universe: expanded_15
+universe_tickers: null
+description: >
+  Intraday pairs trading via cointegration spread on 5-minute bars.
+  Same cointegration logic as pairs_trading but re-estimates hedge ratios
+  every hour and trades at 5-minute frequency. Uses Alpaca IEX intraday
+  data feed. Higher frequency exploits faster mean-reversion of intraday
+  spreads. Validated: Sharpe +1.075 on Jan 2024 5-min bars vs -0.262 daily.
+status: active
+
+signal:
+  formula: "cointegration_spread"
+  rank: null
+  parameters:
+    pairs_file: "data/pairs_found.csv"
+    hedge_window: 60
+    reestimate_hours: 1
+
+rebalance: continuous
+market_neutral: true
+position_limit: 0.15
+leverage_cap: 2.0
+
+filters:
+  min_volume: 0
+  min_price: 1
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 5.0
+  slippage_bps: 2.0
+  max_participation: 0.05
+
+regime_filter:
+  enabled: false
+  signal: financial_conditions
+  threshold: 0.0
+  inverse: false
+
+warmup_bars: 80
+risk_free_rate: 0.04
+data_source: intraday
+bar_size: 5min

@@ -71,7 +71,7 @@ class TestHistoricalUniverseLoader:
         dates = loader.available_dates("SP500")
         assert "2008-01-01" in dates
         assert "2024-01-01" in dates
-        assert len(dates) == 5
+        assert len(dates) == 6
 
     def test_available_dates_unknown_index(self):
         loader = HistoricalUniverseLoader()

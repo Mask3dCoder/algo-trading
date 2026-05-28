@@ -515,6 +515,17 @@ def _compute_signal_returns(
 
         if total_weight > 1e-10:
             bar_rets[idx] = weighted_ret / total_weight
+        elif carried_weights:
+            # On non-rebalance days, use carried weights from last signal
+            for sym, weight in carried_weights.items():
+                try:
+                    asset_idx = symbols.index(sym)
+                except (ValueError, IndexError):
+                    continue
+                weighted_ret += weight * float(asset_rets[idx, asset_idx])
+                total_weight += abs(weight)
+            if total_weight > 1e-10:
+                bar_rets[idx] = weighted_ret / total_weight
 
         # Transaction cost: only on bars where signals actually fire
         if tc_bps > 0 and current_weights:

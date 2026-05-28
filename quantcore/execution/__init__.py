@@ -61,6 +61,7 @@ from quantcore.execution.oms import (
     market_order,
     stop_order,
 )
+from quantcore.execution.smart_router import SmartExecutionRouter, SmartRouterConfig
 from quantcore.execution.tca import (
     CostCategory,
     StrategySummary,
@@ -96,4 +97,6 @@ __all__ = [
     "IcebergConfig", "IcebergSlice", "IcebergResult", "IcebergAlgo",
     # ml
     "MLExecConfig", "MLSlice", "MLResult", "MLAlgo",
+    # smart router
+    "SmartRouterConfig", "SmartExecutionRouter",
 ]

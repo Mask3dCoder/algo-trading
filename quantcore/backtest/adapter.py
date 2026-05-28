@@ -46,6 +46,7 @@ class FrameworkStrategyAdapter:
         self._buffers: dict[str, dict[str, list[float]]] = {
             sym: defaultdict(list) for sym in symbols
         }
+        self._last_bar_time: datetime | None = None
 
     # ------------------------------------------------------------------
     # Strategy Protocol
@@ -62,6 +63,7 @@ class FrameworkStrategyAdapter:
         self._buffers[sym]["low"].append(float(bar.low))
         self._buffers[sym]["close"].append(float(bar.close))
         self._buffers[sym]["volume"].append(float(bar.volume))
+        self._last_bar_time = bar.timestamp
 
         # Only call on_data when all symbols are aligned (once per time period).
         # This prevents strategies with internal counters from seeing N calls
@@ -100,7 +102,7 @@ class FrameworkStrategyAdapter:
 
         n_assets = len(self._symbols)
         fields = ["open", "high", "low", "close", "volume"]
-        data: dict[str, NDArray] = {}
+        data: dict[str, NDArray | dict | datetime] = {}
 
         for field in fields:
             cols = []
@@ -109,6 +111,19 @@ class FrameworkStrategyAdapter:
             data[field] = np.column_stack(cols)
 
         data["symbols"] = list(self._symbols)
+
+        # Inject prev_close (previous day's close) for gap-fade backtesting
+        prev_close: dict[str, float] = {}
+        for s in self._symbols:
+            closes = self._buffers[s]["close"]
+            if len(closes) >= 2:
+                prev_close[s] = float(closes[-2])
+        data["prev_close"] = prev_close
+
+        # Inject current_time for time-based exit logic
+        if self._last_bar_time is not None:
+            data["current_time"] = self._last_bar_time
+
         return data
 
     def _to_signal_data(self, ts: TradeSignal) -> SignalData:

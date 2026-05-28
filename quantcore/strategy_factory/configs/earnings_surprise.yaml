@@ -1,0 +1,44 @@
+name: earnings_surprise
+type: event_driven
+universe: SP500
+universe_tickers: null
+description: >
+  Earnings surprise — trade post-earnings momentum. Requires
+  real-time earnings data and consensus estimates.
+status: requires_data
+requires: >
+  Real-time earnings announcements calendar, consensus EPS/revenue
+  estimates, actual results feed. Post-earnings drift strategy
+  requiring event dates and estimate data — daily OHLCV alone
+  cannot determine when earnings occur or what the surprise was.
+
+signal:
+  formula: "momentum(1)"
+  rank: "zscore_long_short(1.0)"
+  parameters: {}
+
+rebalance: daily
+market_neutral: true
+position_limit: 0.05
+leverage_cap: 2.0
+
+filters:
+  min_volume: 500000
+  min_price: 10
+  max_price: 999999
+  exclude_symbols: []
+  include_symbols: null
+
+execution:
+  tc_bps: 5.0
+  slippage_bps: 3.0
+  max_participation: 0.03
+
+regime_filter:
+  enabled: false
+  signal: financial_conditions
+  threshold: 0.0
+  inverse: false
+
+warmup_bars: 5
+risk_free_rate: 0.04

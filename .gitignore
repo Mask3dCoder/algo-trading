@@ -49,7 +49,7 @@ rust_core/target/
 
 # === Cleanup additions (2026-05-28) ===
 # Runtime data and caches
-data/
+/data/
 .cache/
 .swarm/
 .claude-flow/
@@ -75,8 +75,8 @@ operations/graduation_log.md
 operations/validation_log.csv
 
 # Reports and results (generated, not source)
-reports/
-results/
+/reports/
+/results/
 
 # External tool repos
 ruflo/

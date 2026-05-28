@@ -1,0 +1,220 @@
+# FRED Series Configuration — curated macroeconomic series for QuantCore.
+#
+# Each entry: id, name, frequency, category, description.
+# Categories are ordered by strategic priority (highest first).
+
+series:
+
+  # ── Category 1: Treasury Yields & Yield Curve (Highest Priority) ──────────
+  - id: DGS10
+    name: "10-Year Treasury Constant Maturity Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Market yield on U.S. Treasury securities at 10-year constant maturity.
+      Direct input to yield curve regime classification.
+
+  - id: DGS2
+    name: "2-Year Treasury Constant Maturity Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Market yield on U.S. Treasury securities at 2-year constant maturity.
+      Short end of the curve; most sensitive to Fed policy expectations.
+
+  - id: DGS5
+    name: "5-Year Treasury Constant Maturity Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Market yield on U.S. Treasury securities at 5-year constant maturity.
+
+  - id: DGS30
+    name: "30-Year Treasury Constant Maturity Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Market yield on U.S. Treasury securities at 30-year constant maturity.
+      Long end of the curve; reflects term premium and inflation expectations.
+
+  - id: DFF
+    name: "Federal Funds Effective Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Effective federal funds rate. Direct measure of current monetary policy stance.
+
+  - id: T10Y2Y
+    name: "10-Year minus 2-Year Treasury Spread"
+    frequency: daily
+    category: yields
+    description: >
+      Pre-computed yield curve spread. Inversions (negative values) are
+      among the most reliable recession predictors.
+
+  - id: T10Y3M
+    name: "10-Year minus 3-Month Treasury Spread"
+    frequency: daily
+    category: yields
+    description: >
+      Pre-computed yield curve spread using the short end. The NY Fed
+      uses this spread in its recession probability model.
+
+  # ── Category 2: Credit Spreads (Regime Detection) ─────────────────────────
+  - id: BAMLH0A0HYM2
+    name: "ICE BofA US High Yield OAS"
+    frequency: daily
+    category: credit
+    description: >
+      Option-adjusted spread on the ICE BofA US High Yield Index.
+      Leading indicator for credit stress and risk-off regimes.
+
+  - id: BAMLC0A0CM
+    name: "ICE BofA US Corporate Master OAS"
+    frequency: daily
+    category: credit
+    description: >
+      Option-adjusted spread on the ICE BofA US Corporate Master Index.
+      Investment-grade credit stress measure.
+
+  - id: BAMLC0A4CBBB
+    name: "ICE BofA BBB US Corporate OAS"
+    frequency: daily
+    category: credit
+    description: >
+      Option-adjusted spread on BBB-rated US corporate bonds.
+      The lowest investment-grade tier; first to widen in stress.
+
+  - id: AAA10Y
+    name: "Moody's Aaa Corporate Bond Yield minus 10Y Treasury"
+    frequency: daily
+    category: credit
+    description: >
+      Spread between highest-rated corporate bonds and 10Y Treasury.
+      Cleanest measure of credit risk premium.
+
+  # ── Category 3: Inflation & Inflation Expectations ────────────────────────
+  - id: CPIAUCSL
+    name: "CPI for All Urban Consumers"
+    frequency: monthly
+    category: inflation
+    description: >
+      Consumer Price Index for All Urban Consumers (seasonally adjusted).
+      Primary headline inflation measure.
+
+  - id: PCEPI
+    name: "PCE Price Index"
+    frequency: monthly
+    category: inflation
+    description: >
+      Personal Consumption Expenditures Price Index (seasonally adjusted).
+      The Fed's preferred inflation measure.
+
+  - id: T5YIE
+    name: "5-Year Breakeven Inflation Rate"
+    frequency: daily
+    category: inflation
+    description: >
+      Market-implied 5-year inflation expectation derived from TIPS spreads.
+      Real-time gauge of inflation sentiment.
+
+  - id: T10YIE
+    name: "10-Year Breakeven Inflation Rate"
+    frequency: daily
+    category: inflation
+    description: >
+      Market-implied 10-year inflation expectation derived from TIPS spreads.
+
+  - id: DPRIME
+    name: "Bank Prime Loan Rate"
+    frequency: daily
+    category: inflation
+    description: >
+      Prime rate charged by major banks. Tracks federal funds rate closely.
+
+  # ── Category 4: Employment & Economic Activity ────────────────────────────
+  - id: UNRATE
+    name: "Civilian Unemployment Rate"
+    frequency: monthly
+    category: employment
+    description: >
+      Seasonally adjusted unemployment rate. Key labor market indicator.
+
+  - id: PAYEMS
+    name: "Total Nonfarm Payrolls"
+    frequency: monthly
+    category: employment
+    description: >
+      Total nonfarm payroll employment (thousands, seasonally adjusted).
+      Most-watched economic indicator each month.
+
+  - id: INDPRO
+    name: "Industrial Production Index"
+    frequency: monthly
+    category: employment
+    description: >
+      Industrial Production Index (seasonally adjusted). Measures real
+      output of manufacturing, mining, and utilities.
+
+  - id: RSAFS
+    name: "Advance Retail Sales"
+    frequency: monthly
+    category: employment
+    description: >
+      Advance estimate of retail and food services sales (seasonally adjusted).
+      Consumer spending proxy.
+
+  - id: GDP
+    name: "Gross Domestic Product"
+    frequency: quarterly
+    category: employment
+    description: >
+      Real Gross Domestic Product (seasonally adjusted annual rate).
+      Revised multiple times; MUST use first-release for backtesting.
+
+  # ── Category 5: Monetary & Financial Conditions ───────────────────────────
+  - id: M2SL
+    name: "M2 Money Supply"
+    frequency: monthly
+    category: monetary
+    description: >
+      M2 money stock (seasonally adjusted). Measures broad money supply.
+
+  - id: TOTALSL
+    name: "Total Consumer Credit Outstanding"
+    frequency: monthly
+    category: monetary
+    description: >
+      Total consumer credit outstanding (seasonally adjusted).
+      Credit cycle indicator.
+
+  - id: USEPUINDXD
+    name: "Economic Policy Uncertainty Index"
+    frequency: daily
+    category: monetary
+    description: >
+      News-based Economic Policy Uncertainty Index. Elevated readings
+      correlate with market volatility and reduced investment.
+
+  - id: VIXCLS
+    name: "CBOE Volatility Index (VIX)"
+    frequency: daily
+    category: monetary
+    description: >
+      VIX closing value. Cross-reference with other financial conditions.
+
+  # ── Category 6: Housing & Construction ────────────────────────────────────
+  - id: HOUST
+    name: "Housing Starts"
+    frequency: monthly
+    category: housing
+    description: >
+      New privately-owned housing units started (seasonally adjusted, thousands).
+      Leading indicator for economic activity.
+
+  - id: MSPUS
+    name: "Median Sales Price of Houses Sold"
+    frequency: quarterly
+    category: housing
+    description: >
+      Median sales price of houses sold in the United States.

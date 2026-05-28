@@ -672,138 +672,263 @@ class IBKRBroker(BrokerAdapter):
     # ------------------------------------------------------------------
 
     def connect_sync(self) -> None:
-        """Synchronous connect for scripts that don't use asyncio."""
-        import asyncio
+        """Synchronous connect for scripts that don't use asyncio.
+
+        Calls ib_insync directly instead of asyncio.run(self.connect())
+        because ib_insync's IB.connect() uses asyncio.timeout() internally
+        which fails with 'Timeout should be used inside a task' in Python 3.14.
+        """
+        try:
+            import ib_insync
+        except ImportError:
+            raise ImportError("ib_insync not installed. Run: pip install ib_insync")
+
+        self._ib = ib_insync.IB()
+        self._ib.RequestTimeout = self.timeout
 
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+            self._ib.connect(self.host, self.port, clientId=self.client_id, timeout=self.timeout)
+        except ConnectionRefusedError:
+            raise IBKRConnectionError(
+                f"Cannot connect to TWS/Gateway at {self.host}:{self.port}. "
+                f"Is TWS running and logged in? "
+                f"Is API enabled? (Edit > Global Configuration > API > Settings)"
+            )
+        except OSError as e:
+            raise IBKRConnectionError(
+                f"Connection to {self.host}:{self.port} failed: {e}. "
+                f"Check that TWS/Gateway is running and API is enabled."
+            )
 
-        if loop and loop.is_running():
-            import concurrent.futures
-            import threading
+        self._connected = True
 
-            future = concurrent.futures.Future()
+        accounts = self._ib.managedAccounts()
+        if not accounts:
+            self._ib.disconnect()
+            self._connected = False
+            raise IBKRConnectionError("Connected but no managed accounts found")
 
-            def _run():
-                try:
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    new_loop.run_until_complete(self.connect())
-                    future.set_result(None)
-                except Exception as e:
-                    future.set_exception(e)
+        for acct in accounts:
+            prefix = acct[:2] if len(acct) >= 2 else ""
+            if prefix == "DU":
+                self.account_id = acct
+                if not self._is_paper:
+                    log.warning(
+                        "Paper account %s detected but port %d suggests LIVE mode.",
+                        acct, self.port,
+                    )
+                else:
+                    log.info("Paper trading account: %s", acct)
+            elif prefix == "U":
+                self.account_id = acct
+                if self._is_paper:
+                    log.warning(
+                        "LIVE account %s detected on paper port %d!",
+                        acct, self.port,
+                    )
+                else:
+                    log.info("Live trading account: %s", acct)
 
-            threading.Thread(target=_run, daemon=True).start()
-            future.result(timeout=self.timeout)
-        else:
-            asyncio.run(self.connect())
+        if not self.account_id and accounts:
+            self.account_id = accounts[0]
+
+        log.info(
+            "IBKR connected: %s:%d (clientId=%d, account=%s)",
+            self.host, self.port, self.client_id, self.account_id,
+        )
 
     def submit_order_sync(self, order: BrokerOrder) -> str:
-        """Synchronous order submission."""
-        import asyncio
+        """Synchronous order submission — calls ib_insync directly."""
+        if not self._connected or not self._ib or not self._ib.isConnected():
+            self.connect_sync()
 
-        try:
-            asyncio.get_running_loop()  # detect running loop
-        except RuntimeError:
-            return asyncio.run(self.submit_order(order))
+        import ib_insync
 
-        import concurrent.futures
-        import threading
+        contract = ib_insync.Stock(order.symbol, "SMART", "USD")
+        self._ib.qualifyContracts(contract)
 
-        future = concurrent.futures.Future()
+        action = order.side.upper()
+        total_qty = float(order.quantity)
 
-        def _run():
-            try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(self.submit_order(order))
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
+        if order.order_type == "market":
+            ib_order = ib_insync.MarketOrder(action, total_qty)
+        elif order.order_type == "limit":
+            price = float(order.limit_price or 0)
+            ib_order = ib_insync.LimitOrder(action, total_qty, price)
+        elif order.order_type in ("stop", "stop_loss"):
+            price = float(order.stop_price or 0)
+            ib_order = ib_insync.StopOrder(action, total_qty, price)
+        else:
+            ib_order = ib_insync.MarketOrder(action, total_qty)
 
-        threading.Thread(target=_run, daemon=True).start()
-        return future.result(timeout=self.timeout)
+        ib_order.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+
+        trade = self._ib.placeOrder(contract, ib_order)
+        ib_order_id = trade.order.orderId
+        broker_id = f"ibkr-{ib_order_id}"
+        self._order_map[broker_id] = trade
+        self._pending_orders[ib_order_id] = broker_id
+
+        # Wait for acknowledgement
+        start = time.time()
+        while time.time() - start < self.timeout:
+            self._ib.sleep(0.1)
+            status = trade.orderStatus.status
+            if status in ("Submitted", "PreSubmitted", "Filled"):
+                log.info(
+                    "Order %s (%s %s %s @ %s): %s",
+                    broker_id, order.symbol, action, total_qty,
+                    order.order_type, status,
+                )
+                return broker_id
+            if status in ("Cancelled", "ApiCancelled", "Inactive"):
+                reason = getattr(trade.orderStatus, "whyHeld", "") or status
+                raise IBKROrderRejectedError(
+                    f"Order {broker_id} rejected: {reason}"
+                )
+
+        raise IBKRBrokerError(
+            f"Order {broker_id} timed out after {self.timeout}s"
+        )
 
     def submit_bracket_order_sync(self, order: BrokerOrder) -> str:
-        """Synchronous bracket order submission."""
-        import asyncio
+        """Synchronous bracket order submission — calls ib_insync directly."""
+        if not self._connected or not self._ib or not self._ib.isConnected():
+            self.connect_sync()
 
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.submit_bracket_order(order))
+        import ib_insync
 
-        import concurrent.futures
-        import threading
+        contract = ib_insync.Stock(order.symbol, "SMART", "USD")
+        self._ib.qualifyContracts(contract)
 
-        future = concurrent.futures.Future()
+        action = order.side.upper()
+        total_qty = float(order.quantity)
+        opposite = "SELL" if action == "BUY" else "BUY"
+        oca_group = f"bracket_{int(time.time() * 1e6)}"
 
-        def _run():
-            try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(
-                    self.submit_bracket_order(order))
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
+        parent = ib_insync.MarketOrder(action, total_qty)
+        parent.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+        parent.ocaGroup = oca_group
+        parent.ocaType = 1
 
-        threading.Thread(target=_run, daemon=True).start()
-        return future.result(timeout=self.timeout)
+        parent_trade = self._ib.placeOrder(contract, parent)
+        parent_id = parent_trade.order.orderId
+        broker_id = f"ibkr-{parent_id}"
+        self._order_map[broker_id] = parent_trade
+        self._pending_orders[parent_id] = broker_id
+
+        children: list = []
+        if order.take_profit_price and float(order.take_profit_price) > 0:
+            tp = ib_insync.LimitOrder(opposite, total_qty, float(order.take_profit_price))
+            tp.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+            tp.ocaGroup = oca_group
+            tp.ocaType = 1
+            tp.parentId = parent_id
+            tp.transmit = True
+            children.append(tp)
+
+        if order.stop_loss_price and float(order.stop_loss_price) > 0:
+            sl = ib_insync.StopOrder(opposite, total_qty, float(order.stop_loss_price))
+            sl.tif = order.time_in_force.upper() if order.time_in_force else "DAY"
+            sl.ocaGroup = oca_group
+            sl.ocaType = 1
+            sl.parentId = parent_id
+            sl.transmit = True
+            children.append(sl)
+
+        for child in children:
+            child_trade = self._ib.placeOrder(contract, child)
+            child_id = child_trade.order.orderId
+            child_broker_id = f"ibkr-{child_id}"
+            self._order_map[child_broker_id] = child_trade
+            self._pending_orders[child_id] = child_broker_id
+
+        start = time.time()
+        while time.time() - start < self.timeout:
+            self._ib.sleep(0.1)
+            status = parent_trade.orderStatus.status
+            if status in ("Submitted", "PreSubmitted", "Filled"):
+                log.info("Bracket order %s placed with %d children", broker_id, len(children))
+                return broker_id
+            if status in ("Cancelled", "ApiCancelled", "Inactive"):
+                reason = getattr(parent_trade.orderStatus, "whyHeld", "") or status
+                raise IBKROrderRejectedError(f"Bracket order {broker_id} rejected: {reason}")
+
+        raise IBKRBrokerError(f"Bracket order {broker_id} timed out after {self.timeout}s")
 
     def get_account_sync(self) -> AccountInfo:
-        """Synchronous account query for scripts that don't use asyncio."""
-        import asyncio
+        """Synchronous account query — calls ib_insync directly."""
+        if not self._ib or not self._ib.isConnected():
+            raise RuntimeError("IBKR not connected")
 
-        try:
-            asyncio.get_running_loop()  # detect running loop
-        except RuntimeError:
-            return asyncio.run(self.get_account())
+        summary = self._ib.accountSummary()
+        info = AccountInfo(account_id=self.account_id)
 
-        import concurrent.futures
-        import threading
+        base_nlv = 0.0
+        base_cash = 0.0
+        base_equity = 0.0
+        base_avail = 0.0
+        base_gpv = 0.0
+        usd_rate = 1.0
+        acct = self.account_id
 
-        future = concurrent.futures.Future()
-
-        def _run():
+        for item in summary:
             try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(self.get_account())
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
+                val = float(item.value)
+            except (ValueError, TypeError):
+                continue
+            if item.tag == "ExchangeRate" and item.currency == "USD":
+                usd_rate = max(val, 0.001)
+            if item.account == acct:
+                if item.tag == "NetLiquidation":
+                    base_nlv = val
+                elif item.tag == "TotalCashValue":
+                    base_cash = val
+                elif item.tag == "AvailableFunds":
+                    base_avail = val
+                elif item.tag == "GrossPositionValue":
+                    base_gpv = val
+            if item.account == "All" and item.tag == "StockMarketValue" and item.currency == "BASE":
+                base_equity = val
 
-        threading.Thread(target=_run, daemon=True).start()
-        return future.result(timeout=self.timeout)
+        if base_nlv == 0.0:
+            for item in summary:
+                if item.tag == "NetLiquidationByCurrency" and item.currency == "BASE":
+                    try:
+                        base_nlv = float(item.value)
+                    except (ValueError, TypeError):
+                        pass
+                    break
+
+        rate = max(usd_rate, 0.001)
+        info.portfolio_value = base_nlv / rate
+        info.cash = base_cash / rate
+        info.equity = base_equity / rate if base_equity else base_nlv / rate
+        info.buying_power = base_avail / rate
+        info.margin_used = base_gpv / rate
+
+        if info.portfolio_value > 0 and info.cash > 0:
+            info.margin_used = max(0.0, info.portfolio_value - info.cash)
+        return info
 
     def get_positions_sync(self) -> list[Position]:
-        """Synchronous position query for scripts that don't use asyncio."""
-        import asyncio
+        """Synchronous position query — calls ib_insync directly."""
+        if not self._ib or not self._ib.isConnected():
+            return []
 
-        try:
-            asyncio.get_running_loop()  # detect running loop
-        except RuntimeError:
-            return asyncio.run(self.get_positions())
-
-        import concurrent.futures
-        import threading
-
-        future = concurrent.futures.Future()
-
-        def _run():
-            try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(self.get_positions())
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
-
-        threading.Thread(target=_run, daemon=True).start()
-        return future.result(timeout=self.timeout)
+        positions = []
+        for pos in self._ib.positions():
+            positions.append(Position(
+                symbol=pos.contract.symbol,
+                quantity=Decimal(str(pos.position)),
+                avg_cost=Decimal(str(pos.avgCost)) if pos.avgCost > 0 else Decimal("0"),
+                market_price=(
+                    Decimal(str(pos.marketPrice))
+                    if hasattr(pos, "marketPrice") and pos.marketPrice
+                    else Decimal("0")
+                ),
+            ))
+        return positions
 
     # ------------------------------------------------------------------
     # Properties

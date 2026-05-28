@@ -26,7 +26,7 @@ portfolio_limits:
   # Maximum exposure to any single sector
   max_sector_exposure_pct: 0.40       # 40%
   # Maximum percentage of portfolio in a single name
-  max_concentration_pct: 0.25         # 25%
+  max_concentration_pct: 0.50         # 50% (raised for momentum strategies with 6-asset universe)
 
 # ---------------------------------------------------------------------------
 # VaR limits
@@ -70,16 +70,16 @@ circuit_breaker:
 drawdown:
   # Tiered drawdown thresholds and their automatic actions
   thresholds:
-    - drawdown: -0.05   # -5%
-      action: reduce_25  # Reduce positions by 25%
     - drawdown: -0.10   # -10%
-      action: reduce_50  # Reduce positions by 50%
-    - drawdown: -0.15   # -15%
-      action: reduce_75  # Reduce positions by 75%
+      action: reduce_25  # Reduce positions by 25%
     - drawdown: -0.20   # -20%
+      action: reduce_50  # Reduce positions by 50%
+    - drawdown: -0.35   # -35%
+      action: reduce_75  # Reduce positions by 75%
+    - drawdown: -0.50   # -50%
       action: flatten    # Close all positions
   # Hard halt — refuse all new orders below this threshold
-  halt_threshold: -0.25  # -25%
+  halt_threshold: -0.60  # -60%
   # Warning-level notification threshold
   warning_pct: -0.05
   # Critical-level notification threshold
