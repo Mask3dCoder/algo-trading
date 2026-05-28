@@ -36,7 +36,7 @@ from quantcore.strategies.base import Strategy, StrategyConfig, StrategyType, Tr
 class AggregatorConfig:
     """Configuration for MultiStrategyAggregator."""
     name: str = "multi_strategy_aggregator"
-    combination_method: Literal["equal_weight", "risk_parity", "mean_variance", "hrp"] = "risk_parity"
+    combination_method: Literal["equal_weight", "risk_parity", "mean_variance", "hrp", "black_litterman"] = "risk_parity"
     weight_update_freq: int = 5           # bars between weight recalculations
     vol_lookback: int = 60                # trailing window for risk parity / MVO
     max_position_pct: float = 0.05        # 5% per name
@@ -212,7 +212,10 @@ class MultiStrategyAggregator:
         if self._cfg.beta_neutral and self._returns_history is not None:
             combined = self._neutralize_beta(combined, symbols)
 
-        # ── 6. Convert to TradeSignals (raw weights, no position clipping) ──
+        # ── 6. Enforce position limits ──
+        combined = self._apply_position_limits(combined)
+
+        # ── 7. Convert to TradeSignals ──
         signals = self._weights_to_signals(combined, symbols)
 
         # ── 8. Track aggregator equity ──
@@ -268,6 +271,8 @@ class MultiStrategyAggregator:
             self._compute_mean_variance_weights(active_indices, n)
         elif method == "hrp":
             self._compute_hrp_weights(active_indices, n)
+        elif method == "black_litterman":
+            self._compute_bl_weights(active_indices, n)
         else:
             self._compute_equal_weights(active_indices, n)
 
@@ -429,6 +434,54 @@ class MultiStrategyAggregator:
         w = np.zeros(n)
         for i in filtered:
             w[i] = weights_dict.get(i, 0.0)
+
+        total = np.sum(w)
+        if total > 0:
+            w /= total
+        self._strategy_weights = w
+
+    def _compute_bl_weights(self, active: list[int], n: int) -> None:
+        """Compute strategy weights via Black-Litterman optimization."""
+        import pandas as pd
+        from quantcore.portfolio.black_litterman import compute_bl_weights
+
+        lookback = self._cfg.vol_lookback
+
+        # Filter out strategies with negative Sharpe
+        filtered = []
+        for i in active:
+            sharpe = self._compute_trailing_sharpe(i)
+            if sharpe >= self._cfg.negative_sharpe_cutoff:
+                filtered.append(i)
+        if not filtered:
+            filtered = list(active)
+        if len(filtered) < 2:
+            self._compute_equal_weights(filtered, n)
+            return
+
+        # Build return DataFrame
+        returns_dict: dict[int, np.ndarray] = {}
+        for i in filtered:
+            eq = self._strategy_equity[i]
+            if len(eq) < max(lookback, 10):
+                eq_arr = np.array([self._cfg.initial_cash] * max(lookback, 10))
+            else:
+                eq_arr = np.array(eq[-lookback:])
+            rets = np.diff(eq_arr) / np.maximum(eq_arr[:-1], 1e-10)
+            returns_dict[i] = rets
+
+        min_len = min(len(r) for r in returns_dict.values())
+        if min_len < 10:
+            self._compute_equal_weights(filtered, n)
+            return
+
+        df = pd.DataFrame({i: returns_dict[i][:min_len] for i in filtered})
+        weights_arr = compute_bl_weights(df)
+
+        # Map back to full strategy array
+        w = np.zeros(n)
+        for j, i in enumerate(filtered):
+            w[i] = float(weights_arr[j])
 
         total = np.sum(w)
         if total > 0:
@@ -658,11 +711,30 @@ class StrategyAggregator:
         self._limits = limits or GlobalExposureLimits()
         self._gross_exposure: float = 0.0
         self._name_exposure: dict[str, float] = {}
+        self._equity: float = 0.0
 
     def update_exposure(self, symbol: str, notional: float) -> None:
         """Update tracked exposure after a fill."""
         self._name_exposure[symbol] = self._name_exposure.get(symbol, 0.0) + notional
         self._gross_exposure = sum(abs(v) for v in self._name_exposure.values())
+
+    def update_positions(
+        self, strategy_id: str, positions: dict[str, object], cash: float
+    ) -> None:
+        """Refresh tracked exposure from current positions dict."""
+        self._name_exposure.clear()
+        for sym, pos in positions.items():
+            try:
+                qty = abs(float(getattr(pos, "quantity", 0)))
+                price = float(getattr(pos, "market_price", 0))
+                self._name_exposure[sym] = qty * price
+            except Exception:
+                pass
+        self._gross_exposure = sum(abs(v) for v in self._name_exposure.values())
+
+    def update_equity(self, equity: float) -> None:
+        """Update equity for percentage-based exposure checks."""
+        self._equity = equity
 
     def check_order(self, order: Any) -> CheckVerdict:
         """Check whether an order would breach global exposure limits.

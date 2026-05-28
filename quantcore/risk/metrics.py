@@ -71,11 +71,11 @@ def sortino_ratio(
     target = (rf / TRADING_DAYS) if rf is not None else (mar / TRADING_DAYS if annualize else mar)
 
     r_excess_daily = r - target
-    downside = r_excess_daily[r_excess_daily < 0]
-    if len(downside) < 2:
+    downside_sq = np.minimum(r_excess_daily, 0.0) ** 2
+    if np.sum(downside_sq) < 1e-18:
         return 0.0
 
-    downside_std = np.std(downside, ddof=1)
+    downside_std = float(np.sqrt(np.mean(downside_sq)))
     if downside_std == 0:
         return 0.0
 
@@ -88,28 +88,26 @@ def calmar_ratio(
 ) -> float:
     """Calmar ratio: annualized return / max drawdown (equity-based).
 
-    Bug fix: computes drawdown on the *equity curve* (exp(cumsum(r))), not on
-    cumulative log-returns.  The original code used cumsum which is the log-
-    return path — this understates drawdowns for negative-skew strategies and
-    gives a misleading denominator.
+    Converts simple returns to log-returns internally for correct equity-curve
+    construction.  The equity curve is built via exp(cumsum(log_r)) which gives
+    the true multiplicative P&L path.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return float("nan")
 
-    ann_ret = float(np.mean(r)) * TRADING_DAYS
+    # Convert simple returns to log-returns for correct equity curve
+    log_r = np.log1p(r)
 
-    # Equity curve (assumes log-returns; same formula works for simple returns
-    # when returns are small, i.e., daily).  Using exp(cumsum) gives the true
-    # multiplicative P&L path.
-    equity = np.exp(np.cumsum(r))
+    ann_ret = float(np.mean(log_r)) * TRADING_DAYS
+
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
-    # Drawdown as fraction of peak (negative values)
     drawdown = (equity - peak) / np.where(peak > 0, peak, 1.0)
     max_dd = float(np.abs(drawdown.min()))
 
     if max_dd < 1e-10:
-        return float("nan")  # No drawdown → Calmar undefined, not infinite
+        return float("nan")
     return ann_ret / max_dd
 
 
@@ -226,13 +224,15 @@ def sterling_ratio(
 ) -> float:
     """Sterling ratio: annualized return / (max drawdown - 10%).
 
-    Drawdown is computed on the equity curve, not cumulative log returns.
+    Converts simple returns to log-returns internally for correct equity-curve
+    construction.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return 0.0
-    ann_ret = float(np.mean(r)) * TRADING_DAYS
-    equity = np.exp(np.cumsum(r))
+    log_r = np.log1p(r)
+    ann_ret = float(np.mean(log_r)) * TRADING_DAYS
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
     dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
     max_dd = float(np.abs(dd.min()))
@@ -250,12 +250,13 @@ def sterling_ratio(
 def ulcer_index(returns: NDArray[np.floating]) -> float:
     """Ulcer Index: sqrt(mean(squared_drawdowns)).
 
-    Drawdown computed on equity curve, not cumulative log returns.
+    Converts simple returns to log-returns for correct equity-curve construction.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return 0.0
-    equity = np.exp(np.cumsum(r))
+    log_r = np.log1p(r)
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
     dd = np.where(peak > 0, (equity - peak) / peak, 0.0)
     return float(np.sqrt(np.mean(dd**2)))
@@ -264,12 +265,13 @@ def ulcer_index(returns: NDArray[np.floating]) -> float:
 def pain_index(returns: NDArray[np.floating]) -> float:
     """Pain Index: mean(abs(drawdowns)).
 
-    Drawdown computed on equity curve, not cumulative log returns.
+    Converts simple returns to log-returns for correct equity-curve construction.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return 0.0
-    equity = np.exp(np.cumsum(r))
+    log_r = np.log1p(r)
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
     dd = np.where(peak > 0, np.abs(equity - peak) / peak, 0.0)
     return float(np.mean(dd))
@@ -288,13 +290,14 @@ def pain_ratio(returns: NDArray[np.floating]) -> float:
 def burke_ratio(returns: NDArray[np.floating]) -> float:
     """Burke Ratio: excess return / sqrt(sum(squared_drawdowns)).
 
-    Drawdown computed on equity curve, not cumulative log returns.
+    Converts simple returns to log-returns for correct equity-curve construction.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return 0.0
-    ann_ret = float(np.mean(r)) * TRADING_DAYS
-    equity = np.exp(np.cumsum(r))
+    log_r = np.log1p(r)
+    ann_ret = float(np.mean(log_r)) * TRADING_DAYS
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
     dd = np.where(peak > 0, (equity - peak) / peak, 0.0)
     denominator = float(np.sqrt(np.sum(dd**2)))
@@ -349,16 +352,17 @@ class DrawdownStats:
 def drawdown_stats(returns: NDArray[np.floating]) -> DrawdownStats:
     """Compute comprehensive drawdown statistics.
 
-    Drawdown computed on the equity curve (exp(cumsum)), not on cumulative
-    log returns. This gives the true percentage drawdown experienced by
-    a portfolio with reinvestment.
+    Converts simple returns to log-returns for correct equity-curve construction.
+    This gives the true percentage drawdown experienced by a portfolio with
+    reinvestment.
     """
     r = np.asarray(returns, dtype=float).flatten()
     if len(r) < 2:
         return DrawdownStats(max_drawdown=0.0, avg_drawdown=0.0,
                              max_drawdown_duration=0, avg_drawdown_duration=0.0)
 
-    equity = np.exp(np.cumsum(r))
+    log_r = np.log1p(r)
+    equity = np.exp(np.cumsum(log_r))
     peak = np.maximum.accumulate(equity)
     dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
 
@@ -450,7 +454,8 @@ def rolling_maxdd(
 
     for i in range(window, n + 1):
         w = r[i - window : i]
-        equity = np.exp(np.cumsum(w))
+        log_w = np.log1p(w)
+        equity = np.exp(np.cumsum(log_w))
         peak = np.maximum.accumulate(equity)
         dd = (equity - peak) / np.where(peak > 0, peak, 1.0)
         out[i - 1] = float(np.abs(dd.min()))

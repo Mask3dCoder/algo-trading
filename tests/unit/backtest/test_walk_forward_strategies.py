@@ -23,6 +23,7 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_earnings_momentum": {"rebalance_freq": 1},  # DISABLED (audit) — minimal params for coverage
     "equity_low_volatility": {"rebalance_freq": 1},   # RESEARCH — minimal params for coverage
     "equity_stat_arb": {"rescan_freq": 1, "entry_z": 1.5, "lookback": 100, "max_pairs": 2},
+    "equity_stat_arb_mr": {"rescan_freq": 1, "entry_z": 1.5, "lookback": 100, "max_pairs": 2},
     "equity_mean_reversion": {"rsi_oversold": 30, "rsi_overbought": 70},
     "equity_trend_following": {"trend_window": 50, "fast_window": 10, "slow_window": 30},
     "equity_multi_factor": {},
@@ -30,6 +31,16 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_value_factor": {},
     "equity_volatility_breakout": {},
     "equity_volume_profile": {},
+    "equity_cross_sectional_momentum": {"rebalance_freq": 1},
+    "equity_full_universe_xs_momentum": {"rebalance_freq": 1},
+    "equity_idiosyncratic_momentum": {"rebalance_freq": 1},
+    "equity_short_term_reversal": {"rebalance_freq": 1},
+    "equity_tsmom": {"rebalance_freq": 1},
+    "equity_multifactor_composite": {},
+    "sentiment_momentum": {},
+    "simple_buy_hold": {},
+    "equity_quality_rmw_cma": {},
+    "equity_value_hml": {},
 }
 
 _OPTIONS_PARAMS: dict[str, dict] = {
@@ -58,6 +69,8 @@ _MACRO_PARAMS: dict[str, dict] = {
     #     "max_leverage": 1.0, "max_gross_exposure": 1.0,
     # },
     "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
+    "macro_vrp": {"rebalance_freq": 1},
+    "macro_fred_regime": {},
 }
 
 _INTRADAY_PARAMS: dict[str, dict] = {
@@ -65,6 +78,7 @@ _INTRADAY_PARAMS: dict[str, dict] = {
     "intraday_mean_reversion": {"lookback": 10, "rsi_period": 7, "bb_period": 10},
     "intraday_momentum": {"lookback_bars": 6, "rebalance_freq": 3, "n_long": 2, "n_short": 2},
     "intraday_trend": {"trend_window": 15, "fast_window": 5, "slow_window": 10},
+    "opening_gap_fade": {"gap_threshold_pct": 2.0, "exit_minutes": 30},
 }
 
 _STRATEGY_CONFIGS: dict[str, dict] = {}

@@ -5,6 +5,7 @@ Flow: MarketData -> Regime -> Strategy -> Sizing -> RiskCheck -> OMS -> Executio
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -40,6 +41,8 @@ from quantcore.risk.limits import (
     check_post_trade,
     check_pre_trade,
 )
+
+log = logging.getLogger(__name__)
 
 
 class LiveState(str, Enum):
@@ -349,8 +352,8 @@ class LiveRunner:
                     self._cash_ledger.settled_cash,
                 )
                 self.aggregator.update_equity(self._portfolio_value)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.error("Portfolio sync failed: %s", exc)
 
     def _current_value(self) -> float:
         """Current total portfolio value."""

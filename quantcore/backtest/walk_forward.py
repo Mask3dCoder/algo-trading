@@ -131,23 +131,20 @@ def purged_kfold_cv(
         test_end = min(test_start + fold_size, n_bars)
 
         train_end = test_start - embargo
-        train_start_next = test_end + embargo
 
-        if train_end > 0:
-            folds.append(Fold(
-                train_start=0,
-                train_end=max(train_end, 0),
-                test_start=test_start,
-                test_end=test_end,
-                embargo_start=test_start - embargo if embargo > 0 else None,
-            ))
-        else:
-            folds.append(Fold(
-                train_start=min(train_start_next, n_bars),
-                train_end=n_bars,
-                test_start=test_start,
-                test_end=test_end,
-            ))
+        # Training data must always be chronologically before test data.
+        # When train_end <= 0 the first fold has no prior data — skip it
+        # rather than creating a fold that trains on future data.
+        if train_end <= 0:
+            continue
+
+        folds.append(Fold(
+            train_start=0,
+            train_end=train_end,
+            test_start=test_start,
+            test_end=test_end,
+            embargo_start=test_start - embargo if embargo > 0 else None,
+        ))
 
     return folds
 

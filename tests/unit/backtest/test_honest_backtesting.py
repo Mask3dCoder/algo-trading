@@ -208,14 +208,14 @@ class TestPurgedCV:
 
     def test_basic(self):
         folds = purged_kfold_cv(n_bars=500, n_splits=3, test_size=60)
-        assert len(folds) == 3
+        # First fold dropped (no prior training data).
+        assert len(folds) == 2
 
     def test_no_overlap(self):
         folds = purged_kfold_cv(n_bars=1000, n_splits=5, test_size=100)
         for fold in folds:
-            train_before = fold.train_end <= fold.test_start
-            train_after = fold.train_start >= fold.test_end
-            assert train_before or train_after, "Train/test must not overlap"
+            # Training must always be chronologically before test data.
+            assert fold.train_end <= fold.test_start, "Train/test must not overlap"
 
     def test_fold_bounds_within_data(self):
         for n_bars in [200, 500, 1000]:

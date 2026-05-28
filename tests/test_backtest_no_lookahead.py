@@ -140,24 +140,25 @@ class TestPurgedKfoldCVNoCrash:
     def test_basic_execution(self):
         from quantcore.backtest.walk_forward import purged_kfold_cv
         folds = purged_kfold_cv(n_bars=500, n_splits=3, test_size=60, embargo_pct=0.01)
-        assert len(folds) == 3, f"Expected 3 folds, got {len(folds)}"
+        # First fold is skipped because train_end <= 0 (no prior data).
+        # Only folds with training data chronologically before test data are kept.
+        assert len(folds) == 2, f"Expected 2 folds, got {len(folds)}"
 
     def test_no_test_train_overlap(self):
         from quantcore.backtest.walk_forward import purged_kfold_cv
         folds = purged_kfold_cv(n_bars=1000, n_splits=5, test_size=100, embargo_pct=0.01)
         for i, fold in enumerate(folds):
             assert fold.test_end <= 1000, f"Fold {i}: test_end={fold.test_end} > n_bars=1000"
-            # Purged CV: train may be before OR after test (both are valid cases).
-            # The only invariant: train and test must not overlap.
-            train_before = fold.train_end <= fold.test_start
-            train_after = fold.train_start >= fold.test_end
-            assert train_before or train_after, (
+            # After the fix: training is always chronologically before test.
+            assert fold.train_end <= fold.test_start, (
                 f"Fold {i}: train [{fold.train_start},{fold.train_end}] "
-                f"overlaps test [{fold.test_start},{fold.test_end}]"
+                f"not before test [{fold.test_start},{fold.test_end}]"
             )
 
     def test_returns_correct_split_count(self):
         from quantcore.backtest.walk_forward import purged_kfold_cv
+        # First fold always dropped (no prior training data), so expected
+        # count is n_splits - 1 when n_bars is large enough for all folds.
         for n_splits in [2, 3, 5]:
             folds = purged_kfold_cv(n_bars=600, n_splits=n_splits)
-            assert len(folds) == n_splits, f"Expected {n_splits} folds, got {len(folds)}"
+            assert len(folds) == n_splits - 1, f"Expected {n_splits - 1} folds, got {len(folds)}"

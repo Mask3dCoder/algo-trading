@@ -492,21 +492,29 @@ class FillSimulator:
             else:
                 fill_price -= temp_impact_price
 
-            # Apply accumulated permanent impact from prior trades
+            # Apply accumulated permanent impact from prior trades.
+            # Permanent impact is signed: buys push price up (+), sells push
+            # price down (-).  The fill adjustment is always additive so that
+            # a long accumulation makes subsequent buys more expensive AND
+            # subsequent sells more profitable (unwind benefits).
             sym_perm = self._permanent_impact.get(order.symbol, 0.0)
             if sym_perm != 0.0:
-                if order.side == Side.BUY:
-                    fill_price += sym_perm
-                else:
-                    fill_price -= sym_perm
+                fill_price += sym_perm
 
-            # Update cumulative permanent impact
+            # Update cumulative permanent impact (signed by side)
             perm_impact_price = float(bar.open) * result.perm_impact_bps / 10_000.0
+            sign = 1.0 if order.side == Side.BUY else -1.0
             self._permanent_impact[order.symbol] = (
-                self._permanent_impact.get(order.symbol, 0.0) + perm_impact_price
+                self._permanent_impact.get(order.symbol, 0.0) + sign * perm_impact_price
             )
 
             market_impact_cost = result.total_cost_dollars
+
+        # Clip fill price to bar's high/low range — slippage + impact
+        # can push the price outside the observed bar, which is impossible.
+        bar_high = float(bar.high)
+        bar_low = float(bar.low)
+        fill_price = max(bar_low, min(fill_price, bar_high))
 
         # Check limit orders
         if order.type == OrderType.LIMIT and order.limit_price is not None:

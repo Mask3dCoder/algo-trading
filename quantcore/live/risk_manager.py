@@ -104,6 +104,7 @@ class RiskManagerLive:
         order: Order,
         equity: float,
         positions: dict[str, object] | None = None,
+        market_prices: dict[str, float] | None = None,
     ) -> Approval:
         """Run all pre-trade risk checks.  Returns Approval with reason if rejected."""
         if equity <= 0:
@@ -111,7 +112,7 @@ class RiskManagerLive:
 
         qty = float(order.quantity)
         # Use a crude price estimate for notional sizing
-        price = self._order_price(order)
+        price = self._order_price(order, market_prices)
         notional = qty * price
 
         # 1. Single order size limit
@@ -137,7 +138,7 @@ class RiskManagerLive:
             )
 
         # 3. Leverage / gross exposure limit (post this order + existing)
-        gross = self._gross_exposure(positions or {}, price)
+        gross = self._gross_exposure(positions or {}, price, market_prices)
         if order.side == Side.BUY:
             gross += notional
         else:
@@ -231,22 +232,27 @@ class RiskManagerLive:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _order_price(self, order: Order) -> float:
+    def _order_price(self, order: Order, market_prices: dict[str, float] | None = None) -> float:
         """Best-effort price for notional calculation."""
         if order.limit_price is not None:
             return float(order.limit_price)
-        # Try to get latest known price from any external source if available;
-        # for MVP we use a simple fallback.
+        if market_prices and order.symbol in market_prices:
+            return float(market_prices[order.symbol])
+        log.warning("No price available for %s — using $100 fallback", order.symbol)
         return 100.0
 
     def _gross_exposure(
-        self, positions: dict[str, object], market_price: float
+        self, positions: dict[str, object], market_price: float,
+        market_prices: dict[str, float] | None = None,
     ) -> float:
         """Sum absolute notional of all positions."""
         total = 0.0
-        for pos in positions.values():
+        for sym, pos in positions.items():
             try:
-                total += abs(float(pos.quantity)) * float(getattr(pos, "market_price", market_price))
+                mp = float(getattr(pos, "market_price", 0)) or (
+                    market_prices.get(sym, market_price) if market_prices else market_price
+                )
+                total += abs(float(pos.quantity)) * mp
             except Exception:
                 total += abs(float(pos.quantity)) * market_price
         return total

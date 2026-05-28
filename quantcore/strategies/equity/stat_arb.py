@@ -154,7 +154,7 @@ class StatArbStrategy(Strategy):
         if avg_loss < 1e-10:
             return 0.5
 
-        kelly = win_rate / (1.0 - win_rate) * (avg_loss / avg_win) if avg_win > 0 else 0.0
+        kelly = (win_rate - (1.0 - win_rate) * avg_win / avg_loss) if avg_win > 0 else 0.0
         kelly = max(0.0, min(kelly, 1.0))
         return kelly * self.kelly_fraction
 
