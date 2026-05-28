@@ -46,3 +46,37 @@ outputs/
 
 # Rust
 rust_core/target/
+
+# === Cleanup additions (2026-05-28) ===
+# Runtime data and caches
+data/
+.cache/
+.swarm/
+.claude-flow/
+graphify-out/
+*.db
+ruvector.db
+
+# Generated outputs at root
+backtest_equity_curve.csv
+experiments.csv
+status_snapshot.json
+trial_results/
+KILL_SWITCH/
+
+# Script-generated outputs
+scripts/output/
+scripts/bench_results.txt
+
+# Operations runtime data
+operations/daily_returns.csv
+operations/graduation_log.csv
+operations/graduation_log.md
+operations/validation_log.csv
+
+# Reports and results (generated, not source)
+reports/
+results/
+
+# External tool repos
+ruflo/
