@@ -49,6 +49,7 @@ import quantcore.strategies.equity.mean_reversion
 import quantcore.strategies.equity.momentum
 import quantcore.strategies.equity.multifactor_composite
 import quantcore.strategies.equity.multi_factor
+import quantcore.strategies.equity.opening_gap_fade
 import quantcore.strategies.equity.quality_factor
 import quantcore.strategies.equity.quality_factor_rmw_cma
 import quantcore.strategies.equity.stat_arb
@@ -62,7 +63,9 @@ import quantcore.strategies.macro.cross_sectional_factor_neutral
 import quantcore.strategies.macro.cross_sectional_momentum
 import quantcore.strategies.macro.cta_trend
 import quantcore.strategies.macro.factor_residual
+import quantcore.strategies.macro.factor_residual_qp
 import quantcore.strategies.macro.factor_residual_strict
+import quantcore.strategies.macro.factor_residual_v3
 import quantcore.strategies.macro.risk_parity
 import quantcore.strategies.macro.state_selective_momentum
 import quantcore.strategies.options.delta_neutral
@@ -263,7 +266,7 @@ class ProductionRunner:
                 continue
             weight = strat_cfg.get("weight", 1.0)
             params = strat_cfg.get("params", {})
-            strategy_type = "MACRO" if "macro" in name else "EQUITY" if "equity" in name else "OPTIONS"
+            strategy_type = "MACRO" if "macro" in name else "EQUITY" if ("equity" in name or "gap" in name or "stat_arb" in name) else "OPTIONS"
             cfg = StrategyConfig(
                 name=name,
                 strategy_type=strategy_type,
@@ -326,6 +329,16 @@ class ProductionRunner:
             schedule_lib.every().wednesday.at(self.reconciliation_time).do(self._reconcile)
             schedule_lib.every().thursday.at(self.reconciliation_time).do(self._reconcile)
             schedule_lib.every().friday.at(self.reconciliation_time).do(self._reconcile)
+
+            # Intraday scheduling for gap-fade strategy (09:30-10:05 ET, every 5 min)
+            _intraday_slots = [
+                "09:30", "09:35", "09:40", "09:45", "09:50", "09:55", "10:00", "10:05",
+            ]
+            for slot in _intraday_slots:
+                for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
+                    getattr(schedule_lib.every(), day).at(slot).do(
+                        self._scheduled_intraday_tick, time_slot=slot
+                    )
 
             log.info("Scheduler active — waiting for market hours...")
 
@@ -397,6 +410,77 @@ class ProductionRunner:
             log.error("Reconciliation failed: %s", exc)
             self._alert(f"Reconciliation failed: {exc}", severity="warning")
 
+    def _scheduled_intraday_tick(self, time_slot: str) -> None:
+        """Callback for intraday schedule entries."""
+        if self._check_kill_switch():
+            return
+        self._intraday_tick(time_slot)
+
+    def _intraday_tick(self, time_slot: str) -> None:
+        """Run intraday strategies (e.g. opening_gap_fade) for a given time slot."""
+        try:
+            today = date.today()
+            as_of = pd.Timestamp(today)
+
+            # Check if any strategies need intraday gap-fade data
+            has_gap_fade = any(
+                ds == "alpaca_intraday_gap_fade"
+                for _, _, _, ds, _ in self.strategies
+            )
+            if not has_gap_fade:
+                return
+
+            # Circuit breaker check
+            acct = self.broker.get_account()
+            equity = float(acct.get("portfolio_value", 0))
+            self.risk_manager.update_equity(equity)
+            self.circuit_breaker.check(
+                equity=equity,
+                peak_equity=self.risk_manager.peak_equity,
+                daily_pnl=self.risk_manager.current_daily_pnl,
+            )
+            if self.circuit_breaker.activated:
+                log.warning("Circuit breaker ACTIVE — skipping intraday tick %s", time_slot)
+                return
+
+            # Fetch OHLCV + prev_close for gap-fade strategies
+            ohlcv_snapshot = self.feed.get_intraday_ohlcv_snapshot(
+                as_of, bar_size="5Min", lookback_days=5,
+            )
+            prev_close_map = self.feed.get_prev_close_map(as_of)
+
+            # Current ET time (wall clock)
+            from zoneinfo import ZoneInfo
+            current_time_et = datetime.now(ZoneInfo("America/New_York")).replace(tzinfo=None)
+
+            # Inject gap-fade-specific fields into data dict
+            ohlcv_snapshot["prev_close"] = prev_close_map
+            ohlcv_snapshot["current_time"] = current_time_et
+
+            all_signals: list[tuple[str, float, TradeSignal]] = []
+            for strat_name, weight, instance, data_source, bar_size in self.strategies:
+                if data_source != "alpaca_intraday_gap_fade":
+                    continue
+                try:
+                    signals = instance.on_data(ohlcv_snapshot)
+                    log.info("  %s [%s]: %d signals", strat_name, time_slot, len(signals))
+                    for sig in signals:
+                        all_signals.append((strat_name, weight, sig))
+                except Exception as exc:
+                    log.error("Intraday strategy %s failed: %s", strat_name, exc)
+                    self._alert(f"Intraday strategy {strat_name} error: {exc}", severity="warning")
+
+            # Submit orders
+            for strat_name, weight, sig in all_signals:
+                self._submit_signal(sig, strat_name, weight, today)
+
+            if all_signals:
+                log.info("INTRADAY [%s] %s: %d orders submitted", today, time_slot, len(all_signals))
+
+        except Exception as exc:
+            log.exception("Intraday tick failed for %s: %s", time_slot, exc)
+            self._alert(f"Intraday tick failed: {exc}", severity="warning")
+
     # ------------------------------------------------------------------
     # Core trading tick (multi-strategy)
     # ------------------------------------------------------------------
@@ -442,6 +526,8 @@ class ProductionRunner:
             all_signals: list[tuple[str, float, TradeSignal]] = []
             for strat_name, weight, instance, data_source, bar_size in self.strategies:
                 try:
+                    if data_source == "alpaca_intraday_gap_fade":
+                        continue  # handled by _intraday_tick, not the daily cycle
                     if data_source == "alpaca_intraday":
                         snapshot = self.feed.get_intraday_snapshot(as_of, bar_size=bar_size)
                     else:
