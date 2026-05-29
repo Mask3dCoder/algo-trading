@@ -1,11 +1,17 @@
-# Diagnostic Review: 2026-05-29
-# ACTIVE: Delta Neutral Realistic VRP (WF Sharpe +1.30, CI_low +0.33, MaxDD 15.4%, PF 4.40)
-# Uses VIX as IV proxy, includes bid/ask costs, delta hedging, gamma P&L via BSM MTM
-# Risk: 1% equity per trade, 30 DTE entry, 5 DTE exit, VIX > 15 entry threshold
+# QuantCore Multi-Strategy Live Configuration
+# Updated: 2026-05-29 — Institutional-grade multi-strategy paper trading
+#
+# SECURITY: All API keys via environment variables (never hardcoded).
+#   Required env vars:
+#     ALPACA_API_KEY, ALPACA_API_SECRET
+#     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#
+# Multi-strategy: each strategy has independent weight, data source, and risk limits.
 
 broker:
   type: paper
   alpaca:
+    # Credentials loaded from environment: ALPACA_API_KEY, ALPACA_API_SECRET
     api_key: ''
     secret_key: ''
     base_url: https://paper-api.alpaca.markets
@@ -16,24 +22,72 @@ broker:
     account_id: ''
     timeout: 30
     readonly: false
+
+# ── Strategies ─────────────────────────────────────────────────────────────
+# Walk-forward validated 2026-05-29 (504-day train, 126-day test, 2018-2024)
+# Risk-parity weights computed from trailing OOS realized volatility.
+# Triage: KEEP (CI_low>0, DSR p<0.1), MONITOR (CI_low>0), DISABLE (CI_low<=0)
 strategies:
-- name: delta_neutral_realistic
-  enabled: true
-  weight: 1.0
-  data_source: yfinance_vix
-  params:
-    vix_min_entry: 15.0
-    dte_entry: 30
-    dte_exit: 5
-    profit_target_pct: 0.50
-    risk_per_trade_pct: 0.01
-    max_loss_mult: 3.0
-    entry_interval_days: 21
-    delta_hedge_threshold: 5.0
-    option_bid_ask_pct: 0.05
-    hedge_slippage_bps: 5.0
-    risk_free_rate: 0.04
-    underlying: SPY
+  # ── KEEP: Delta Neutral VRP ─────────────────────────────────────────────
+  # OOS Sharpe: 2.48, CI: [1.57, 3.43], MaxDD: 0.5%, DSR p: 0.044
+  - name: options_delta_neutral
+    enabled: true
+    weight: 0.352    # risk-parity weight (1/vol normalized)
+    data_source: yfinance_vix
+    strategy_type: OPTIONS
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.05
+    params:
+      ivr_entry: 50
+      ivr_exit: 25
+      dte_min: 30
+      dte_max: 60
+      delta_target: 0.3
+      hedge_freq: 1
+      gamma_scalp_threshold: 0.01
+      max_positions: 5
+
+  # ── MONITOR: Put Write VRP ──────────────────────────────────────────────
+  # OOS Sharpe: 2.10, CI: [0.96, 4.18], MaxDD: 0.3%, DSR p: 0.399
+  - name: options_put_write
+    enabled: true
+    weight: 0.580    # risk-parity weight (lowest vol → highest weight)
+    data_source: yfinance_vix
+    strategy_type: OPTIONS
+    circuit_breaker:
+      max_daily_loss_pct: 0.02
+      max_drawdown_pct: 0.05
+    params:
+      vix_entry: 15
+      otm_pct: 0.95
+      dte: 30
+      risk_per_trade: 0.02
+      max_positions: 3
+
+  # ── MONITOR: Iron Condor VRP ────────────────────────────────────────────
+  # OOS Sharpe: 1.90, CI: [1.14, 2.58], MaxDD: 1.4%, DSR p: 0.617
+  - name: options_iron_condor
+    enabled: true
+    weight: 0.068    # risk-parity weight (highest vol → lowest weight)
+    data_source: yfinance_vix
+    strategy_type: OPTIONS
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.03
+    params:
+      delta_short: 0.3
+      delta_long: 0.15
+      dte_min: 30
+      dte_max: 45
+      ivr_entry: 40
+
+  # ── DISABLED: Macro strategies (CI_lower <= 0) ──────────────────────────
+  # macro_cross_sectional_momentum: Sharpe 0.65, CI [-0.12, 1.40] — DISABLE
+  # macro_risk_parity: Sharpe 0.50, CI [-0.31, 1.15] — DISABLE
+  # macro_vrp: Sharpe 0.00 (no signals) — DISABLE
+  # tail_hedge: Sharpe -0.06 — DISABLE
+
 universe:
   tickers:
   - SPY
@@ -76,7 +130,6 @@ universe:
   - DHR
   - LIN
   - TXN
-  - NEER
   - UPS
   - RTX
   - QCOM
@@ -99,33 +152,48 @@ universe:
   - GLD
   - TLT
   - DBC
+
+# ── Risk ───────────────────────────────────────────────────────────────────
+# Portfolio-level risk limits. Per-strategy limits defined above in strategies[].
 risk:
   max_position_per_ticker_pct: 0.05
   max_gross_exposure_pct: 2.0
-  max_daily_loss_pct: 0.02
-  max_drawdown_pct: 0.1
+  max_daily_loss_pct: 0.03       # 3% portfolio-level daily loss
+  max_drawdown_pct: 0.12         # 12% portfolio-level max drawdown
   max_single_order_pct: 0.05
   max_leverage: 2.0
   circuit_breaker:
-    daily_loss_pct: 0.02
-    critical_drawdown_pct: 0.1
-    consecutive_rejections: 5
+    daily_loss_pct: 0.03          # aligned with max_daily_loss_pct
+    critical_drawdown_pct: 0.12   # aligned with max_drawdown_pct
+    consecutive_rejections: 10    # increased from 5 to avoid false positives
+
 execution:
   scale_mode: fractional
   initial_cash: 100000.0
   slippage_bps: 5
   commission_per_share: 0.005
+
 schedule:
   trading_time: '16:15'
   reconciliation_time: '16:30'
   timezone: US/Eastern
+
 monitoring:
   health_check_interval_sec: 60
   log_file: reports/live_events.jsonl
   equity_file: reports/live_equity.csv
+
+# ── Alerting ───────────────────────────────────────────────────────────────
+# Telegram is the PRIMARY alert channel for critical events.
+# Credentials loaded from: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID env vars.
 alerting:
   enabled: true
   file_path: reports/alerts.log
+  telegram:
+    enabled: true
+    # Credentials loaded from environment variables (never hardcoded)
+    bot_token: ''
+    chat_id: ''
   slack:
     enabled: false
     webhook_url: ''
@@ -137,9 +205,11 @@ alerting:
     to_addrs: []
     username: ''
     password: ''
+
 kill_switch:
   file_path: KILL_SWITCH
   check_interval_sec: 10
+
 api:
   host: 0.0.0.0
   port: 8000

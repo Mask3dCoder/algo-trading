@@ -399,7 +399,7 @@ class PaperTrader:
 
             # Risk pre-trade check
             positions = self.broker.get_positions()
-            approval = self.risk.pre_trade_check(order, equity, positions)
+            approval = self.risk.pre_trade_check(order, equity, positions, market_prices={symbol: market_price})
             if not approval.approved:
                 log.warning("RISK REJECT order %s %s: %s", side.value.upper(), symbol, approval.reason)
                 return None

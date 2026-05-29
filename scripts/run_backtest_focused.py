@@ -136,7 +136,11 @@ def compute_signal_returns_with_trades(
         current_signals: dict[str, dict] = {}
 
         for s in signals:
-            weight = float(s.direction) * float(s.strength)
+            # Prefer size (true notional weight) over strength (conviction signal)
+            if hasattr(s, 'size') and s.size > 0:
+                weight = float(s.direction) * float(s.size)
+            else:
+                weight = float(s.direction) * float(s.strength)
             if s.direction != 0:
                 current_weights[s.symbol] = weight
                 current_signals[s.symbol] = {
@@ -149,10 +153,8 @@ def compute_signal_returns_with_trades(
             except (ValueError, IndexError):
                 continue
             weighted_ret += weight * float(asset_rets[idx, asset_idx])
-            total_weight += abs(float(s.strength))
 
-        if total_weight > 1e-10:
-            bar_rets[idx] = weighted_ret / total_weight
+        bar_rets[idx] = weighted_ret
 
         # Transaction cost
         if tc_bps > 0 and current_weights:

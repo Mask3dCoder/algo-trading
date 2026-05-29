@@ -138,6 +138,66 @@ async def status() -> dict[str, Any]:
     }
 
 
+@app.get("/api/strategies")
+async def strategies_status() -> dict[str, Any]:
+    """Per-strategy status: name, weight, equity, daily P&L, circuit breaker state.
+
+    Reads from per-strategy equity CSV files written by the production runner.
+    Returns a list of strategy objects with current metrics.
+    """
+    import pandas as pd
+
+    strategies = []
+    reports_dir = Path("reports")
+
+    # Read per-strategy equity files
+    for csv_file in sorted(reports_dir.glob("live_equity_*.csv")):
+        strategy_name = csv_file.stem.replace("live_equity_", "")
+        try:
+            df = pd.read_csv(csv_file)
+            if df.empty:
+                continue
+            last = df.iloc[-1]
+            strategies.append({
+                "name": strategy_name,
+                "date": str(last.get("date", "")),
+                "equity": float(last.get("equity", 0)),
+                "daily_pnl": float(last.get("daily_pnl", 0)),
+                "weight": float(last.get("weight", 0)),
+                "status": str(last.get("status", "unknown")),
+                "equity_history_length": len(df),
+            })
+        except Exception:
+            strategies.append({
+                "name": strategy_name,
+                "status": "error",
+                "error": "Could not read equity file",
+            })
+
+    # If no per-strategy files, read from config
+    if not strategies:
+        try:
+            import yaml
+            config_path = Path("config/live.yaml")
+            if config_path.exists():
+                with open(config_path) as f:
+                    config = yaml.safe_load(f)
+                for strat_cfg in config.get("strategies", []):
+                    strategies.append({
+                        "name": strat_cfg["name"],
+                        "weight": strat_cfg.get("weight", 0),
+                        "status": "enabled" if strat_cfg.get("enabled", True) else "disabled",
+                    })
+        except Exception:
+            pass
+
+    return {
+        "strategies": strategies,
+        "count": len(strategies),
+        "timestamp": datetime.now(UTC).isoformat(),
+    }
+
+
 @app.post("/kill-switch/activate")
 async def activate_kill_switch() -> dict[str, Any]:
     """Activate the kill switch — halts all trading immediately.

@@ -279,7 +279,13 @@ class TimeSeriesSplit:
 
 
 class PreprocessingPipeline:
-    """Chain of preprocessing steps applied in order."""
+    """Chain of preprocessing steps applied in order.
+
+    Supports separate fit/transform to prevent data leakage:
+      - fit(X_train): learn statistics from training data
+      - transform(X): apply learned statistics to new data
+      - fit_transform(X): convenience for training data only
+    """
 
     def __init__(
         self,
@@ -290,25 +296,60 @@ class PreprocessingPipeline:
         self.winsorize_limits = winsorize_limits
         self.impute_method = impute_method
         self.zscore = zscore
+        # Fitted statistics (set by fit())
+        self._fitted = False
+        self._winsor_lo: NDArray | None = None
+        self._winsor_hi: NDArray | None = None
+        self._impute_values: NDArray | None = None
+        self._zscore_mean: NDArray | None = None
+        self._zscore_std: NDArray | None = None
 
-    def fit_transform(self, features: NDArray) -> NDArray:
-        """Apply full preprocessing pipeline."""
-        result = features.copy()
+    def fit(self, features: NDArray) -> "PreprocessingPipeline":
+        """Learn preprocessing statistics from training data."""
+        result = features.copy().astype(float)
 
-        # 1. Winsorize
-        result = winsorize(result, limits=self.winsorize_limits, axis=0)
+        # 1. Winsorize — compute bounds from training data
+        self._winsor_lo = np.nanpercentile(result, self.winsorize_limits, axis=0)
+        self._winsor_hi = np.nanpercentile(result, 100.0 - self.winsorize_limits, axis=0)
 
-        # 2. Impute
+        # 2. Impute — compute medians from training data
         if self.impute_method == "median":
-            result = impute_median(result)
-        elif self.impute_method == "knn":
-            result = impute_knn(result)
+            self._impute_values = np.nanmedian(result, axis=0)
+        else:
+            self._impute_values = np.nanmedian(result, axis=0)
 
-        # 3. Cross-sectional z-score
+        # 3. Z-score — compute mean/std from training data
         if self.zscore:
-            result = cross_sectional_zscore(result)
+            self._zscore_mean = np.nanmean(result, axis=0)
+            self._zscore_std = np.nanstd(result, axis=0, ddof=1)
+            self._zscore_std = np.where(self._zscore_std < 1e-10, 1.0, self._zscore_std)
 
-        # 4. Replace remaining NaN with 0 (from partial history rows)
+        self._fitted = True
+        return self
+
+    def transform(self, features: NDArray) -> NDArray:
+        """Apply fitted preprocessing statistics to new data."""
+        result = features.copy().astype(float)
+
+        # 1. Winsorize using fitted bounds
+        if self._winsor_lo is not None and self._winsor_hi is not None:
+            result = np.clip(result, self._winsor_lo, self._winsor_hi)
+
+        # 2. Impute using fitted values
+        if self._impute_values is not None:
+            mask = np.isnan(result)
+            result[mask] = np.broadcast_to(self._impute_values, result.shape)[mask]
+
+        # 3. Z-score using fitted mean/std
+        if self.zscore and self._zscore_mean is not None and self._zscore_std is not None:
+            result = (result - self._zscore_mean) / self._zscore_std
+
+        # 4. Replace remaining NaN with 0
         result = np.nan_to_num(result, nan=0.0)
 
         return result
+
+    def fit_transform(self, features: NDArray) -> NDArray:
+        """Fit on training data and transform it. Use ONLY for training data."""
+        self.fit(features)
+        return self.transform(features)

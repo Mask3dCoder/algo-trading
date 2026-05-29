@@ -186,8 +186,8 @@ class LiveExecutionGateway:
                     "portfolio_value":  info.get("portfolio_value", self._cash),
                     "buying_power":     info.get("buying_power", self._cash * 2),
                 }
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("Alpaca get_account failed, using local state: %s", exc)
 
         # Fallback: compute from local positions
         pos_value = sum(
@@ -260,6 +260,50 @@ class LiveExecutionGateway:
     # ------------------------------------------------------------------
 
     def _submit_paper_order(self, order: Order, symbol: str) -> str:
+        # Route to Alpaca paper API so orders appear on the dashboard
+        if self._broker and self._connected:
+            try:
+                alpaca_id = self._submit_live_order(order)
+                if alpaca_id:
+                    # Create local record tracking the Alpaca order
+                    record = _PaperOrderRecord(
+                        symbol=symbol,
+                        side=order.side,
+                        quantity=order.quantity,
+                        order_type=order.type.value if order.type else "market",
+                        limit_price=float(order.limit_price) if order.limit_price else None,
+                    )
+                    record.id = alpaca_id
+                    # Fetch fill price from Alpaca
+                    try:
+                        alpaca_order = self._broker._client.get_order_by_id(alpaca_id)
+                        fill_price = float(alpaca_order.filled_avg_price or 0)
+                        if fill_price > 0:
+                            record.simulate_fill(fill_price)
+                            slippage = 0.0
+                        else:
+                            market_price = self._get_market_price(symbol)
+                            record.simulate_fill(market_price)
+                            slippage = market_price * 0.001
+                    except Exception:
+                        market_price = self._get_market_price(symbol)
+                        record.simulate_fill(market_price)
+                        slippage = market_price * 0.001
+
+                    # Sync positions from Alpaca after fill
+                    self._sync_positions_from_alpaca()
+
+                    self._paper_orders[record.id] = record
+                    self._orders[record.id] = self._order_to_typed(record)
+                    log.info(
+                        "PAPER→ALPACA: filled %s %s %s @ %.4f",
+                        record.id, record.side_str.upper(), symbol, record.filled_price,
+                    )
+                    return record.id
+            except Exception as exc:
+                log.warning("Alpaca paper submit failed (%s) — falling back to local sim", exc)
+
+        # Fallback: local simulation if Alpaca is unavailable
         record = _PaperOrderRecord(
             symbol=symbol,
             side=order.side,
@@ -268,16 +312,11 @@ class LiveExecutionGateway:
             limit_price=float(order.limit_price) if order.limit_price else None,
         )
 
-        # Get current market price from broker or data feed
         market_price = self._get_market_price(symbol)
-
-        # Compute notional — paper fills at market
         notional = float(order.quantity) * market_price
         if record.side == Side.SELL:
-            # Short sell: we receive cash on entry
             self._cash += notional
         else:
-            # Buy: deduct cash (T+0 in paper)
             if notional > self._cash + 1.0:
                 log.warning(
                     "PAPER: insufficient cash to fill %s — rejecting. "
@@ -290,12 +329,10 @@ class LiveExecutionGateway:
                 return record.id
             self._cash -= notional
 
-        # Simulate fill
-        slippage = market_price * 0.001  # 10 bp slippage model
+        slippage = market_price * 0.001
         fill_price = market_price + slippage if record.side == Side.BUY else market_price - slippage
         record.simulate_fill(fill_price)
 
-        # Update positions
         existing = self._positions.get(symbol)
         if existing:
             qty = float(existing.quantity)
@@ -325,11 +362,10 @@ class LiveExecutionGateway:
                 unrealized_pnl=Decimal("0"),
             )
 
-        # Persist order
         self._paper_orders[record.id] = record
         self._orders[record.id] = self._order_to_typed(record)
         log.info(
-            "PAPER: filled %s %s %s @ %.4f (slippage %.4f)",
+            "PAPER (local sim): filled %s %s %s @ %.4f (slippage %.4f)",
             record.id, record.side_str.upper(), symbol, fill_price, slippage,
         )
         return record.id
@@ -369,8 +405,8 @@ class LiveExecutionGateway:
             price = feed.get_latest_close(symbol)
             if price and price > 0:
                 return price
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("LiveDataFeed price fetch failed for %s: %s", symbol, exc)
 
         # Try Alpaca broker
         if self._broker:
@@ -379,8 +415,8 @@ class LiveExecutionGateway:
                 pos = positions.get(symbol)
                 if pos:
                     return float(pos.market_price)
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("Broker position price lookup failed for %s: %s", symbol, exc)
 
             try:
                 import urllib.request
@@ -390,17 +426,17 @@ class LiveExecutionGateway:
                 }
                 data_base = os.environ.get(
                     "ALPACA_BASE_URL", "https://paper-api.alpaca.markets"
-                ).replace("paper-api.", "data.") + f"/v2/stocks/{symbol}/bars"
-                from urllib.parse import urlencode
-                url = f"{data_base}?{urlencode({'limit': '1', 'adjustment': 'all'})}"
+                ).replace("paper-api.", "data.")
+                url = f"{data_base.rstrip('/')}/v2/stocks/{symbol}/bars/latest"
                 req = urllib.request.Request(url, headers=headers)
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     import json
-                    bars = json.loads(resp.read().decode()).get("bars", {}).get(symbol, [])
-                    if bars:
-                        return float(bars[-1].get("c", 100.0))
-            except Exception:
-                pass
+                    result = json.loads(resp.read().decode())
+                    bar = result.get("bar", {})
+                    if bar:
+                        return float(bar.get("c", 100.0))
+            except Exception as exc:
+                log.debug("Alpaca bars/latest failed for %s: %s", symbol, exc)
 
         log.warning("Could not fetch price for %s — falling back to $100.00", symbol)
         return 100.0
@@ -432,3 +468,15 @@ class LiveExecutionGateway:
             )
         except Exception as exc:
             log.warning("Could not sync from Alpaca broker: %s", exc)
+
+    def _sync_positions_from_alpaca(self) -> None:
+        """Pull latest positions and cash from Alpaca after a fill."""
+        if not self._broker:
+            return
+        try:
+            info = self._broker.get_account_sync()
+            self._cash = float(info.get("cash", self._cash))
+            positions = self._broker.get_positions_sync()
+            self._positions = {str(k): v for k, v in positions.items()}
+        except Exception as exc:
+            log.debug("Could not sync positions from Alpaca: %s", exc)

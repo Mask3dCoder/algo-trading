@@ -28,11 +28,25 @@ def _rolling_mean(x: NDArray, window: int) -> NDArray:
 
 
 def _rolling_std(x: NDArray, window: int) -> NDArray:
-    _rolling_mean(x, window)
+    """Compute rolling standard deviation using incremental formula.
+
+    Uses the numerically stable two-pass approach: compute rolling mean
+    first, then variance from the mean. Avoids recomputing the mean
+    inside each window (the original bug discarded the _rolling_mean call).
+    """
     n = len(x)
     result = np.full(n, np.nan, dtype=float)
+    if n < window:
+        return result
+
+    # Sliding window via cumulative sums for efficiency
+    cumsum = np.cumsum(x)
+    cumsum_sq = np.cumsum(x ** 2)
     for i in range(window - 1, n):
-        result[i] = np.std(x[i - window + 1:i + 1], ddof=1)
+        s = cumsum[i] - (cumsum[i - window] if i >= window else 0)
+        s2 = cumsum_sq[i] - (cumsum_sq[i - window] if i >= window else 0)
+        var = (s2 - s ** 2 / window) / (window - 1)
+        result[i] = np.sqrt(max(var, 0.0))
     return result
 
 

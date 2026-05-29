@@ -175,26 +175,60 @@ def basket_spread_signal(
     prices_b: NDArray,
     hedge_ratio: float | None = None,
     lookback: int = 60,
+    min_ols_window: int = 252,
 ) -> NDArray:
     """Z-score of spread between two price series (for basket arbitrage).
 
-    If hedge_ratio is None, estimate via OLS on available data.
+    If hedge_ratio is None, estimate via CAUSAL expanding-window OLS
+    (only uses data up to time t, no look-ahead).
     """
     n = len(prices_a)
-    if hedge_ratio is None:
-        # OLS estimate
-        valid = ~(np.isnan(prices_a) | np.isnan(prices_b))
-        if np.sum(valid) < 30:
-            return np.full(n, np.nan, dtype=float)
-        y = prices_a[valid]
-        x = prices_b[valid]
-        x_mean = np.mean(x)
-        y_mean = np.mean(y)
-        ss_xy = np.sum((x - x_mean) * (y - y_mean))
-        ss_xx = np.sum((x - x_mean) ** 2)
-        hedge_ratio = ss_xy / ss_xx if ss_xx > 0 else 1.0
 
-    spread = prices_a - hedge_ratio * prices_b
+    if hedge_ratio is not None:
+        # Fixed hedge ratio provided — no estimation needed
+        spread = prices_a - hedge_ratio * prices_b
+        return spread_zscore(spread, lookback)
+
+    # Causal expanding-window OLS: at each time t, estimate hedge_ratio
+    # using only data from 0..t (no future data)
+    result = np.full(n, np.nan, dtype=float)
+    hr = np.full(n, np.nan, dtype=float)
+
+    # Accumulate OLS statistics incrementally (causal)
+    sum_x = 0.0
+    sum_y = 0.0
+    sum_xx = 0.0
+    sum_xy = 0.0
+    count = 0
+
+    for i in range(n):
+        if np.isnan(prices_a[i]) or np.isnan(prices_b[i]):
+            hr[i] = hr[i - 1] if i > 0 and not np.isnan(hr[i - 1]) else 1.0
+            continue
+
+        count += 1
+        sum_x += prices_b[i]
+        sum_y += prices_a[i]
+        sum_xx += prices_b[i] ** 2
+        sum_xy += prices_b[i] * prices_a[i]
+
+        if count < min_ols_window:
+            # Not enough data yet — use default ratio
+            hr[i] = hr[i - 1] if i > 0 and not np.isnan(hr[i - 1]) else 1.0
+        else:
+            # OLS: beta = (n*sum_xy - sum_x*sum_y) / (n*sum_xx - sum_x^2)
+            denom = count * sum_xx - sum_x ** 2
+            if abs(denom) > 1e-10:
+                hr[i] = (count * sum_xy - sum_x * sum_y) / denom
+            else:
+                hr[i] = hr[i - 1] if i > 0 and not np.isnan(hr[i - 1]) else 1.0
+
+    # Compute spread using causal hedge ratios
+    spread = np.full(n, np.nan, dtype=float)
+    for i in range(n):
+        if not np.isnan(prices_a[i]) and not np.isnan(prices_b[i]) and not np.isnan(hr[i]):
+            spread[i] = prices_a[i] - hr[i] * prices_b[i]
+
     return spread_zscore(spread, lookback)
 
 

@@ -126,32 +126,35 @@ class MultiFactorStrategy(Strategy):
         return _zscore(score)
 
     def _estimate_ics(self, close: NDArray) -> dict[str, float]:
-        """Estimate rolling IC for each factor (rank correlation with forward returns).
+        """Estimate trailing IC for each factor (rank correlation with PAST returns).
 
-        Simplified: uses last quarter's data.
+        Uses trailing returns (not forward) to avoid look-ahead bias.
+        At time t, correlates factor scores with returns from t-63 to t.
         """
         n_periods, n_assets = close.shape
-        fwd_days = 21
-        if n_periods < self.lookback + fwd_days:
+        ic_window = 63  # 1 quarter of trailing returns
+        if n_periods < self.lookback + ic_window:
             return {"value": 0.1, "momentum": 0.1, "quality": 0.1, "lowvol": 0.1}
 
-        # Forward returns
-        end_idx = n_periods - fwd_days
-        start_idx = max(self.lookback, end_idx - 63)
-        if end_idx <= start_idx:
+        # Trailing returns (t-ic_window to t-1, then t-1 to t)
+        # Use the trailing ic_window-day return as the "realized" return
+        ret_end = n_periods - 1
+        ret_start = max(0, ret_end - ic_window)
+        if ret_end <= ret_start or ret_start < 0:
             return {"value": 0.1, "momentum": 0.1, "quality": 0.1, "lowvol": 0.1}
 
-        fwd_rets = np.zeros(n_assets)
+        trailing_rets = np.zeros(n_assets)
         for a in range(n_assets):
-            if close[end_idx, a] > 0 and close[end_idx + fwd_days - 1, a] > 0:
-                fwd_rets[a] = close[end_idx + fwd_days - 1, a] / close[end_idx, a] - 1.0
+            if close[ret_start, a] > 0 and close[ret_end, a] > 0:
+                trailing_rets[a] = close[ret_end, a] / close[ret_start, a] - 1.0
 
-        fwd_rank = np.argsort(np.argsort(fwd_rets)).astype(float)
+        trailing_rank = np.argsort(np.argsort(trailing_rets)).astype(float)
 
-        vc = self._value_signal(close)
-        mc = self._momentum_signal(close)
-        qc = self._quality_signal(close)
-        lc = self._lowvol_signal(close)
+        # Get factor scores computed from data up to time t (causal)
+        vc = self._value_signal(close[:n_periods])
+        mc = self._momentum_signal(close[:n_periods])
+        qc = self._quality_signal(close[:n_periods])
+        lc = self._lowvol_signal(close[:n_periods])
 
         def _spearman(x: NDArray, y: NDArray) -> float:
             rx = np.argsort(np.argsort(x)).astype(float)
@@ -162,10 +165,10 @@ class MultiFactorStrategy(Strategy):
             return 1.0 - 6.0 * np.sum(d ** 2) / (n * (n ** 2 - 1))
 
         return {
-            "value": _spearman(vc, fwd_rank),
-            "momentum": _spearman(mc, fwd_rank),
-            "quality": _spearman(qc, fwd_rank),
-            "lowvol": _spearman(lc, fwd_rank),
+            "value": _spearman(vc, trailing_rank),
+            "momentum": _spearman(mc, trailing_rank),
+            "quality": _spearman(qc, trailing_rank),
+            "lowvol": _spearman(lc, trailing_rank),
         }
 
     def on_data(self, data: dict[str, NDArray]) -> list[TradeSignal]:

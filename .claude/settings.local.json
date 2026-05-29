@@ -157,7 +157,17 @@
       "Bash(.venv/Scripts/python.exe -c \"from alpaca.data.historical import OptionHistoricalDataClient; print\\('OptionHistoricalDataClient available'\\)\")",
       "Bash(Select-Object Id, StartTime, CommandLine)",
       "Bash(Format-Table -AutoSize)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "mcp__yahoo-finance__get_stock_info",
+      "mcp__yahoo-finance__get_historical_prices",
+      "mcp__yahoo-finance__get_recommendations",
+      "Bash(dir \"c:\\\\Users\\\\rochv\\\\OneDrive\\\\projetcs\\\\algo sw\\\\data\\\\options\\\\SPY\")",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s http://localhost:8000/strategies)",
+      "Bash(curl -s http://localhost:8000/equity)",
+      "Bash(curl -s http://localhost:8000/status)",
+      "mcp__filesystem__create_directory"
     ]
   },
   "enableAllProjectMcpServers": true,

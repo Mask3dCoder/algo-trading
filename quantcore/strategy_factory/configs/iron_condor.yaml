@@ -10,7 +10,7 @@ description: >
   IV rank is elevated (above 40). 30-45 DTE entry window. Adjusts
   threatened wing when price approaches short strike within 3%.
   Exits at 50% profit target, 200% max loss, or DTE < 7.
-status: active
+status: ready
 
 signal:
   formula: "iv_rank(252)"

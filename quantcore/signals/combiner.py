@@ -72,7 +72,7 @@ def ic_weight_combine(
     result = np.full(n, np.nan, dtype=float)
 
     # Compute rolling IC for each signal
-    np.zeros((n, n_signals), dtype=float)
+    rolling_ics = np.zeros((n, n_signals), dtype=float)
 
     for i in range(lookback - 1, n):
         window_start = i - lookback + 1
@@ -89,6 +89,7 @@ def ic_weight_combine(
 
             corr = np.corrcoef(sig_window[valid], fr_window[valid])[0, 1]
             ic = corr if not np.isnan(corr) else 0.0
+            rolling_ics[i, s_idx] = ic
 
             # Use absolute IC, keep sign for potential flip
             if abs(ic) >= ic_floor:
@@ -144,7 +145,7 @@ def stacking_combine(
         return np.array([], dtype=float)
 
     n = len(signals[0])
-    len(signals)
+    n_signals = len(signals)
     result = np.full(n, np.nan, dtype=float)
 
     for i in range(lookback - 1, n):

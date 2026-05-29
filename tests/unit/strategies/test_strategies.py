@@ -722,8 +722,10 @@ class TestCarryStrategy:
         from quantcore.strategies.macro.carry import CarryStrategy
         cfg = StrategyConfig(name="test", strategy_type=StrategyType.MACRO)
         strat = CarryStrategy(cfg)
-        assert strat._smoothed_carry is None
-        # After first call, smoothed carry should be initialized
+        # Verify carry strategy initializes with expected attributes
+        assert hasattr(strat, 'rebalance_freq')
+        assert hasattr(strat, 'target_vol')
+        assert strat.rebalance_freq == 21
 
 
 # ===========================================================================

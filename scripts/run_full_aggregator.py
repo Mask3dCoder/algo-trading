@@ -45,6 +45,11 @@ from quantcore.strategy_factory.configurable_strategy import (
 )
 from quantcore.strategies.base import StrategyConfig, StrategyType
 from quantcore.strategies.registry import get as get_strategy_class
+
+# Import strategy modules to trigger @register decorators
+import quantcore.strategies.macro.cross_sectional_momentum  # noqa: F401
+import quantcore.strategies.equity.tsmom  # noqa: F401
+import quantcore.strategies.equity.cross_sectional_momentum  # noqa: F401
 from scripts.real_data_loader import UNIVERSES, load_universe
 from quantcore.data.intraday_loader import AlpacaIntradayLoader
 from scripts.run_backtest_focused import (
@@ -65,18 +70,25 @@ STRATEGY_DEFS: dict[str, dict] = {
         "universe": "expanded_15",
         "warmup_bars": 60,
     },
-    "macro_state_selective_momentum": {
+    "equity_tsmom": {
         "type": "framework",
         "data_source": "daily",
         "universe": "expanded_15",
         "warmup_bars": 60,
     },
-    "pairs_trading_intraday": {
-        "type": "factory",
-        "data_source": "intraday",
+    "equity_cross_sectional_momentum": {
+        "type": "framework",
+        "data_source": "daily",
         "universe": "expanded_15",
-        "bar_size": "5min",
+        "warmup_bars": 60,
     },
+}
+
+# Static weights from honest sweep (config/live.yaml)
+STATIC_WEIGHTS: dict[str, float] = {
+    "macro_cross_sectional_momentum": 0.571,
+    "equity_tsmom": 0.391,
+    "equity_cross_sectional_momentum": 0.038,
 }
 
 
@@ -196,8 +208,8 @@ def run_single_strategy(
         ts_idx = ts_idx.tz_convert("UTC").tz_localize(None)
     ts_series = pd.Series(bar_returns, index=ts_idx)
     daily_rets = ts_series.resample("D").apply(lambda x: (1 + x).prod() - 1).dropna()
-    # Clip extreme daily returns — intraday compounding artifacts
-    daily_rets = daily_rets.clip(-0.05, 0.05)
+    # Clip only genuine data errors (not strategy returns)
+    daily_rets = daily_rets.clip(-0.15, 0.15)
 
     # Compute equity and metrics from clipped daily returns
     equity = build_equity_curve(daily_rets.values, initial=1_000_000.0)
@@ -315,7 +327,7 @@ def walk_forward_combine(
         else:
             # Use raw (unclipped) returns for weight computation — true volatility
             train_data = raw_matrix[:train_end]
-            weights = _compute_weights(train_data, method, rf_daily)
+            weights = _compute_weights(train_data, method, rf_daily, strat_names)
 
         # Test period
         test_data = returns_matrix[test_start:test_end]
@@ -364,9 +376,23 @@ def walk_forward_combine(
     }
 
 
-def _compute_weights(returns_matrix: np.ndarray, method: str, rf_daily: float) -> np.ndarray:
+def _compute_weights(
+    returns_matrix: np.ndarray,
+    method: str,
+    rf_daily: float,
+    strat_names: list[str] | None = None,
+) -> np.ndarray:
     """Compute portfolio weights for a training window."""
     n_strats = returns_matrix.shape[1]
+
+    if method == "static":
+        # Fixed weights from honest sweep config
+        if strat_names:
+            w = np.array([STATIC_WEIGHTS.get(name, 1.0 / n_strats) for name in strat_names])
+        else:
+            w = np.ones(n_strats) / n_strats
+        total = w.sum()
+        return w / total if total > 0 else np.ones(n_strats) / n_strats
 
     if method == "equal_weight":
         return np.ones(n_strats) / n_strats
@@ -382,6 +408,13 @@ def _compute_weights(returns_matrix: np.ndarray, method: str, rf_daily: float) -
         df = pd.DataFrame(returns_matrix)
         weights_dict = compute_hrp_weights(df)
         w = np.array([weights_dict.get(i, 0.0) for i in range(n_strats)])
+        total = w.sum()
+        return w / total if total > 0 else np.ones(n_strats) / n_strats
+
+    if method == "black_litterman":
+        from quantcore.portfolio.black_litterman import compute_bl_weights
+        df = pd.DataFrame(returns_matrix)
+        w = compute_bl_weights(df)
         total = w.sum()
         return w / total if total > 0 else np.ones(n_strats) / n_strats
 
@@ -529,7 +562,7 @@ def main() -> int:
     parser.add_argument("--start", default="2024-01-01", help="Backtest start date")
     parser.add_argument("--end", default="2024-12-31", help="Backtest end date")
     parser.add_argument("--method", default="risk_parity",
-                        choices=["mean_variance", "risk_parity", "equal_weight", "hrp"],
+                        choices=["static", "mean_variance", "risk_parity", "equal_weight", "hrp", "black_litterman"],
                         help="Weight combination method")
     parser.add_argument("--tc-bps", type=float, default=5.0, help="Transaction cost bps")
     parser.add_argument("--rf", type=float, default=0.04, help="Risk-free rate")

@@ -11,7 +11,7 @@ description: >
   Profits during market crashes (COVID, GFC-type events) while
   having minimal drag during normal markets. Systematic roll
   at 7 DTE to maintain continuous protection.
-status: active
+status: ready
 
 signal:
   formula: "constant_allocation"

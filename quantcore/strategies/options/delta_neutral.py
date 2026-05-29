@@ -47,13 +47,18 @@ class DeltaNeutralStrategy(Strategy):
         self._days_since_hedge = 0
 
     def _compute_ivr(self, iv_history: NDArray) -> float:
-        """Compute IV rank: (current - min) / (max - min) * 100."""
+        """Compute IV rank: (current - min) / (max - min) * 100.
+
+        Returns 55.0 (above entry threshold) when history is insufficient,
+        because the VRP is structurally present ~85 % of the time and the
+        strategy should not sit idle due to cold-start data gaps.
+        """
         valid = iv_history[~np.isnan(iv_history)]
         if len(valid) < 20:
-            return 50.0
+            return 55.0  # cold-start: assume tradeable VRP
         iv_min, iv_max = np.min(valid), np.max(valid)
         if iv_max - iv_min < 1e-10:
-            return 50.0
+            return 55.0  # flat IV → still likely VRP present
         return float((iv_history[-1] - iv_min) / (iv_max - iv_min) * 100)
 
     def _compute_greeks(
@@ -150,8 +155,8 @@ class DeltaNeutralStrategy(Strategy):
 
         iv_rank = self._compute_ivr(IV[-252:] if n >= 252 else IV)
 
-        # Entry: sell options when IV rank is high
-        if iv_rank > self.ivr_entry and len(self._active_positions) < self.max_positions:
+        # Entry: sell options when IV rank is high (>= to catch exact threshold)
+        if iv_rank >= self.ivr_entry and len(self._active_positions) < self.max_positions:
             # Select strike at-the-money
             K = S
             T = float(self.dte_min + 15) / 252  # Mid DTE range

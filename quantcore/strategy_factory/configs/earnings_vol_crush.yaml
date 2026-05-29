@@ -16,7 +16,7 @@ description: >
   high-IV-rank underlyings before earnings announcements, profiting
   from the post-earnings IV collapse. Uses tight DTE (5-14 days)
   to maximize theta decay. Exits immediately after earnings release.
-status: active
+status: ready
 
 signal:
   formula: "earnings_iv_premium"

@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir ".[dev,stats,data]" 2>/dev/null || \
     exchange-calendars fastapi uvicorn schedule pyyaml alpaca-py requests psutil
 # pyarrow is required for parquet caching in live data feed
 RUN pip install --no-cache-dir pyarrow
+# yfinance is required for VIX data feed (options strategies)
+# python-dotenv is required for .env loading in broker
+RUN pip install --no-cache-dir yfinance python-dotenv
 
 # Copy source
 COPY quantcore/ quantcore/

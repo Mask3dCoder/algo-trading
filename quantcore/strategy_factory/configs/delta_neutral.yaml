@@ -9,7 +9,7 @@ description: >
   (IV > RV) when IV rank exceeds entry threshold, then delta-hedges
   with the underlying. Gamma scalping via daily delta rebalancing.
   Full P&L decomposition into delta, gamma, vega, theta components.
-status: active
+status: ready
 
 signal:
   formula: "iv_rank(252)"

@@ -210,14 +210,17 @@ class LiveDataFeed:
             import urllib.request
             from urllib.parse import urlencode
 
-            calendar_url = base.replace("paper-api.", "").rstrip("/") + "/v2/calendar"
+            calendar_url = base.rstrip("/") + "/v2/calendar"
             params = urlencode({"start": date.today().isoformat(), "end": date.today().isoformat()})
             req = urllib.request.Request(f"{calendar_url}?{params}", headers=headers)
             with urllib.request.urlopen(req, timeout=10) as resp:
                 import json
-                calendars = json.loads(resp.read().decode()).get("calendars", [])
+                data = json.loads(resp.read().decode())
+                # API returns a list of calendar days directly
+                calendars = data if isinstance(data, list) else data.get("calendars", [])
                 if calendars:
-                    return bool(calendars[0].get("is_open"))
+                    # If today's calendar entry exists, market is a trading day
+                    return True
         except Exception as exc:
             log.warning("is_market_open() check failed, assuming market open: %s", exc)
         return True  # degrade open — let strategies decide based on data availability

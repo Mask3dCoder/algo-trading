@@ -2,6 +2,8 @@
 
 from quantcore.strategies.equity.cross_sectional_momentum import CrossSectionalMomentumStrategy
 from quantcore.strategies.equity.earnings_momentum import EarningsMomentumStrategy
+from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+from quantcore.strategies.equity.idiosyncratic_momentum import IdiosyncraticMomentumStrategy
 from quantcore.strategies.equity.low_volatility import LowVolatilityStrategy
 from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
 from quantcore.strategies.equity.momentum import MomentumStrategy
@@ -10,6 +12,7 @@ from quantcore.strategies.equity.multifactor_composite import MultiFactorComposi
 from quantcore.strategies.equity.opening_gap_fade import OpeningGapFadeStrategy
 from quantcore.strategies.equity.quality_factor import QualityFactorStrategy
 from quantcore.strategies.equity.quality_factor_rmw_cma import QualityRMWCMAStrategy
+from quantcore.strategies.equity.short_term_reversal import ShortTermReversalStrategy
 from quantcore.strategies.equity.stat_arb import StatArbStrategy
 from quantcore.strategies.equity.trend_following import TrendFollowingStrategy
 from quantcore.strategies.equity.tsmom import TSMOMStrategy
@@ -21,6 +24,8 @@ from quantcore.strategies.equity.volume_profile import VolumeProfileStrategy
 __all__ = [
     "CrossSectionalMomentumStrategy",
     "EarningsMomentumStrategy",
+    "FullUniverseCrossSectionalMomentum",
+    "IdiosyncraticMomentumStrategy",
     "LowVolatilityStrategy",
     "MeanReversionStrategy",
     "MomentumStrategy",
@@ -29,6 +34,7 @@ __all__ = [
     "OpeningGapFadeStrategy",
     "QualityFactorStrategy",
     "QualityRMWCMAStrategy",
+    "ShortTermReversalStrategy",
     "StatArbStrategy",
     "TrendFollowingStrategy",
     "TSMOMStrategy",

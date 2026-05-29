@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
 from quantcore.core.cash import CashLedger
+
+log = logging.getLogger(__name__)
 from quantcore.core.types import PortfolioSnapshot, Position, Side
 from quantcore.execution.oms import OrderManager, market_order
 from quantcore.live.reconciliation_guard import GuardState, ReconciliationGuard
@@ -215,7 +218,8 @@ class LiveTrader:
             return
         try:
             signals = self.strategy.generate_signals(self.data_provider)
-        except Exception:
+        except Exception as exc:
+            log.error("Signal generation failed: %s", exc)
             return
         self._last_signal = datetime.now(UTC)
         for sig in signals:
@@ -302,8 +306,8 @@ class LiveTrader:
                     self._cash_ledger.add_cash(diff)
                 self._cash = self._cash_ledger.settled_cash
                 self._positions = self.broker.get_positions()
-            except Exception:
-                pass
+            except Exception as exc:
+                log.error("Portfolio sync failed: %s", exc)
         from quantcore.core.health_state import set_open_positions_count
         set_open_positions_count(len(self._positions))
 
@@ -312,8 +316,8 @@ class LiveTrader:
             try:
                 acct = self.broker.get_account()
                 return float(acct.get("portfolio_value", acct.get("equity", 0)))
-            except Exception:
-                pass
+            except Exception as exc:
+                log.debug("Broker get_account failed, using local state: %s", exc)
         return self._cash + sum(
             float(abs(p.quantity)) * float(p.market_price)
             for p in self._positions.values()

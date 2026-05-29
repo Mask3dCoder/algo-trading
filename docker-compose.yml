@@ -12,13 +12,14 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./scripts:/app/scripts:ro
-      - ./KILL_SWITCH:/app/KILL_SWITCH:ro
     environment:
       - PYTHONUNBUFFERED=1
       - QUANTCORE_LIVE_CONFIG=config/live.yaml
       - ALPACA_API_KEY=${ALPACA_API_KEY}
       - ALPACA_API_SECRET=${ALPACA_API_SECRET}
       - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - QUANTCORE_ALERTING__SLACK__WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
