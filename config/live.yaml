@@ -1,219 +1,146 @@
-# QuantCore Production Configuration
-# -----------------------------------
-# All thresholds use sensible defaults. Override via environment variables
-# with the QUANTCORE_ prefix (e.g. QUANTCORE_BROKER__API_KEY).
+# Diagnostic Review: 2026-05-29
+# ACTIVE: Delta Neutral Realistic VRP (WF Sharpe +1.30, CI_low +0.33, MaxDD 15.4%, PF 4.40)
+# Uses VIX as IV proxy, includes bid/ask costs, delta hedging, gamma P&L via BSM MTM
+# Risk: 1% equity per trade, 30 DTE entry, 5 DTE exit, VIX > 15 entry threshold
 
-# ── Broker ──────────────────────────────────────────────────────────────
 broker:
-  type: paper                    # paper | alpaca | ibkr
+  type: paper
   alpaca:
-    api_key: ""                  # or set QUANTCORE_BROKER__ALPACA__API_KEY
-    secret_key: ""
-    base_url: "https://paper-api.alpaca.markets"
+    api_key: ''
+    secret_key: ''
+    base_url: https://paper-api.alpaca.markets
   ibkr:
-    host: "127.0.0.1"
+    host: 127.0.0.1
     port: 7497
     client_id: 1
-    account_id: ""
+    account_id: ''
     timeout: 30
     readonly: false
-
-# ── Strategies ──────────────────────────────────────────────────────────
-# Each entry maps to a @register(name) strategy in quantcore.strategies.
-# params are passed to StrategyConfig.params.
-# Weight allocation: macro 0.35, equity 0.55, intraday 0.10
 strategies:
-  # -- Macro (daily) ───────────────────────────────────────────────────
-  - name: macro_cross_sectional_momentum
-    enabled: true
-    weight: 0.12
-    data_source: alpaca_daily
-    params: {}
-
-  - name: macro_state_selective_momentum
-    enabled: true
-    weight: 0.12
-    data_source: alpaca_daily
-    params: {}
-
-  - name: macro_factor_residual_v3
-    enabled: true
-    weight: 0.11
-    data_source: alpaca_daily
-    params: {}
-
-  # -- Equity (daily) ──────────────────────────────────────────────────
-  - name: equity_mean_reversion
-    enabled: true
-    weight: 0.15
-    data_source: alpaca_daily
-    params: {}
-
-  - name: equity_cross_sectional_momentum
-    enabled: true
-    weight: 0.10
-    data_source: alpaca_daily
-    params: {}
-
-  - name: equity_trend_following
-    enabled: true
-    weight: 0.10
-    data_source: alpaca_daily
-    params: {}
-
-  - name: equity_tsmom
-    enabled: true
-    weight: 0.10
-    data_source: alpaca_daily
-    params: {}
-
-  # -- Equity (intraday) ───────────────────────────────────────────────
-  - name: equity_stat_arb
-    enabled: true
-    weight: 0.10
-    data_source: alpaca_intraday
-    bar_size: 5min
-    params:
-      lookback: 120
-      entry_z: 2.0
-      exit_z: 0.5
-      max_pairs: 5
-      rescan_freq: 20
-
-  - name: opening_gap_fade
-    enabled: true
-    weight: 0.10
-    data_source: alpaca_intraday_gap_fade
-    bar_size: 5min
-    params:
-      gap_threshold_pct: 2.0
-      exit_minutes: 30
-      retracement_target: 0.50
-      max_positions: 10
-      max_position_pct: 0.05
-      min_adv_dollars: 10000000
-      min_price: 10.0
-      stop_loss_pct: 1.5
-
-# ── Universe ────────────────────────────────────────────────────────────
-# 6 macro assets + 50 S&P 500 stocks for gap-fade strategy
+- name: delta_neutral_realistic
+  enabled: true
+  weight: 1.0
+  data_source: yfinance_vix
+  params:
+    vix_min_entry: 15.0
+    dte_entry: 30
+    dte_exit: 5
+    profit_target_pct: 0.50
+    risk_per_trade_pct: 0.01
+    max_loss_mult: 3.0
+    entry_interval_days: 21
+    delta_hedge_threshold: 5.0
+    option_bid_ask_pct: 0.05
+    hedge_slippage_bps: 5.0
+    risk_free_rate: 0.04
+    underlying: SPY
 universe:
   tickers:
-    # Macro assets (used by CSM, SSM, stat_arb)
-    - SPY
-    - QQQ
-    - IWM
-    - GLD
-    - TLT
-    - DBC
-    # S&P 500 stocks (used by opening_gap_fade)
-    - AAPL
-    - MSFT
-    - AMZN
-    - NVDA
-    - GOOGL
-    - META
-    - TSLA
-    - BRK.B
-    - UNH
-    - JNJ
-    - V
-    - XOM
-    - JPM
-    - PG
-    - MA
-    - HD
-    - CVX
-    - MRK
-    - LLY
-    - ABBV
-    - PFE
-    - KO
-    - AVGO
-    - PEP
-    - COST
-    - TMO
-    - MCD
-    - WMT
-    - CSCO
-    - ACN
-    - ABT
-    - DHR
-    - LIN
-    - TXN
-    - NEER
-    - UPS
-    - RTX
-    - QCOM
-    - PM
-    - HON
-    - LOW
-    - AMGN
-    - INTU
-    - BA
-    - GE
-    - CAT
-    - SBUX
-    - ISRG
-    - AMD
-    - PLD
-  macro_assets: ["SPY", "QQQ", "IWM", "GLD", "TLT", "DBC"]
-
-# ── Risk ────────────────────────────────────────────────────────────────
+  - SPY
+  - QQQ
+  - IWM
+  - GLD
+  - TLT
+  - DBC
+  - AAPL
+  - MSFT
+  - AMZN
+  - NVDA
+  - GOOGL
+  - META
+  - TSLA
+  - BRK.B
+  - UNH
+  - JNJ
+  - V
+  - XOM
+  - JPM
+  - PG
+  - MA
+  - HD
+  - CVX
+  - MRK
+  - LLY
+  - ABBV
+  - PFE
+  - KO
+  - AVGO
+  - PEP
+  - COST
+  - TMO
+  - MCD
+  - WMT
+  - CSCO
+  - ACN
+  - ABT
+  - DHR
+  - LIN
+  - TXN
+  - NEER
+  - UPS
+  - RTX
+  - QCOM
+  - PM
+  - HON
+  - LOW
+  - AMGN
+  - INTU
+  - BA
+  - GE
+  - CAT
+  - SBUX
+  - ISRG
+  - AMD
+  - PLD
+  macro_assets:
+  - SPY
+  - QQQ
+  - IWM
+  - GLD
+  - TLT
+  - DBC
 risk:
   max_position_per_ticker_pct: 0.05
   max_gross_exposure_pct: 2.0
   max_daily_loss_pct: 0.02
-  max_drawdown_pct: 0.10
+  max_drawdown_pct: 0.1
   max_single_order_pct: 0.05
   max_leverage: 2.0
-
   circuit_breaker:
     daily_loss_pct: 0.02
-    critical_drawdown_pct: 0.10
+    critical_drawdown_pct: 0.1
     consecutive_rejections: 5
-
-# ── Execution ───────────────────────────────────────────────────────────
 execution:
-  scale_mode: fractional         # single_share | fractional | full
+  scale_mode: fractional
   initial_cash: 100000.0
   slippage_bps: 5
   commission_per_share: 0.005
-
-# ── Schedule ────────────────────────────────────────────────────────────
 schedule:
-  trading_time: "16:15"          # ET — daily signal evaluation
-  reconciliation_time: "16:30"   # ET — post-market reconciliation
-  timezone: "US/Eastern"
-
-# ── Monitoring & Alerting ───────────────────────────────────────────────
+  trading_time: '16:15'
+  reconciliation_time: '16:30'
+  timezone: US/Eastern
 monitoring:
   health_check_interval_sec: 60
-  log_file: "reports/live_events.jsonl"
-  equity_file: "reports/live_equity.csv"
-
+  log_file: reports/live_events.jsonl
+  equity_file: reports/live_equity.csv
 alerting:
   enabled: true
-  file_path: "reports/alerts.log"
+  file_path: reports/alerts.log
   slack:
     enabled: false
-    webhook_url: ""              # or set QUANTCORE_ALERTING__SLACK__WEBHOOK_URL
+    webhook_url: ''
   email:
     enabled: false
-    smtp_host: ""
+    smtp_host: ''
     smtp_port: 587
-    from_addr: ""
+    from_addr: ''
     to_addrs: []
-    username: ""
-    password: ""                 # or set QUANTCORE_ALERTING__EMAIL__PASSWORD
-
-# ── Kill Switch ─────────────────────────────────────────────────────────
+    username: ''
+    password: ''
 kill_switch:
-  file_path: "KILL_SWITCH"       # create this file to halt trading
+  file_path: KILL_SWITCH
   check_interval_sec: 10
-
-# ── API Server ──────────────────────────────────────────────────────────
 api:
-  host: "0.0.0.0"
+  host: 0.0.0.0
   port: 8000
   enabled: true
