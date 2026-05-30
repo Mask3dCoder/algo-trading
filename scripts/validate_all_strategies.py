@@ -280,6 +280,8 @@ def _compute_signal_returns(
     end: int,
     timestamps: list | None = None,
     tc_bps: float = 5.0,
+    spread_bps: float = 5.0,
+    impact_bps: float = 10.0,
 ) -> tuple[np.ndarray, list[dict]]:
     """Compute bar-level signal-weighted returns with trade tracking."""
     if end - start < 2:
@@ -342,15 +344,17 @@ def _compute_signal_returns(
 
         bar_rets[idx] = weighted_ret
 
-        # Transaction cost
-        if tc_bps > 0 and current_weights:
+        # Realistic transaction cost: bid-ask spread + market impact
+        # Total cost bps = spread_bps + impact_bps (e.g. 5 + 10 = 15 bps)
+        if (tc_bps > 0 or spread_bps > 0 or impact_bps > 0) and current_weights:
             turnover = 0.0
             all_syms = set(carried_weights.keys()) | set(current_weights.keys())
             for sym in all_syms:
                 prev_w = carried_weights.get(sym, 0.0)
                 curr_w = current_weights.get(sym, 0.0)
                 turnover += abs(curr_w - prev_w)
-            bar_rets[idx] -= turnover * tc_bps / 10_000.0
+            total_cost_bps = tc_bps + spread_bps + impact_bps
+            bar_rets[idx] -= turnover * total_cost_bps / 10_000.0
 
         # Trade tracking
         if current_signals:
@@ -409,6 +413,8 @@ def _run_walk_forward(
     train_size: int = 504,
     test_size: int = 126,
     tc_bps: float = 5.0,
+    spread_bps: float = 5.0,
+    impact_bps: float = 10.0,
 ) -> tuple[np.ndarray, list[dict]]:
     """Run anchored expanding-window walk-forward validation.
 
@@ -473,6 +479,7 @@ def _run_walk_forward(
         oos_rets, fold_trades = _compute_signal_returns(
             strat, data, test_start, test_end,
             timestamps=timestamps, tc_bps=tc_bps,
+            spread_bps=spread_bps, impact_bps=impact_bps,
         )
         if len(oos_rets) > 0:
             all_oos_returns.append(oos_rets)
@@ -536,9 +543,10 @@ def _compute_oos_metrics(
         returns, n_bootstrap=n_bootstrap, ci_level=ci_level, block_len=63,
     )
 
-    # Deflated Sharpe Ratio
+    # Deflated Sharpe Ratio (full B&LdP formula with skew/kurtosis)
     dsr_pvalue = _deflated_sharpe_pvalue(
         sharpe, len(returns), n_strategies_tested,
+        returns=returns,
     )
 
     return {
@@ -591,33 +599,47 @@ def _deflated_sharpe_pvalue(
     observed_sharpe: float,
     n_obs: int,
     n_strategies: int,
+    returns: np.ndarray | None = None,
 ) -> float:
     """Compute Deflated Sharpe Ratio p-value.
 
-    Uses the approach of Bailey & Lopez de Prado (2014):
-    P[SR* > observed_SR | n_trials, n_obs, skew, kurtosis]
+    Uses the full Bailey & López de Prado (2012) formula which accounts for:
+      - Number of independent trials (strategies tested)
+      - Sample length
+      - Skewness and excess kurtosis of returns
 
-    Conservative: assumes n_strategies tested + 10 prior experiments.
+    The simplified version (without skew/kurtosis) is used as fallback.
     """
-    from scipy.stats import norm
+    from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
 
     if np.isnan(observed_sharpe) or n_obs < 20:
         return 1.0
 
-    # Expected maximum Sharpe under null (no skill) with multiple testing
-    # E[max(SR)] ≈ sqrt(2 * log(n_trials)) for iid normal
-    n_trials = n_strategies + 10  # conservative
-    e_max_sr = np.sqrt(2 * np.log(max(n_trials, 2)))
+    # Conservative trial count: strategies tested + 10 prior experiments
+    n_trials = n_strategies + 10
 
-    # Standard error of Sharpe ratio
-    se = 1.0 / np.sqrt(n_obs)
+    # Compute skewness and kurtosis from returns if available
+    skewness = None
+    kurtosis_ = None
+    if returns is not None and len(returns) > 20:
+        r = np.asarray(returns, dtype=float)
+        r_clean = r[np.isfinite(r)]
+        if len(r_clean) > 20:
+            mean_r = np.mean(r_clean)
+            std_r = np.std(r_clean, ddof=1)
+            if std_r > 1e-12:
+                skewness = float(np.mean((r_clean - mean_r) ** 3) / (std_r ** 3))
+                kurtosis_ = float(np.mean((r_clean - mean_r) ** 4) / (std_r ** 4) - 3.0)
 
-    # Z-score: how many SEs above the expected maximum
-    z = (observed_sharpe - e_max_sr) / se
+    p_value, _ = deflated_sharpe_ratio(
+        observed_sharpe=observed_sharpe,
+        num_trials=n_trials,
+        sample_length=n_obs,
+        skewness=skewness,
+        kurtosis_=kurtosis_,
+    )
 
-    # p-value: P[SR > observed | null + multiple testing]
-    pvalue = 1 - norm.cdf(z)
-    return float(np.clip(pvalue, 0.0, 1.0))
+    return float(np.clip(p_value, 0.0, 1.0))
 
 
 # ---------------------------------------------------------------------------
@@ -734,6 +756,8 @@ def run_validation(
                 train_size=504,
                 test_size=126,
                 tc_bps=5.0,
+                spread_bps=5.0,
+                impact_bps=10.0,
             )
             elapsed = time.time() - t0
 

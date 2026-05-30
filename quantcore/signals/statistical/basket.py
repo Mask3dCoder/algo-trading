@@ -176,11 +176,43 @@ def basket_spread_signal(
     hedge_ratio: float | None = None,
     lookback: int = 60,
     min_ols_window: int = 252,
+    use_kalman: bool = False,
+    kalman_delta: float = 1e-4,
+    kalman_Ve: float = 1e-1,
+    kalman_warmup: int = 60,
 ) -> NDArray:
     """Z-score of spread between two price series (for basket arbitrage).
 
-    If hedge_ratio is None, estimate via CAUSAL expanding-window OLS
-    (only uses data up to time t, no look-ahead).
+    If hedge_ratio is None, estimate the hedge ratio using one of:
+      - CAUSAL expanding-window OLS (default, only uses data up to time t)
+      - Kalman filter (use_kalman=True) for time-varying hedge ratio
+
+    Parameters
+    ----------
+    prices_a : NDArray
+        Dependent asset prices (e.g., ETF price).
+    prices_b : NDArray
+        Independent asset prices (e.g., basket NAV).
+    hedge_ratio : float | None
+        Fixed hedge ratio.  If None, estimated from data.
+    lookback : int
+        Rolling window for z-score computation (default 60).
+    min_ols_window : int
+        Minimum observations before OLS estimation begins (default 252).
+    use_kalman : bool
+        If True, use Kalman filter for hedge ratio estimation.
+        Ignored if hedge_ratio is not None.
+    kalman_delta : float
+        Kalman filter process noise (default 1e-4).
+    kalman_Ve : float
+        Kalman filter observation noise (default 1e-1).
+    kalman_warmup : int
+        Kalman filter warmup period (default 60).
+
+    Returns
+    -------
+    NDArray
+        Z-score of spread, clipped to [-1, 1].
     """
     n = len(prices_a)
 
@@ -188,6 +220,20 @@ def basket_spread_signal(
         # Fixed hedge ratio provided — no estimation needed
         spread = prices_a - hedge_ratio * prices_b
         return spread_zscore(spread, lookback)
+
+    if use_kalman:
+        from quantcore.signals.statistical.kalman_hedge import kalman_hedge_ratio_series
+
+        betas, spreads, _ = kalman_hedge_ratio_series(
+            prices_a.astype(float),
+            prices_b.astype(float),
+            delta=kalman_delta,
+            Ve=kalman_Ve,
+            warmup=kalman_warmup,
+        )
+        # spreads from the Kalman filter are already the residuals
+        # (y - alpha - beta * x), which is what we want
+        return spread_zscore(spreads, lookback)
 
     # Causal expanding-window OLS: at each time t, estimate hedge_ratio
     # using only data from 0..t (no future data)

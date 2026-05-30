@@ -18,6 +18,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from quantcore.data.vol_surface import VolatilitySurface
+
 _log = logging.getLogger(__name__)
 
 # Historical SPY overnight gap distribution (|gap| > 2%, 2010-2024)

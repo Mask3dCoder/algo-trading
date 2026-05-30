@@ -25,6 +25,12 @@ from quantcore.regime.hmm import (
     RegimeResult,
     select_hmm_states,
 )
+from quantcore.regime.hmm_regime_filter import (
+    HMMRegimeFilter,
+    RegimeFilterConfig,
+    RegimeWeightedAggregator,
+    build_regime_features,
+)
 from quantcore.regime.volatility_regime import (
     VolRegime,
     VolRegimeResult,
@@ -36,6 +42,9 @@ from quantcore.regime.volatility_regime import (
 __all__ = [
     # hmm
     "RegimeResult", "RegimeHMM", "select_hmm_states",
+    # hmm regime filter
+    "HMMRegimeFilter", "RegimeFilterConfig", "RegimeWeightedAggregator",
+    "build_regime_features",
     # features
     "realized_volatility", "rolling_correlation", "adx", "hurst_exponent",
     "bid_ask_spread", "turnover_ratio", "advance_decline_ratio",

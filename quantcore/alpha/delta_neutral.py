@@ -82,8 +82,33 @@ def _strike_from_delta(
 # ── Synthetic IV model (same as Iron Condor) ─────────────────────────────────
 
 
-def generate_synthetic_iv(close: pd.Series, lookback: int = 60) -> pd.Series:
-    """Generate realistic IV from realized vol with mean-reversion and VRP premium."""
+def generate_synthetic_iv(
+    close: pd.Series,
+    lookback: int = 60,
+    vix_series: pd.Series | None = None,
+    use_enhanced: bool = True,
+) -> pd.Series:
+    """Generate realistic IV from realized vol with mean-reversion and VRP premium.
+
+    Parameters
+    ----------
+    close : pd.Series
+        Daily close prices (index = DatetimeIndex).
+    lookback : int
+        Window for realized vol computation (default 60).
+    vix_series : pd.Series | None
+        Optional VIX series for more realistic ATM IV levels.
+    use_enhanced : bool
+        If True (default), use the enhanced vol surface model with
+        VIX-dependent VRP scaling.  If False, use the flat premium model.
+    """
+    if use_enhanced:
+        from quantcore.data.vol_surface import VolatilitySurface, generate_enhanced_synthetic_iv
+        return generate_enhanced_synthetic_iv(
+            close, lookback=lookback, vix_series=vix_series, use_skew=True,
+        )
+
+    # Legacy flat premium model (kept for comparison)
     log_returns = np.log(close / close.shift(1)).dropna()
     realized_vol = log_returns.rolling(lookback).std() * np.sqrt(252)
     iv_premium = 0.15
@@ -217,6 +242,8 @@ class DeltaNeutralVRP:
         risk_free_rate: float = 0.04,
         commission_per_contract: float = 0.65,
         commission_per_share: float = 0.005,
+        use_enhanced_iv: bool = True,
+        vix_series: pd.Series | None = None,
     ) -> None:
         self._close = close
         self._dates = close.index
@@ -229,7 +256,9 @@ class DeltaNeutralVRP:
         elif options_loader is not None:
             self._iv = self._build_real_iv_series(close, options_loader)
         else:
-            self._iv = generate_synthetic_iv(close)
+            self._iv = generate_synthetic_iv(
+                close, vix_series=vix_series, use_enhanced=use_enhanced_iv,
+            )
 
         self.structure = structure
         self.delta_target_strangle = delta_target_strangle

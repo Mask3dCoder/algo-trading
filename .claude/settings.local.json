@@ -167,7 +167,9 @@
       "Bash(curl -s http://localhost:8000/strategies)",
       "Bash(curl -s http://localhost:8000/equity)",
       "Bash(curl -s http://localhost:8000/status)",
-      "mcp__filesystem__create_directory"
+      "mcp__filesystem__create_directory",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rochv\\\\OneDrive\\\\projetcs\\\\algo sw\\\\quantcore\\\\strategies\" -Recurse -Filter \"*.py\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   },
   "enableAllProjectMcpServers": true,

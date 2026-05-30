@@ -17,6 +17,7 @@ from datetime import date
 import numpy as np
 from numpy.typing import NDArray
 
+from quantcore.data.vol_surface import VolatilitySurface
 from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 from quantcore.strategies.registry import register
 
