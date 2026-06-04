@@ -188,6 +188,7 @@ class DeltaNeutralStrategy(Strategy):
             signals.append(TradeSignal(
                 symbol=symbol,
                 direction=1,  # Buy stock for hedge
+                instrument_type="option",
                 strength=0.8,
                 size=hedge_shares * n_contracts * 100 * S,
                 metadata={
@@ -228,6 +229,7 @@ class DeltaNeutralStrategy(Strategy):
                     signals.append(TradeSignal(
                         symbol=symbol,
                         direction=1 if hedge_delta > 0 else -1,
+                        instrument_type="option",
                         strength=0.3,
                         size=abs(hedge_delta * S),
                         metadata={"action": "gamma_scalp", "hedge_delta": hedge_delta},
@@ -242,7 +244,7 @@ class DeltaNeutralStrategy(Strategy):
         if iv_rank < self.ivr_exit:
             for pos in list(self._active_positions):
                 signals.append(TradeSignal(
-                    symbol=symbol, direction=0, strength=0.0, size=0.0,
+                    symbol=symbol, direction=0, instrument_type="option", strength=0.0, size=0.0,
                     metadata={
                         "action": "delta_neutral_exit",
                         "reason": "iv_rank_low",
@@ -254,7 +256,7 @@ class DeltaNeutralStrategy(Strategy):
         for pos in list(self._active_positions):
             if pos["expiry_days"] <= 5:
                 signals.append(TradeSignal(
-                    symbol=symbol, direction=0, strength=0.0, size=0.0,
+                    symbol=symbol, direction=0, instrument_type="option", strength=0.0, size=0.0,
                     metadata={
                         "action": "delta_neutral_exit",
                         "reason": "near_expiry",

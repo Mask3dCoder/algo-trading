@@ -106,7 +106,12 @@ class Quote(BaseModel):
 
 
 class Order(BaseModel):
-    """Order with full lifecycle tracking."""
+    """Order with full lifecycle tracking.
+
+    ``metadata`` is used to carry option-specific fields (strike, expiry,
+    option_type, action) through the execution stack without breaking the
+    equity-first interface.
+    """
     id: str
     symbol: str
     side: Side
@@ -120,6 +125,7 @@ class Order(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     filled_qty: Decimal = Field(default=Decimal("0"), ge=0)
     avg_fill_price: Decimal | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Fill(BaseModel):

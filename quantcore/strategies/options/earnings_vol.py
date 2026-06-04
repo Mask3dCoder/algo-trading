@@ -94,6 +94,7 @@ class EarningsVolStrategy(Strategy):
             signals.append(TradeSignal(
                 symbol=symbol,
                 direction=1,  # Long straddle = long vol
+                instrument_type="option",
                 strength=0.7,
                 size=position_size,
                 metadata={

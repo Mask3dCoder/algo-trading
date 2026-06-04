@@ -151,6 +151,7 @@ class IronCondorStrategy(Strategy):
             signals.append(TradeSignal(
                 symbol=symbol,
                 direction=0,  # Delta-neutral
+                instrument_type="option",
                 strength=0.7,
                 size=self.config.max_position_notional * self.config.risk_budget_pct,
                 metadata={
@@ -181,6 +182,7 @@ class IronCondorStrategy(Strategy):
                 signals.append(TradeSignal(
                     symbol=symbol,
                     direction=0,
+                    instrument_type="option",
                     strength=0.4,
                     size=0.0,
                     metadata={
@@ -201,6 +203,7 @@ class IronCondorStrategy(Strategy):
                 signals.append(TradeSignal(
                     symbol=symbol,
                     direction=0,
+                    instrument_type="option",
                     strength=0.4,
                     size=0.0,
                     metadata={
@@ -221,7 +224,7 @@ class IronCondorStrategy(Strategy):
 
             if exit_reason:
                 signals.append(TradeSignal(
-                    symbol=symbol, direction=0, strength=0.0, size=0.0,
+                    symbol=symbol, direction=0, instrument_type="option", strength=0.0, size=0.0,
                     metadata={"action": "iron_condor_exit", "reason": exit_reason},
                 ))
                 self._active_condors.remove(condor)

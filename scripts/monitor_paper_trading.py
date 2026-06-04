@@ -204,7 +204,7 @@ def compute_strategy_metrics(
     """
     strat_events = [e for e in events if e.get("strategy") == strategy_name]
     n_orders = len([e for e in strat_events if e.get("event") == "submit"])
-    n_fills = len([e for e in strat_events if e.get("event") == "fill"])
+    n_fills = len([e for e in strat_events if e.get("event") in ("fill", "close")])
 
     # Read per-strategy equity CSV for latest P&L
     strat_equity_path = REPORTS_DIR / f"live_equity_{strategy_name}.csv"
@@ -348,7 +348,7 @@ def check_fill_events(events: list[dict]) -> dict:
     warning : bool
     message : str
     """
-    fills = [e for e in events if e.get("event") == "fill"]
+    fills = [e for e in events if e.get("event") in ("fill", "close")]
     total = len(fills)
 
     if total == 0:

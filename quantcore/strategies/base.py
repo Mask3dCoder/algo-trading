@@ -78,6 +78,7 @@ class TradeSignal:
     direction: int  # -1, 0, +1
     strength: float  # [0, 1]
     size: float  # suggested position size (notional)
+    instrument_type: str = "equity"  # "equity" or "option"
     stop_loss: float | None = None
     take_profit: float | None = None
     metadata: dict = field(default_factory=dict)

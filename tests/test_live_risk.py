@@ -49,9 +49,9 @@ class TestRiskManagerLive:
             id="1", symbol="SPY", side=Side.BUY,
             type=OrderType.MARKET, quantity=Decimal("100"),
         )
-        # Price fallback is 100 if no limit price, so 100 shares = $10,000
+        # Price = 100, so 100 shares = $10,000
         # With $100,000 equity, single order limit is 5% = $5,000 → reject
-        approval = rm.pre_trade_check(order, equity=100_000)
+        approval = rm.pre_trade_check(order, equity=100_000, market_prices={"SPY": 100.0})
         assert not approval.approved
         assert "Single order size exceeds" in approval.reason
 
@@ -77,12 +77,13 @@ class TestRiskManagerLive:
 
     def test_daily_loss_limit(self) -> None:
         rm = RiskManagerLive()
-        rm._current_daily_pnl = -3000.0  # Simulate 3% loss already
+        rm.start_day(100_000.0)               # start the day at 100k
+        rm.update_equity(97_000.0)             # drop to 97k = -3k P&L
         order = Order(
             id="1", symbol="SPY", side=Side.BUY,
             type=OrderType.MARKET, quantity=Decimal("1"), limit_price=Decimal("10"),
         )
-        approval = rm.pre_trade_check(order, equity=100_000)
+        approval = rm.pre_trade_check(order, equity=97_000)
         # 2% max daily loss: -3000 < -2000 → reject
         assert not approval.approved
         assert "Daily loss limit hit" in approval.reason

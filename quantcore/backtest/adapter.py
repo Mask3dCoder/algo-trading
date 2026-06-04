@@ -137,6 +137,7 @@ class FrameworkStrategyAdapter:
             strength=float(ts.strength),
             strategy_id=self._strategy.name,
             notional_size=notional,
+            metadata=dict(ts.metadata),
         )
 
 

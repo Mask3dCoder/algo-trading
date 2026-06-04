@@ -510,29 +510,64 @@ def _compute_oos_metrics(
     if len(returns) < 20:
         return {"error": "insufficient OOS bars"}
 
-    # Basic metrics (cap extreme returns to prevent overflow)
+    # Guard: check for NaN/inf in input
+    if not np.all(np.isfinite(returns)):
+        returns = np.nan_to_num(returns, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Basic metrics — clip BOTH tails to prevent overflow.
+    # np.clip with symmetric bounds: negatives capped at -0.5 (≤50% loss/bar),
+    # positives ALSO capped at +0.5 (≤50% gain/bar) so compounding cannot overflow.
     capped = np.clip(returns, -0.5, 0.5)
     mean_ret = np.mean(capped)
     std_ret = np.std(capped, ddof=1)
     sharpe = float(sharpe_ratio(capped, rf=0.04)) if std_ret > 1e-10 else float("nan")
 
-    # Annual return (use capped returns for stability)
-    total_ret = float(np.prod(1 + capped) - 1.0)
+    # Total return via compounding; guard against overflow.
+    raw_total = np.prod(1 + capped)
+    if not np.isfinite(raw_total) or raw_total > 1e100:
+        # Compounding overflowed — fall back to linear return approximation.
+        total_ret = float(np.sum(capped))
+    else:
+        total_ret = float(raw_total - 1.0)
+    # Hard sanity cap: a >10,000,000% total return is physically impossible.
+    total_ret = max(-1.0 + 1e-10, min(total_ret, 1e8))
+
     n_years = len(capped) / 252.0
-    annual_ret = float((1 + total_ret) ** (1 / max(n_years, 0.01)) - 1) if total_ret > -1 else -1.0
+    safe_n_years = max(n_years, 0.001)
+    if 1 + total_ret <= 0:
+        annual_ret = -1.0
+    elif not np.isfinite((1 + total_ret) ** (1 / safe_n_years)):
+        # Power overflowed — fall back to simple annualization.
+        annual_ret = float(mean_ret * 252)
+    else:
+        annual_ret = float((1 + total_ret) ** (1 / safe_n_years) - 1)
+
+    # Cap Sharpe at ±100 (a 100 Sharpe is already physically impossible).
+    if not np.isfinite(sharpe) or abs(sharpe) > 100:
+        sharpe = float("nan")
 
     # Max drawdown (use capped returns to prevent overflow)
     equity = np.cumprod(1 + capped)
+    if not np.all(np.isfinite(equity)):
+        equity = np.nan_to_num(equity, nan=1.0, posinf=1e10, neginf=1e-10)
     peak = np.maximum.accumulate(equity)
-    # Avoid division by zero in peak
-    safe_peak = np.where(peak > 0, peak, 1.0)
+    # Guard: if peak is 0, use 1.0 to avoid division by zero in dd.
+    safe_peak = np.where(peak > 1e-10, peak, 1.0)
     dd = (equity - peak) / safe_peak
     max_dd = float(abs(np.min(dd)))
-    # Sanity cap: max drawdown cannot exceed 100%
+    # Sanity cap: max drawdown cannot exceed 100%.
     max_dd = min(max_dd, 1.0)
 
-    # Calmar ratio
-    calmar = annual_ret / max_dd if max_dd > 0.001 else float("nan")
+    if not np.isfinite(max_dd):
+        max_dd = 1.0
+
+    # Calmar ratio (guard all overflow paths)
+    if not np.isfinite(annual_ret) or max_dd < 0.0001:
+        calmar = float("nan")
+    else:
+        calmar = annual_ret / max_dd
+        if not np.isfinite(calmar) or abs(calmar) > 1e8:
+            calmar = float("nan")
 
     # Win rate
     pnls = [t.get("pnl_abs", 0) for t in trades if t.get("pnl_abs") is not None]

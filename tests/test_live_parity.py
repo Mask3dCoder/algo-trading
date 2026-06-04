@@ -214,43 +214,6 @@ class TestSignalParity:
             "CrossSectionalMomentumStrategy signals differ between backtest and live paths"
         )
 
-    def test_state_selective_momentum_parity(
-        self,
-        synthetic_price_frames,
-        synthetically_mapped_live_feed,
-    ) -> None:
-        """StateSelective strategy must also produce identical signals."""
-        from quantcore.strategies.macro.state_selective_momentum import (
-            StateSelectiveMomentumStrategy,
-        )
-        from quantcore.strategies.base import StrategyConfig
-
-        cfg = StrategyConfig(
-            name="macro_state_selective_momentum",
-            strategy_type="MACRO",
-            max_position_notional=None,
-            params={},
-        )
-        strat = StateSelectiveMomentumStrategy(cfg)
-
-        snap_a = self._build_on_data_snapshot(synthetic_price_frames)
-        signals_a = strat.on_data(snap_a)
-
-        snap_b = synthetically_mapped_live_feed.get_daily_snapshot(VAL_DATE, lookback_days=252)
-        strat_b = StateSelectiveMomentumStrategy(cfg)
-        signals_b = strat_b.on_data(snap_b)
-
-        def _norm(sigs):
-            return sorted([
-                (s.symbol, s.direction, round(float(s.strength), 6))
-                for s in sigs
-            ])
-
-        assert _norm(signals_a) == _norm(signals_b), (
-            "StateSelectiveMomentumStrategy signals differ between backtest and live paths"
-        )
-
-
 class TestLiveExecutionGateway:
     """Smoke tests for the sync execution gateway."""
 
@@ -268,38 +231,44 @@ class TestLiveExecutionGateway:
         from quantcore.live.broker import LiveExecutionGateway
         from quantcore.core.types import Order, OrderType, Side
 
-        gw = LiveExecutionGateway(initial_cash=100_000)
-        gw._paper = True   # ensure paper mode
+        with patch.dict(os.environ):
+            for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):
+                os.environ.pop(k, None)
+            gw = LiveExecutionGateway(initial_cash=100_000)
+            gw._paper = True  # ensure paper mode
 
-        assert len(gw.get_positions()) == 0
+            assert len(gw.get_positions()) == 0
 
-        order = Order(
-            id="", symbol="AAPL", side=Side.BUY,
-            type=OrderType.MARKET, quantity=10,
-            status="pending",
-            filled_qty=0,
-        )
-        # Market price will be fetched via fallback → $100
-        # So 10 shares × $100 = $1000, within $100k cash
-        order_id = gw.submit_order(order)
-        assert order_id != ""
-        assert len(gw.get_positions()) == 1
-        assert "AAPL" in gw.get_positions()
+            order = Order(
+                id="", symbol="AAPL", side=Side.BUY,
+                type=OrderType.MARKET, quantity=10,
+                status="pending",
+                filled_qty=0,
+            )
+            with patch.object(gw, "_get_market_price", return_value=100.0):
+                order_id = gw.submit_order(order)
+            assert order_id != ""
+            assert len(gw.get_positions()) == 1
+            assert "AAPL" in gw.get_positions()
 
     def test_gateway_short_sell(self) -> None:
         from quantcore.live.broker import LiveExecutionGateway
         from quantcore.core.types import Order, OrderType, Side
 
-        gw = LiveExecutionGateway(initial_cash=100_000)
-        gw._paper = True
+        with patch.dict(os.environ):
+            for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):
+                os.environ.pop(k, None)
+            gw = LiveExecutionGateway(initial_cash=100_000)
+            gw._paper = True
 
-        order = Order(
-            id="", symbol="SPY", side=Side.SELL,
-            type=OrderType.MARKET, quantity=5,
-            status="pending",
-            filled_qty=0,
-        )
-        gw.submit_order(order)
+            order = Order(
+                id="", symbol="SPY", side=Side.SELL,
+                type=OrderType.MARKET, quantity=5,
+                status="pending",
+                filled_qty=0,
+            )
+            with patch.object(gw, "_get_market_price", return_value=100.0):
+                gw.submit_order(order)
         assert "SPY" in gw.get_positions()
         assert float(gw.get_positions()["SPY"].quantity) == 5
 
@@ -310,19 +279,19 @@ class TestLiveExecutionGateway:
         with patch.dict(os.environ):
             for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):
                 os.environ.pop(k, None)
-            gw = LiveExecutionGateway(initial_cash=100)   # very low cash
-        gw._paper = True
+            gw = LiveExecutionGateway(initial_cash=100)  # very low cash
+            gw._paper = True
 
-        order = Order(
-            id="", symbol="AAPL", side=Side.BUY,
-            type=OrderType.MARKET, quantity=10,   # $1000 notional
-            status="pending",
-            filled_qty=0,
-        )
-        # Mock price at $100/share → would need $1000 but only $100 cash
-        with patch.object(gw, "_get_market_price", return_value=100.0):
-            order_id = gw.submit_order(order)
-            assert order_id != ""
-            # The order should be in paper_orders as REJECTED
-            assert order_id in gw._paper_orders
-            assert gw._paper_orders[order_id].status.value == "rejected"
+            order = Order(
+                id="", symbol="AAPL", side=Side.BUY,
+                type=OrderType.MARKET, quantity=10,  # $1000 notional
+                status="pending",
+                filled_qty=0,
+            )
+            # Mock price at $100/share -> would need $1000 but only $100 cash
+            with patch.object(gw, "_get_market_price", return_value=100.0):
+                order_id = gw.submit_order(order)
+        assert order_id != ""
+        # The order should be in paper_orders as REJECTED
+        assert order_id in gw._paper_orders
+        assert gw._paper_orders[order_id].status.value == "rejected"

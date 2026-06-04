@@ -201,7 +201,7 @@ def load_config(path: Path | str | None = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def create_broker(cfg: dict[str, Any]) -> Any:
+def create_broker(cfg: dict[str, Any], events_path: str | None = None) -> Any:
     """Create the appropriate broker/gateway from config."""
     broker_type = cfg.get("type", "paper")
     exec_cfg = cfg.get("execution", {})
@@ -216,6 +216,7 @@ def create_broker(cfg: dict[str, Any]) -> Any:
             secret_key=alpaca.get("secret_key", ""),
             base_url=alpaca.get("base_url", "https://paper-api.alpaca.markets"),
             initial_cash=initial_cash,
+            events_path=events_path,
         )
     elif broker_type == "ibkr":
         from quantcore.live.ibkr_gateway import IBKRExecutionGateway
@@ -233,7 +234,7 @@ def create_broker(cfg: dict[str, Any]) -> Any:
         # Paper mode — use LiveExecutionGateway in paper mode
         from quantcore.live.broker import LiveExecutionGateway
 
-        return LiveExecutionGateway(initial_cash=initial_cash)
+        return LiveExecutionGateway(initial_cash=initial_cash, events_path=events_path)
 
 
 # ---------------------------------------------------------------------------
@@ -248,8 +249,8 @@ class _LiveBrokerAdapter:
     def __init__(self, gateway: Any) -> None:
         self._gw = gateway
 
-    def submit_order(self, order: Order) -> str:
-        return self._gw.submit_order(order)
+    def submit_order(self, order: Order, fill_metadata: dict | None = None) -> str:
+        return self._gw.submit_order(order, fill_metadata=fill_metadata)
 
     def cancel_order(self, order_id: str) -> bool:
         return self._gw.cancel_order(order_id)
@@ -344,7 +345,7 @@ class ProductionRunner:
 
         # Broker
         broker_cfg = config.get("broker", {})
-        self._broker_gateway = create_broker(broker_cfg)
+        self._broker_gateway = create_broker(broker_cfg, str(self.events_path))
         self.broker = _LiveBrokerAdapter(self._broker_gateway)
 
         # Data feed
@@ -604,6 +605,17 @@ class ProductionRunner:
                         # Approximate per-strategy equity as weighted share of total
                         s.update_equity(total * s.weight / total_weight)
 
+            # Sync risk manager with reconciled portfolio value — ensures
+            # the circuit breaker sees the latest equity after reconciliation.
+            self.risk_manager.update_equity(total)
+            log.info(
+                "Risk manager post-reconciliation: equity=$%.2f "
+                "daily_pnl=$%.2f peak=$%.2f",
+                self.risk_manager.total_equity,
+                self.risk_manager.current_daily_pnl,
+                self.risk_manager.peak_equity,
+            )
+
             # Send daily summary alert after reconciliation
             daily_pnl = total - self._trade_day_start_equity if self._trade_day_start_equity > 0 else 0.0
             self.alerter.send_daily_summary(
@@ -632,12 +644,12 @@ class ProductionRunner:
             today = date.today()
             as_of = pd.Timestamp(today)
 
-            # Check if any strategies need intraday gap-fade data
-            has_gap_fade = any(
-                ds == "alpaca_intraday_gap_fade"
+            # Check if any strategies need intraday data
+            has_intraday = any(
+                ds in ("alpaca_intraday_gap_fade", "alpaca_intraday")
                 for _, _, _, ds, _ in self.strategies
             )
-            if not has_gap_fade:
+            if not has_intraday:
                 return
 
             # Circuit breaker check
@@ -669,7 +681,7 @@ class ProductionRunner:
 
             all_signals: list[tuple[str, float, TradeSignal]] = []
             for strat_name, weight, instance, data_source, bar_size in self.strategies:
-                if data_source != "alpaca_intraday_gap_fade":
+                if data_source not in ("alpaca_intraday_gap_fade", "alpaca_intraday"):
                     continue
                 try:
                     signals = instance.on_data(ohlcv_snapshot)
@@ -728,12 +740,11 @@ class ProductionRunner:
     def _build_snapshot_with_vix(
         self, daily_snapshot: dict[str, Any], trade_date: date
     ) -> dict[str, Any]:
-        """Inject ``implied_vol`` into the snapshot using VIX as proxy.
+        """Inject ``equity``, ``implied_vol`` and ``vix_series`` into the snapshot.
 
-        VIX close / 100 is used as the implied-volatility series for the
-        entire lookback window (flat IV = VIX today for all bars).  This is
-        intentionally conservative — the IV Rank calculation only cares about
-        the *relative* level, and VIX > 15 / IVR >= 50 gates entry.
+        ``implied_vol`` is the blended IV series (used for historical context).
+        ``vix_series`` is the raw VIX close (used for regime checks and VRP).
+        ``equity`` is the current portfolio equity so strategies can size correctly.
         """
         import numpy as np
 
@@ -742,33 +753,35 @@ class ProductionRunner:
         if close is None or close.size == 0:
             return snapshot
 
+        # Inject current equity
+        acct = self.broker.get_account()
+        equity = float(acct.get("portfolio_value", 100_000.0))
+        snapshot["equity"] = equity
+
         vix_close = self._fetch_vix_close(trade_date)
         if vix_close is None:
             vix_close = 20.0
 
         iv_decimal = vix_close / 100.0
         n_periods = close.shape[0]
-        # Build a realistic IV ramp: blend realized vol with VIX level
-        # so IVR has variation (not a flat line that always returns 50)
         import pandas as pd
 
         if n_periods > 1 and close.ndim == 2:
-            # Use first asset (underlying) for realized-vol basis
             close_series = pd.Series(close[:, 0])
             log_ret = np.log(close_series / close_series.shift(1)).dropna()
-            # Realized vol (annualised) over rolling 21-day window
             rv = log_ret.rolling(21, min_periods=10).std() * np.sqrt(252)
             rv = rv.reindex(range(n_periods)).bfill().fillna(iv_decimal)
-            # Blend: 60% VIX-level, 40% realized vol + mean-reversion
             iv_series = 0.6 * iv_decimal + 0.4 * rv.values
-            # Clip to sensible bounds
             iv_series = np.clip(iv_series, 0.08, 0.80)
-            # Ensure the last bar uses the actual VIX close
             iv_series[-1] = iv_decimal
         else:
             iv_series = np.full(n_periods, iv_decimal)
 
         snapshot["implied_vol"] = iv_series.reshape(-1, 1) if close.ndim == 2 else iv_series
+        # Raw VIX in percentage units for regime checks
+        vix_series = iv_series.copy() * 100.0  # approximate historical VIX from blended IV
+        vix_series[-1] = float(vix_close)      # true VIX
+        snapshot["vix_series"] = vix_series
         return snapshot
 
     # ------------------------------------------------------------------
@@ -783,6 +796,7 @@ class ProductionRunner:
         it is paused without affecting others.
         """
         try:
+            prev_trade_date = self._last_trade_date
             self._last_trade_date = trade_date
 
             # 1. Pre-fetch daily snapshot (used by most strategies)
@@ -798,17 +812,32 @@ class ProductionRunner:
             log.info("SNAPSHOT [%s] %d days x %d assets",
                      trade_date, close_matrix.shape[0], close_matrix.shape[1])
 
-            # 2. Initialize daily P&L tracking (FIXES circuit breaker false positive)
+            # 2. Initialize daily P&L tracking — use prev_trade_date so that
+            #    a new calendar day always triggers a fresh start_day() call.
             acct = self.broker.get_account()
             equity = float(acct.get("portfolio_value", 0))
-            if trade_date != self._last_trade_date or self._trade_day_start_equity == 0:
+            is_new_trade_day = (trade_date != prev_trade_date) or (self._trade_day_start_equity == 0)
+            if is_new_trade_day:
+                log.info(
+                    "New trade day detected: %s (prev=%s). Resetting daily P&L. "
+                    "Account equity=$%.2f",
+                    trade_date, prev_trade_date, equity,
+                )
                 self.risk_manager.start_day(equity)
                 self._trade_day_start_equity = equity
                 # Reset per-strategy daily P&L
                 for s in self.strategy_states:
                     s.daily_pnl = 0.0
 
+            # Always sync risk manager with latest account snapshot BEFORE
+            # any circuit breaker or risk checks.
             self.risk_manager.update_equity(equity)
+            log.info(
+                "Risk manager synced: equity=$%.2f start_eq=$%.2f daily_pnl=$%.2f",
+                equity,
+                self.risk_manager._starting_equity_for_day,
+                self.risk_manager.current_daily_pnl,
+            )
 
             # 3. Portfolio-level circuit breaker check
             self.circuit_breaker.check(
@@ -838,7 +867,7 @@ class ProductionRunner:
                 strat_name = strat_state.name
                 try:
                     # Build appropriate data snapshot
-                    if strat_state.data_source == "alpaca_intraday_gap_fade":
+                    if strat_state.data_source in ("alpaca_intraday_gap_fade", "alpaca_intraday"):
                         continue  # handled by _intraday_tick
                     if strat_state.data_source == "yfinance_vix":
                         snapshot = self._build_snapshot_with_vix(daily_snapshot, trade_date)
@@ -904,16 +933,34 @@ class ProductionRunner:
     def _submit_signal(
         self, sig: TradeSignal, strat_name: str, weight: float, trade_date: date
     ) -> str | None:
-        """Convert a TradeSignal to an Order, apply risk gate, and submit."""
+        """Convert a TradeSignal to an Order, apply risk gate, and submit.
+
+        Branches on ``sig.instrument_type``:
+          - ``"option"``: builds an option contract from signal metadata and
+            submits via the broker's option-aware path.
+          - ``"equity"``: uses the existing equity order path.
+        """
         try:
             symbol = str(sig.symbol).strip().upper()
             direction = sig.direction
             strength = float(sig.strength)
             size_notional = float(sig.size) if sig.size else 0.0
+            meta = sig.metadata or {}
 
+            # --- Option signal: close specific leg ---
+            if direction == 0 and sig.instrument_type == "option":
+                contract_id = meta.get("contract_id", "")
+                return self._close_option_position(symbol, strat_name, contract_id=contract_id)
+
+            # --- Equity position close ---
             if direction == 0:
                 return self._close_position(symbol, strat_name)
 
+            # -- Option signal: open leg ---
+            if sig.instrument_type == "option":
+                return self._submit_option_signal(sig, strat_name, weight, trade_date, meta)
+
+            # --- Equity signal: existing path ---
             market_price = self._get_price(symbol)
             if market_price <= 0:
                 log.warning("No price for %s — skipping", symbol)
@@ -922,6 +969,9 @@ class ProductionRunner:
             acct = self.broker.get_account()
             equity = float(acct.get("portfolio_value", 100_000))
 
+            # Sync the risk manager with the latest portfolio value
+            self.risk_manager.update_equity(equity)
+
             # Apply strategy weight and scale mode
             if self.scale_mode == "single_share":
                 size_notional = market_price
@@ -929,11 +979,10 @@ class ProductionRunner:
                 if size_notional <= 0:
                     size_notional = strength * equity * 0.10
                 size_notional *= 0.10
-            else:  # full
+            else:
                 if size_notional <= 0:
                     size_notional = strength * equity * 0.10
 
-            # Apply strategy weight
             size_notional *= weight
 
             if direction > 0:
@@ -956,9 +1005,9 @@ class ProductionRunner:
                 status=OrderStatus.PENDING,
             )
 
-            # Risk gate
             positions = self.broker.get_positions()
-            approval = self.risk_manager.pre_trade_check(order, equity, positions)
+            market_prices = {symbol: market_price}
+            approval = self.risk_manager.pre_trade_check(order, equity, positions, market_prices=market_prices)
             if not approval.approved:
                 log.warning("RISK REJECT %s %s: %s", order.side.value.upper(), symbol, approval.reason)
                 self.circuit_breaker.check(
@@ -969,7 +1018,15 @@ class ProductionRunner:
                 )
                 return None
 
-            order_id = self.broker.submit_order(order)
+            order_id = self.broker.submit_order(
+                order,
+                fill_metadata={
+                    "strat_name": strat_name,
+                    "trade_date": str(trade_date),
+                    "weight": weight,
+                    "filled_at": self._broker_gateway.broker_name,
+                },
+            )
             record_order_submitted()
 
             event = {
@@ -987,6 +1044,21 @@ class ProductionRunner:
             }
             self._append_event(event)
 
+            self._append_event({
+                "timestamp": datetime.now(UTC).isoformat(),
+                "event": "fill",
+                "symbol": symbol,
+                "side": order.side.value,
+                "qty": qty,
+                "price": market_price,
+                "notional": float(qty) * market_price,
+                "order_id": order_id,
+                "strategy": strat_name,
+                "trade_date": str(trade_date),
+                "weight": weight,
+                "filled_at": self._broker_gateway.broker_name,
+            })
+
             log.info("ORDER %s %s %d shares @ %.4f ($%.2f) [%s, w=%.2f] [order=%s]",
                      order.side.value.upper(), symbol, qty, market_price,
                      float(qty) * market_price, strat_name, weight, order_id)
@@ -994,6 +1066,142 @@ class ProductionRunner:
 
         except Exception as exc:
             log.exception("Order submission failed for %s: %s", sig, exc)
+            return None
+
+    def _submit_option_signal(
+        self, sig: TradeSignal, strat_name: str, weight: float, trade_date: date,
+        meta: dict,
+    ) -> str | None:
+        """Submit an option order using signal metadata rather than equity pricing."""
+        try:
+            symbol = str(sig.symbol).strip().upper()
+            direction = sig.direction
+            strength = float(sig.strength)
+
+            contracts = int(meta.get("contracts", 1))
+            strike = float(meta.get("strike", 0))
+            dte = int(meta.get("dte", 30))
+            contract_id = str(meta.get("contract_id", f"{symbol}_{strike}_{dte}DTE_PUT"))
+            action = str(meta.get("action", "SELL_TO_OPEN"))
+            is_sell = action in ("SELL_TO_OPEN",)
+            theoretical_mid = float(meta.get("theoretical_mid", 0))
+            spot = float(meta.get("spot", 0))
+
+            # Determine order side: selling a put = SELL (credit received)
+            side = Side.SELL if is_sell else Side.BUY
+
+            # Option notional used for risk checks
+            notional = float(sig.size) if sig.size else contracts * strike * 100
+
+            # Build an Equity order (the broker handles option fills via metadata)
+            order = Order(
+                id="",
+                symbol=symbol,
+                side=side,
+                type=OrderType.MARKET,
+                quantity=Decimal(str(contracts)),
+                status=OrderStatus.PENDING,
+                metadata={
+                    "instrument": "OPTION",
+                    "contract_id": contract_id,
+                    "strike": strike,
+                    "dte": dte,
+                    "action": action,
+                    "contracts": contracts,
+                    "theoretical_mid": theoretical_mid,
+                    "bid_ask_spread_pct": self._get_option_spread_pct(),
+                    "commission_per_contract": self._get_option_commission(),
+                    "multiplier": 100,
+                    "spot": spot,
+                    "_position_key": contract_id,
+                },
+            )
+
+            acct = self.broker.get_account()
+            equity = float(acct.get("portfolio_value", 100_000))
+            self.risk_manager.update_equity(equity)
+
+            # Risk gate — pass the notional for equity checks
+            positions = self.broker.get_positions()
+            market_prices = {symbol: spot if spot > 0 else self._get_price(symbol)}
+            approval = self.risk_manager.pre_trade_check(order, equity, positions, market_prices=market_prices)
+            if not approval.approved:
+                log.warning("RISK REJECT option %s %s: %s", action, contract_id, approval.reason)
+                self.circuit_breaker.check(
+                    equity=equity,
+                    peak_equity=self.risk_manager.peak_equity,
+                    daily_pnl=self.risk_manager.current_daily_pnl,
+                    rejected_last=True,
+                )
+                return None
+
+            order_id = self.broker.submit_order(
+                order,
+                fill_metadata={
+                    "strat_name": strat_name,
+                    "trade_date": str(trade_date),
+                    "weight": weight,
+                    "filled_at": self._broker_gateway.broker_name,
+                },
+            )
+            record_order_submitted()
+
+            log.info("OPTION %s %s %d contracts @ strike=%.2f dte=%d [%s, w=%.2f] [order=%s]",
+                     action, contract_id, contracts, strike, dte, strat_name, weight, order_id)
+            return order_id
+
+        except Exception as exc:
+            log.exception("Option order submission failed for %s: %s", sig, exc)
+            return None
+
+    def _close_option_position(
+        self, symbol: str, strat_name: str, contract_id: str = "",
+    ) -> str | None:
+        """Close a specific option position by contract_id.
+
+        Looks up the position by the option's composite key (contract_id),
+        not by the underlying symbol.  If no contract_id, falls back to
+        closing the entire symbol position.
+        """
+        try:
+            positions = self.broker.get_positions()
+            if contract_id:
+                # Look up by option composite key
+                pos = positions.get(contract_id)
+                if not pos or abs(float(pos.quantity)) < 1e-6:
+                    log.debug("Option position %s not found — nothing to close", contract_id)
+                    return None
+                qty = abs(int(float(pos.quantity)))
+                side = Side.BUY if float(pos.quantity) < 0 else Side.SELL  # buy to close
+                order = Order(
+                    id="",
+                    symbol=symbol,
+                    side=side,
+                    type=OrderType.MARKET,
+                    quantity=Decimal(str(qty)),
+                    status=OrderStatus.PENDING,
+                    metadata={
+                        "instrument": "OPTION",
+                        "contract_id": contract_id,
+                        "action": "BUY_TO_CLOSE",
+                    },
+                )
+                order_id = self.broker.submit_order(
+                    order,
+                    fill_metadata={
+                        "strat_name": strat_name,
+                        "trade_date": str(date.today()),
+                        "weight": 1.0,
+                        "filled_at": self._broker_gateway.broker_name,
+                    },
+                )
+                log.info("Close option position %s: %d contracts (order=%s)", contract_id, qty, order_id)
+                return order_id
+
+            # Fallback: close by underlying symbol
+            return self._close_position(symbol, strat_name)
+        except Exception as exc:
+            log.exception("Failed to close option position %s: %s", contract_id, exc)
             return None
 
     def _close_position(self, symbol: str, strat_name: str) -> str | None:
@@ -1011,14 +1219,24 @@ class ProductionRunner:
             quantity=Decimal(str(qty)),
             status=OrderStatus.PENDING,
         )
-        order_id = self.broker.submit_order(order)
+        order_id = self.broker.submit_order(
+            order,
+            fill_metadata={
+                "strat_name": strat_name,
+                "trade_date": str(date.today()),
+                "weight": 1.0,
+                "filled_at": self._broker_gateway.broker_name,
+            },
+        )
         self._append_event({
             "timestamp": datetime.now(UTC).isoformat(),
             "event": "close",
             "symbol": symbol,
+            "side": side.value,
             "qty": qty,
             "order_id": order_id,
             "strategy": strat_name,
+            "filled_at": self._broker_gateway.broker_name,
         })
         return order_id
 
@@ -1035,6 +1253,14 @@ class ProductionRunner:
         if pos:
             return float(pos.market_price)
         return 0.0
+
+    def _get_option_spread_pct(self) -> float:
+        """Default bid-ask spread haircut for option fills."""
+        return 0.05  # 5% spread
+
+    def _get_option_commission(self) -> float:
+        """Default commission per option contract."""
+        return 0.65
 
     def _append_event(self, event: dict) -> None:
         try:

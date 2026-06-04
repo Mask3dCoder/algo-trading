@@ -6,6 +6,8 @@ drawdown tracking, and risk metrics.
 
 from __future__ import annotations
 
+from quantcore.backtest.simulation import OptionFillSimulator
+
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -69,6 +71,7 @@ class SignalData:
     strength: float
     strategy_id: str
     notional_size: float | None = None  # strategy-computed position size, overrides sizing_pct
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -445,6 +448,10 @@ class FillSimulator:
 
     def simulate_fill(self, order: Order) -> Fill | None:
         """Simulate a fill for the given order. Returns None if order cannot fill."""
+        # Phase 3: route option orders to BSM-based pricing
+        if order.metadata.get("instrument") == "OPTION":
+            return self._simulate_option_fill(order)
+
         bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
         if bar is None:
             bar = self._current_bar
@@ -537,6 +544,50 @@ class FillSimulator:
             impact_bps=Decimal(str(round(impact_bps, 4))),
         )
 
+    def _simulate_option_fill(self, order: Order) -> Fill | None:
+        """BSM-based fill for option orders using OptionFillSimulator."""
+        meta = order.metadata
+        strike = float(meta.get("strike", 0.0))
+        iv = float(meta.get("iv", 0.0))
+        dte = float(meta.get("dte", 0.0))
+        contracts = int(meta.get("contracts", 0))
+        if contracts <= 0 or strike <= 0 or iv <= 0 or dte <= 0:
+            return None
+
+        bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
+        if bar is None:
+            bar = self._current_bar
+        if bar is None:
+            return None
+        underlying_price = float(bar.close)
+
+        is_call = meta.get("option_type", "PUT").upper() == "CALL"
+        option_sim = OptionFillSimulator()
+        result = option_sim.simulate_option_fill(
+            underlying_price=underlying_price,
+            strike=strike,
+            iv=iv,
+            dte=dte,
+            r=float(meta.get("risk_free_rate", 0.045)),
+            is_call=is_call,
+            side=order.side,
+            contracts=contracts,
+            spread_pct=float(meta.get("bid_ask_spread_pct", 0.05)),
+            commission_per_contract=float(meta.get("commission_per_contract", 0.65)),
+        )
+
+        return Fill(
+            order_id=f"{order.id}_{order.side.value}",
+            price=Decimal(str(round(result["fill_price"], 6))),
+            quantity=order.quantity,
+            commission=Decimal(str(round(result["commission"], 4))),
+            timestamp=bar.timestamp,
+            side=order.side,
+            slippage_bps=Decimal("0"),
+            market_impact_cost=Decimal("0"),
+            impact_bps=Decimal("0"),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Backtest engine
@@ -585,6 +636,8 @@ class BacktestEngine:
         self.drawdown_tracker = DrawdownTracker(drawdown_config) if drawdown_config else None
         self.regime_model = regime_model
         self._rejected_orders: list[tuple[Order, LimitCheckResult]] = []
+        # Phase 3: track option metadata by contract_id for EOP/liquidation pricing
+        self._option_meta: dict[str, dict] = {}
 
     @property
     def rejected_orders(self) -> list[tuple[Order, LimitCheckResult]]:
@@ -625,9 +678,11 @@ class BacktestEngine:
                 continue
             close_side = Side.SELL if current_qty > 0 else Side.BUY
             oid = f"ord_dd_reduce_{sym}_{close_side.value}"
+            meta = getattr(self, '_option_meta', {}).get(sym, {})
             order = Order(
                 id=oid, symbol=sym, side=close_side,
                 type=OrderType.MARKET, quantity=Decimal(str(reduce_qty)),
+                metadata=meta,
             )
             self.fill_sim.set_bars(bar, None)
             fill = self.fill_sim.simulate_fill(order)
@@ -649,9 +704,11 @@ class BacktestEngine:
                 continue
             close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
             oid = f"ord_dd_flatten_{sym}_{close_side.value}"
+            meta = getattr(self, '_option_meta', {}).get(sym, {})
             order = Order(
                 id=oid, symbol=sym, side=close_side,
                 type=OrderType.MARKET, quantity=Decimal(str(close_qty)),
+                metadata=meta,
             )
             self.fill_sim.set_bars(bar, None)
             fill = self.fill_sim.simulate_fill(order)
@@ -844,7 +901,19 @@ class BacktestEngine:
             # Convert signals to orders with risk checks and sizing
             for sig in signals:
                 price = float(bar.close)
-                pos = self.portfolio.positions.get(sig.symbol)
+
+                # Phase 3: branch on instrument type (backward-compatible default equity)
+                is_option = sig.metadata.get("instrument") == "OPTION"
+                if is_option:
+                    order_symbol = str(sig.metadata.get("contract_id", sig.symbol))
+                    multiplier = int(sig.metadata.get("multiplier", 100))
+                    contracts = int(sig.metadata.get("contracts", 0))
+                    option_qty = contracts * multiplier if contracts > 0 else 0
+                else:
+                    order_symbol = sig.symbol
+                    option_qty = 0
+
+                pos = self.portfolio.positions.get(order_symbol)
                 current_qty = float(pos.quantity) if pos else 0.0
 
                 # "flat" signal: close any existing position
@@ -852,9 +921,10 @@ class BacktestEngine:
                     if abs(current_qty) > 1e-8:
                         close_side = Side.SELL if current_qty > 0 else Side.BUY
                         close_order = Order(
-                            id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_exit",
-                            symbol=sig.symbol, side=close_side, type=OrderType.MARKET,
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_exit",
+                            symbol=order_symbol, side=close_side, type=OrderType.MARKET,
                             quantity=Decimal(str(int(abs(current_qty)))),
+                            metadata=sig.metadata,
                         )
                         pending_orders.append(close_order)
                     continue
@@ -867,33 +937,38 @@ class BacktestEngine:
                     continue
 
                 # Close opposing position before opening new one
-                if side == Side.BUY and current_qty < 0:
-                    cover_qty = int(abs(current_qty))
-                    cover_order = Order(
-                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_buy_cover",
-                        symbol=sig.symbol, side=Side.BUY, type=OrderType.MARKET,
-                        quantity=Decimal(str(cover_qty)),
-                    )
-                    pending_orders.append(cover_order)
-                elif side == Side.SELL and current_qty > 0:
-                    close_qty = int(abs(current_qty))
-                    close_order = Order(
-                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_sell_close",
-                        symbol=sig.symbol, side=Side.SELL, type=OrderType.MARKET,
-                        quantity=Decimal(str(close_qty)),
-                    )
-                    pending_orders.append(close_order)
+                if not is_option:
+                    if side == Side.BUY and current_qty < 0:
+                        cover_qty = int(abs(current_qty))
+                        cover_order = Order(
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_buy_cover",
+                            symbol=order_symbol, side=Side.BUY, type=OrderType.MARKET,
+                            quantity=Decimal(str(cover_qty)),
+                        )
+                        pending_orders.append(cover_order)
+                    elif side == Side.SELL and current_qty > 0:
+                        close_qty = int(abs(current_qty))
+                        close_order = Order(
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_sell_close",
+                            symbol=order_symbol, side=Side.SELL, type=OrderType.MARKET,
+                            quantity=Decimal(str(close_qty)),
+                        )
+                        pending_orders.append(close_order)
 
-                qty = self._compute_sizing(side, price, bar, sig)
+                if is_option:
+                    qty = option_qty
+                else:
+                    qty = self._compute_sizing(side, price, bar, sig)
                 if qty <= 0:
                     continue
 
                 order = Order(
-                    id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_{side.value}",
-                    symbol=sig.symbol,
+                    id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_{side.value}",
+                    symbol=order_symbol,
                     side=side,
                     type=OrderType.MARKET,
                     quantity=Decimal(str(qty)),
+                    metadata=sig.metadata,
                 )
 
                 # Pre-trade risk check
@@ -914,10 +989,14 @@ class BacktestEngine:
 
                 pending_orders.append(order)
 
+                # Phase 3: cache option metadata for EOP / liquidation pricing
+                if is_option:
+                    self._option_meta[order_symbol] = sig.metadata
+
                 # Log signal
                 self.portfolio.signal_log.append({
                     "timestamp": bar.timestamp,
-                    "symbol": sig.symbol,
+                    "symbol": order_symbol,
                     "direction": sig.direction,
                     "strength": sig.strength,
                     "regime": self.portfolio.regime_state,
@@ -952,12 +1031,14 @@ class BacktestEngine:
                     continue
                 close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
                 oid = f"ord_eop_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
+                meta = getattr(self, '_option_meta', {}).get(sym, {})
                 order = Order(
                     id=oid,
                     symbol=sym,
                     side=close_side,
                     type=OrderType.MARKET,
                     quantity=Decimal(str(close_qty)),
+                    metadata=meta,
                 )
                 self.fill_sim.set_bars(bar, None)
                 fill = self.fill_sim.simulate_fill(order)

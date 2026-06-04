@@ -169,7 +169,15 @@
       "Bash(curl -s http://localhost:8000/status)",
       "mcp__filesystem__create_directory",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rochv\\\\OneDrive\\\\projetcs\\\\algo sw\\\\quantcore\\\\strategies\" -Recurse -Filter \"*.py\")",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Path \"data/paper_trading\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, Length, LastWriteTime)",
+      "mcp__github__search_repositories",
+      "mcp__yahoo-finance__get_quotes",
+      "mcp__yahoo-finance__get_holder_info",
+      "mcp__yahoo-finance__get_financial_statement",
+      "WebSearch",
+      "WebFetch(domain:spacenexus.us)"
     ]
   },
   "enableAllProjectMcpServers": true,

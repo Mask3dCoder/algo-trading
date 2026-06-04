@@ -82,10 +82,12 @@ class LiveExecutionGateway:
         secret_key: str | None = None,
         base_url: str | None = None,
         initial_cash: float = 100_000.0,
+        events_path: str | None = None,
     ) -> None:
         self._api_key   = api_key   or os.environ.get("ALPACA_API_KEY")
         self._secret_key = secret_key or os.environ.get("ALPACA_API_SECRET")
         self._base_url  = base_url  or os.environ.get("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+        self._events_path = events_path
 
         self._paper = "paper-api" in self._base_url
 
@@ -121,6 +123,10 @@ class LiveExecutionGateway:
         self._orders: dict[str, Order] = {}        # order_id → Order
         self._paper_orders: dict[str, _PaperOrderRecord] = {}  # id → record
 
+        # Wash-trade cooldown: symbol → last opposite-side order timestamp (epoch)
+        self._last_opposite_side: dict[str, tuple[str, float]] = {}
+        self._wash_trade_cooldown_sec = 30.0
+
         # Sync broker positions on startup
         self._sync_from_broker()
 
@@ -136,19 +142,49 @@ class LiveExecutionGateway:
     # Broker protocol (sync)
     # ------------------------------------------------------------------
 
-    def submit_order(self, order: Order) -> str:
+    def submit_order(
+        self, order: Order, fill_metadata: dict | None = None
+    ) -> str:
         """Submit a market order. Returns internal order ID.
 
         Paper: fills immediately at current market price (slippage modelled).
         Live: delegates to Alpaca and returns broker order ID.
+
+        fill_metadata: optional dict with keys:
+            strat_name, trade_date, weight, filled_at
+            Used to record fill events in JSONL.
         """
         # Resolve symbol
         symbol = str(order.symbol).strip().upper()
 
+        log.info(
+            "Submitting order: %s %s %s to Alpaca %s",
+            symbol, order.side.name.upper() if order.side else "?",
+            order.quantity, "PAPER" if self._paper else "LIVE",
+        )
+
         if self._paper:
-            return self._submit_paper_order(order, symbol)
+            result = self._submit_paper_order(order, symbol, fill_metadata=fill_metadata)
         else:
-            return self._submit_live_order(order)
+            result = self._submit_live_order(order)
+
+        # Diagnostic logging after submission attempt
+        if result:
+            record = self._paper_orders.get(result)
+            if record:
+                log.info(
+                    "Order response: %s filled_qty=%s avg_fill_price=%.4f",
+                    record.status.value if record.status else "unknown",
+                    record.filled_qty,
+                    record.filled_price,
+                )
+            else:
+                log.info("Order response: submitted order_id=%s (no paper record)", result)
+        else:
+            log.warning("Order submission returned empty order_id for %s %s %s",
+                        symbol, order.side, order.quantity)
+
+        return result
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an open order by ID. Returns True on success."""
@@ -161,7 +197,7 @@ class LiveExecutionGateway:
                 # Release reserved cash
                 notional = float(record.filled_qty) * (record._fill_price or 0.0)
                 self._cash += notional
-                log.info("PAPER: cancelled order %s (%s %s)", order_id, record.side_str, symbol)
+                log.info("PAPER: cancelled order %s (%s %s)", order_id, record.side_str, record.symbol)
                 return True
             return False
         else:
@@ -259,7 +295,39 @@ class LiveExecutionGateway:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _submit_paper_order(self, order: Order, symbol: str) -> str:
+    def _submit_paper_order(
+        self, order: Order, symbol: str, fill_metadata: dict | None = None
+    ) -> str:
+        """Submit a paper order, with wash-trade cooldown and option-aware fill."""
+        side_str = order.side.name.lower()
+        now = time.time()
+
+        # --- Wash-trade cooldown (per-strategy, per-symbol) ---
+        strategy_name = fill_metadata.get("strat_name", "") if fill_metadata else ""
+        cooldown_key = (strategy_name, symbol)
+        prev = self._last_opposite_side.get(cooldown_key)
+        if prev is not None:
+            prev_side, prev_ts = prev
+            if prev_side != side_str and (now - prev_ts) < self._wash_trade_cooldown_sec:
+                log.warning(
+                    "Wash-trade cooldown for %s (%s): %s rejected (last %s %.1fs ago)",
+                    symbol, strategy_name, side_str, prev_side, now - prev_ts,
+                )
+                record = _PaperOrderRecord(
+                    symbol=symbol,
+                    side=order.side,
+                    quantity=order.quantity,
+                    order_type=order.type.value if order.type else "market",
+                    limit_price=float(order.limit_price) if order.limit_price else None,
+                )
+                record.status = OrderStatus.REJECTED
+                self._paper_orders[record.id] = record
+                self._orders[record.id] = self._order_to_typed(record)
+                return record.id
+
+        # --- Track this side for next order -----------------------------
+        self._last_opposite_side[cooldown_key] = (side_str, now)
+
         # Route to Alpaca paper API so orders appear on the dashboard
         if self._broker and self._connected:
             try:
@@ -299,6 +367,20 @@ class LiveExecutionGateway:
                         "PAPER→ALPACA: filled %s %s %s @ %.4f",
                         record.id, record.side_str.upper(), symbol, record.filled_price,
                     )
+                    # Write fill event to JSONL
+                    fm = fill_metadata or {}
+                    self._append_fill_event(
+                        order_id=record.id,
+                        symbol=symbol,
+                        side=record.side_str,
+                        qty=float(record.quantity),
+                        price=record.filled_price,
+                        notional=float(record.quantity) * record.filled_price,
+                        strat_name=fm.get("strat_name", ""),
+                        trade_date=fm.get("trade_date", ""),
+                        weight=fm.get("weight", 1.0),
+                        filled_at=fm.get("filled_at", "alpaca_paper"),
+                    )
                     return record.id
             except Exception as exc:
                 log.warning("Alpaca paper submit failed (%s) — falling back to local sim", exc)
@@ -313,6 +395,72 @@ class LiveExecutionGateway:
         )
 
         market_price = self._get_market_price(symbol)
+        if market_price is None:
+            log.warning("PAPER: no price for %s — rejecting local sim order", symbol)
+            record.status = OrderStatus.REJECTED
+            self._paper_orders[record.id] = record
+            self._orders[record.id] = self._order_to_typed(record)
+            return record.id
+
+        # --- Option-aware fill pricing ----------------------------------
+        meta = order.metadata or {}
+        is_option = meta.get("instrument") in ("OPTION", "option")
+        if is_option and meta.get("theoretical_mid"):
+            # Option: apply strategy's bid-ask haircut
+            theo = float(meta["theoretical_mid"])
+            spread_pct = float(meta.get("bid_ask_spread_pct", 0.05))
+            commission = float(meta.get("commission_per_contract", 0.65))
+            multiplier = int(meta.get("multiplier", 100))
+            contracts = int(float(order.quantity))  # for options, quantity = contracts
+            if order.side == Side.SELL:
+                fill_price = theo * (1.0 - spread_pct)  # receive bid side
+            else:
+                fill_price = theo * (1.0 + spread_pct)   # pay ask side
+            # Commission charged per contract
+            total_commission = commission * contracts
+            notional = fill_price * multiplier * contracts
+            if order.side == Side.SELL:
+                self._cash += notional - total_commission
+            else:
+                if notional + total_commission > self._cash + 1.0:
+                    log.warning(
+                        "PAPER: insufficient cash for option %s — rejecting. "
+                        "Needed premium $%.2f + comm $%.2f, have $%.2f",
+                        symbol, notional, total_commission, self._cash,
+                    )
+                    record.status = OrderStatus.REJECTED
+                    self._paper_orders[record.id] = record
+                    self._orders[record.id] = self._order_to_typed(record)
+                    return record.id
+                self._cash -= notional + total_commission
+            record.simulate_fill(fill_price)
+            # Position key for options: symbol + strike + expiry
+            opt_key = meta.get("_position_key", symbol)
+            self._update_position(opt_key, order.side, order.quantity, fill_price, metadata=meta)
+            log.info(
+                "PAPER (local sim OPTION): filled %s %s %s @ %.4f "
+                "(spread %.1f%%, comm $%.2f, contracts=%d)",
+                record.id, record.side_str.upper(), symbol, fill_price,
+                spread_pct * 100, total_commission, contracts,
+            )
+            self._paper_orders[record.id] = record
+            self._orders[record.id] = self._order_to_typed(record)
+            fm = fill_metadata or {}
+            self._append_fill_event(
+                order_id=record.id,
+                symbol=symbol,
+                side=record.side_str,
+                qty=float(record.quantity),
+                price=fill_price,
+                notional=notional,
+                strat_name=fm.get("strat_name", ""),
+                trade_date=fm.get("trade_date", ""),
+                weight=fm.get("weight", 1.0),
+                filled_at=fm.get("filled_at", "local_sim_option"),
+            )
+            return record.id
+
+        # --- Equity fill pricing ----------------------------------------
         notional = float(order.quantity) * market_price
         if record.side == Side.SELL:
             self._cash += notional
@@ -368,6 +516,20 @@ class LiveExecutionGateway:
             "PAPER (local sim): filled %s %s %s @ %.4f (slippage %.4f)",
             record.id, record.side_str.upper(), symbol, fill_price, slippage,
         )
+        # Write fill event to JSONL
+        fm = fill_metadata or {}
+        self._append_fill_event(
+            order_id=record.id,
+            symbol=symbol,
+            side=record.side_str,
+            qty=float(record.quantity),
+            price=fill_price,
+            notional=float(record.quantity) * fill_price,
+            strat_name=fm.get("strat_name", ""),
+            trade_date=fm.get("trade_date", ""),
+            weight=fm.get("weight", 1.0),
+            filled_at=fm.get("filled_at", "local_sim"),
+        )
         return record.id
 
     def _submit_live_order(self, order: Order) -> str:
@@ -395,12 +557,13 @@ class LiveExecutionGateway:
 
         return asyncio.run(_do())
 
-    def _get_market_price(self, symbol: str) -> float:
-        """Fetch latest close price from Alpaca or return $100 fallback."""
-        # Try our own cached data feed if available (preferred — uses same source)
+    def _get_market_price(self, symbol: str) -> float | None:
+        """Fetch latest close price from Alpaca.  Returns ``None`` when no
+        reliable price is available so callers reject the order rather than
+        trading at a bogus $100 fallback."""
+        # Try our own cached data feed if available (preferred)
         try:
             from quantcore.live.data_feed import LiveDataFeed
-
             feed = LiveDataFeed(tickers=[symbol])
             price = feed.get_latest_close(symbol)
             if price and price > 0:
@@ -408,12 +571,12 @@ class LiveExecutionGateway:
         except Exception as exc:
             log.debug("LiveDataFeed price fetch failed for %s: %s", symbol, exc)
 
-        # Try Alpaca broker
+        # Try Alpaca broker position price
         if self._broker:
             try:
                 positions = self._broker.get_positions_sync()
                 pos = positions.get(symbol)
-                if pos:
+                if pos and float(pos.market_price) > 0:
                     return float(pos.market_price)
             except Exception as exc:
                 log.debug("Broker position price lookup failed for %s: %s", symbol, exc)
@@ -434,12 +597,52 @@ class LiveExecutionGateway:
                     result = json.loads(resp.read().decode())
                     bar = result.get("bar", {})
                     if bar:
-                        return float(bar.get("c", 100.0))
+                        price = float(bar.get("c", 0))
+                        if price > 0:
+                            return price
             except Exception as exc:
                 log.debug("Alpaca bars/latest failed for %s: %s", symbol, exc)
 
-        log.warning("Could not fetch price for %s — falling back to $100.00", symbol)
-        return 100.0
+        log.warning("Could not fetch price for %s — returning None (order will be rejected)", symbol)
+        return None
+
+    def _append_fill_event(
+        self,
+        order_id: str,
+        symbol: str,
+        side: str,
+        qty: float,
+        price: float,
+        notional: float,
+        strat_name: str,
+        trade_date: str,
+        weight: float,
+        filled_at: str,
+    ) -> None:
+        """Write a fill event to the JSONL log file."""
+        if not self._events_path:
+            return
+        from datetime import datetime, timezone
+        import json
+        try:
+            event = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "event": "fill",
+                "symbol": symbol,
+                "side": side,
+                "qty": qty,
+                "price": price,
+                "notional": notional,
+                "order_id": order_id,
+                "strategy": strat_name,
+                "trade_date": trade_date,
+                "weight": weight,
+                "filled_at": filled_at,
+            }
+            with open(self._events_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(event, default=str) + "\n")
+        except OSError:
+            pass
 
     def _order_to_typed(self, record: _PaperOrderRecord) -> Order:
         return Order(
@@ -452,6 +655,49 @@ class LiveExecutionGateway:
             filled_qty=record.filled_qty,
             avg_fill_price=Decimal(str(record.filled_price)) if record.status == OrderStatus.FILLED else None,
         )
+
+    def _update_position(
+        self,
+        key: str,
+        side: Side,
+        qty: Decimal,
+        fill_price: float,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Update a position keyed by an arbitrary string (e.g. option composite key).
+
+        For options, ``key`` is a composite distinct from the underlying symbol.
+        For equity, ``key`` equals the symbol.
+        """
+        existing = self._positions.get(key)
+        if existing:
+            qty_float = float(existing.quantity)
+            avg = float(existing.avg_cost)
+            if side == Side.BUY:
+                new_qty = qty_float + float(qty)
+                new_avg = (qty_float * avg + float(qty) * fill_price) / max(new_qty, 1)
+            else:
+                new_qty = qty_float - float(qty)
+                new_avg = avg
+            if abs(new_qty) < 1e-8:
+                self._positions.pop(key, None)
+            else:
+                self._positions[key] = Position(
+                    symbol=str(existing.symbol),
+                    quantity=Decimal(str(new_qty)),
+                    avg_cost=Decimal(str(new_avg)),
+                    market_price=Decimal(str(fill_price)),
+                    unrealized_pnl=Decimal("0"),
+                )
+        else:
+            sym = metadata.get("underlying", key) if metadata else key
+            self._positions[key] = Position(
+                symbol=str(sym),
+                quantity=Decimal(str(qty)) if side == Side.BUY else -Decimal(str(qty)),
+                avg_cost=Decimal(str(fill_price)),
+                market_price=Decimal(str(fill_price)),
+                unrealized_pnl=Decimal("0"),
+            )
 
     def _sync_from_broker(self) -> None:
         """On startup: pull real positions/balance from Alpaca to seed our state."""

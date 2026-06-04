@@ -245,9 +245,10 @@ class TestPriceFallbackFix:
         price = rm._order_price(order, market_prices={"AAPL": 200.0})
         assert price == 200.0, f"Expected $200, got ${price}"
 
-        # Without market_prices — should fall back to 100 with warning
-        price = rm._order_price(order, market_prices=None)
-        assert price == 100.0
+        # Without market_prices and no limit_price — should raise ValueError
+        # (no $100 fallback to avoid corrupt sizing)
+        with pytest.raises(ValueError, match="No price available"):
+            rm._order_price(order, market_prices=None)
 
     def test_pre_trade_check_uses_market_prices(self):
         from quantcore.live.risk_manager import RiskManagerLive, RiskLimitsConfig, Approval

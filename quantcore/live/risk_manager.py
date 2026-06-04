@@ -106,9 +106,34 @@ class RiskManagerLive:
         positions: dict[str, object] | None = None,
         market_prices: dict[str, float] | None = None,
     ) -> Approval:
-        """Run all pre-trade risk checks.  Returns Approval with reason if rejected."""
+        """Run all pre-trade risk checks.  Returns Approval with reason if rejected.
+
+        **Important**: This method synchronises ``_total_equity`` and
+        ``_current_daily_pnl`` from the *equity* parameter BEFORE running checks,
+        so callers do not need to call ``update_equity()`` separately.
+        """
         if equity <= 0:
             return Approval(approved=False, reason="Equity <= 0 — cannot trade")
+
+        # ------------------------------------------------------------------
+        # Synchronise equity state from the caller-supplied equity — ensures
+        # daily P&L and drawdown checks use the latest portfolio value, not a
+        # cached snapshot from a prior reconciliation.
+        # ------------------------------------------------------------------
+        if self._starting_equity_for_day <= 0:
+            # Edge case: start_day() was never called — seed starting equity
+            # from current value so daily P&L tracking is meaningful.
+            log.warning(
+                "pre_trade_check: start_day never called — seeding "
+                "starting equity from current value $%.2f", equity,
+            )
+            self.start_day(equity)
+        elif abs(equity - self._total_equity) > 0.01:
+            log.debug(
+                "pre_trade_check syncing equity: was $%.2f → now $%.2f",
+                self._total_equity, equity,
+            )
+            self.update_equity(equity)
 
         qty = float(order.quantity)
         # Use a crude price estimate for notional sizing
@@ -151,10 +176,15 @@ class RiskManagerLive:
             )
 
         # 4. Daily loss limit
-        if self._current_daily_pnl < -equity * self.config.max_daily_loss_pct:
+        daily_loss_threshold = equity * self.config.max_daily_loss_pct
+        if self._current_daily_pnl < -daily_loss_threshold:
             return Approval(
                 approved=False,
-                reason=f"Daily loss limit hit: PnL {self._current_daily_pnl:,.2f} < -{self.config.max_daily_loss_pct:.1%} of equity",
+                reason=(
+                    f"Daily loss limit hit: PnL ${self._current_daily_pnl:,.2f} "
+                    f"< -${daily_loss_threshold:,.2f} ({self.config.max_daily_loss_pct:.1%} "
+                    f"of equity ${equity:,.2f})"
+                ),
             )
 
         # 5. Drawdown limit
@@ -233,13 +263,18 @@ class RiskManagerLive:
     # ------------------------------------------------------------------
 
     def _order_price(self, order: Order, market_prices: dict[str, float] | None = None) -> float:
-        """Best-effort price for notional calculation."""
+        """Best-effort price for notional calculation.
+
+        Raises ValueError when no price is available so the caller can
+        reject the order rather than under-counting risk with a $100 fallback.
+        """
         if order.limit_price is not None:
             return float(order.limit_price)
         if market_prices and order.symbol in market_prices:
             return float(market_prices[order.symbol])
-        log.warning("No price available for %s — using $100 fallback", order.symbol)
-        return 100.0
+        raise ValueError(
+            f"No price available for {order.symbol} and no limit_price set — cannot compute notional"
+        )
 
     def _gross_exposure(
         self, positions: dict[str, object], market_price: float,

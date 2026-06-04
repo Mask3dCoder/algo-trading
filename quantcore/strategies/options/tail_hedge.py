@@ -114,6 +114,7 @@ class TailHedgeStrategy(Strategy):
             signals.append(TradeSignal(
                 symbol=symbol,
                 direction=-1,  # Long puts = short delta
+                instrument_type="option",
                 strength=min(risk_score, 1.0),
                 size=notional,
                 stop_loss=None,
@@ -137,6 +138,7 @@ class TailHedgeStrategy(Strategy):
                 signals.append(TradeSignal(
                     symbol=symbol,
                     direction=-1,
+                    instrument_type="option",
                     strength=0.5,
                     size=self.config.max_position_notional * self.notional_budget_pct / 100,
                     metadata={
@@ -154,7 +156,7 @@ class TailHedgeStrategy(Strategy):
             # Exit: crash risk subsided
             if risk_score < 0.3:
                 signals.append(TradeSignal(
-                    symbol=symbol, direction=0, strength=0.0, size=0.0,
+                    symbol=symbol, direction=0, instrument_type="option", strength=0.0, size=0.0,
                     metadata={
                         "action": "tail_hedge_exit",
                         "reason": "risk_subsided",

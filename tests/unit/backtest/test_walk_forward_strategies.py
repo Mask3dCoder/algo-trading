@@ -23,7 +23,7 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_earnings_momentum": {"rebalance_freq": 1},  # DISABLED (audit) — minimal params for coverage
     "equity_low_volatility": {"rebalance_freq": 1},   # RESEARCH — minimal params for coverage
     "equity_stat_arb": {"rescan_freq": 1, "entry_z": 1.5, "lookback": 100, "max_pairs": 2},
-    "equity_stat_arb_mr": {"rescan_freq": 1, "entry_z": 1.5, "lookback": 100, "max_pairs": 2},
+    "equity_stat_arb_mr": {"entry_threshold": 2.0, "lookback_zscore": 20, "max_pairs": 5, "rebalance_freq": 60},
     "equity_mean_reversion": {"rsi_oversold": 30, "rsi_overbought": 70},
     "equity_trend_following": {"trend_window": 50, "fast_window": 10, "slow_window": 30},
     "equity_multi_factor": {},
@@ -37,10 +37,10 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_short_term_reversal": {"rebalance_freq": 1},
     "equity_tsmom": {"rebalance_freq": 1},
     "equity_multifactor_composite": {},
-    "sentiment_momentum": {},
-    "simple_buy_hold": {},
     "equity_quality_rmw_cma": {},
     "equity_value_hml": {},
+    "sentiment_momentum": {"sentiment_lookback": 5, "rebalance_freq": 1, "tercile_pct": 0.33},
+    "simple_buy_hold": {},
 }
 
 _OPTIONS_PARAMS: dict[str, dict] = {
@@ -48,6 +48,7 @@ _OPTIONS_PARAMS: dict[str, dict] = {
     "options_iron_condor": {"ivr_entry": 30},
     "options_earnings_vol": {},
     "options_tail_hedge": {},
+    "options_put_write": {"vix_entry": 20, "otm_pct": 0.95, "dte": 30, "risk_per_trade": 0.02, "max_positions": 3},
 }
 
 _MACRO_PARAMS: dict[str, dict] = {
@@ -70,7 +71,8 @@ _MACRO_PARAMS: dict[str, dict] = {
     # },
     "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
     "macro_vrp": {"rebalance_freq": 1},
-    "macro_fred_regime": {},
+    "macro_fred_regime": {"rebalance_freq": 1},
+    # NOTE: "macro_fred_regime" is registered via quantcore.strategies.macro.fred_regime_strategy
 }
 
 _INTRADAY_PARAMS: dict[str, dict] = {
@@ -204,10 +206,15 @@ def _ensure_imported() -> None:
     import quantcore.strategies.macro.carry  # noqa: F401
     import quantcore.strategies.macro.cta_trend  # noqa: F401
     import quantcore.strategies.macro.risk_parity  # noqa: F401
+    import quantcore.strategies.macro.fred_regime_strategy  # noqa: F401
+    import quantcore.strategies.macro.factor_residual_v3  # noqa: F401
     import quantcore.strategies.options.delta_neutral  # noqa: F401
     import quantcore.strategies.options.earnings_vol  # noqa: F401
     import quantcore.strategies.options.iron_condor  # noqa: F401
     import quantcore.strategies.options.tail_hedge  # noqa: F401
+    import quantcore.strategies.options.put_write  # noqa: F401
+    import quantcore.alpha.stat_arb_mean_reversion  # noqa: F401
+    import quantcore.alpha.sentiment_momentum  # noqa: F401
 
 
 @pytest.fixture(scope="module")

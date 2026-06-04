@@ -104,7 +104,7 @@ class CircuitBreaker:
         # DAILY_LOSS_HALT only applies until next calendar day
         if self._state == CircuitBreakerState.DAILY_LOSS_HALT:
             today = date.today()
-            if self._daily_loss_halt_date != today:
+            if self._daily_loss_halted_date != today:
                 return True
         return False
 
@@ -137,6 +137,15 @@ class CircuitBreaker:
         CircuitBreakerState
             The (possibly updated) state.
         """
+        # Log equity snapshot BEFORE evaluation so false positives
+        # can be traced immediately from the log output.
+        log.info(
+            "Circuit breaker check: equity=$%.2f peak=$%.2f daily_pnl=$%.2f "
+            "state=%s streak=%d",
+            equity, peak_equity, daily_pnl,
+            self._state.value, self._rejection_streak,
+        )
+
         # Streak tracking
         if rejected_last:
             self._rejection_streak += 1
@@ -200,7 +209,7 @@ class CircuitBreaker:
         self._reason = reason
         self._activation_time = datetime.utcnow()
         if new_state == CircuitBreakerState.DAILY_LOSS_HALT:
-            self._daily_loss_halt_date = date.today()
+            self._daily_loss_halted_date = date.today()
         log.critical(
             "CIRCUIT BREAKER → %s | %s", new_state.value.upper(), reason
         )
