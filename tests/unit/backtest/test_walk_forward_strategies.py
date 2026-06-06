@@ -40,7 +40,6 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_quality_rmw_cma": {},
     "equity_value_hml": {},
     "sentiment_momentum": {"sentiment_lookback": 5, "rebalance_freq": 1, "tercile_pct": 0.33},
-    "simple_buy_hold": {},
 }
 
 _OPTIONS_PARAMS: dict[str, dict] = {
@@ -145,6 +144,7 @@ def strategy_data() -> dict[str, np.ndarray]:
         "yields": yields,
         "earnings_upcoming": np.array(1.0),
         "symbols": [f"A{i}" for i in range(N_ASSETS)],
+        "equity": np.array(1_000_000.0),
     }
     return data
 

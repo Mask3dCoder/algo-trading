@@ -91,6 +91,12 @@ from quantcore.core.types import Order, OrderStatus, OrderType, Side
 from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from quantcore.live.risk_manager import RiskManagerLive, RiskLimitsConfig
 from quantcore.live.watchdog import Watchdog, WatchdogConfig, WatchdogState
+
+try:
+    from quantcore.live.live_risk_engine import LiveRiskEngine
+except ImportError:
+    LiveRiskEngine = None
+    _log.warning("LiveRiskEngine not available — advanced risk checks disabled")
 from quantcore.monitoring.alerting import Alerter, AlertingConfig
 from quantcore.strategies.base import StrategyConfig, TradeSignal
 from quantcore.strategies.registry import create as create_strategy, list_strategies
@@ -342,6 +348,23 @@ class ProductionRunner:
             )
         )
         self.watchdog.on_trigger(self._on_watchdog_trigger)
+
+        # Advanced risk engine (Phase 4) — wraps PCA/ICA/EVT/DCC-GARCH
+        # Must initialise before the trading loop so models are ready on first tick.
+        self.live_risk_engine: Any = None
+        if LiveRiskEngine is not None:
+            try:
+                self.live_risk_engine = LiveRiskEngine()
+                self.live_risk_engine.fit_initial()
+                # Expose to the API server (runs in the same process)
+                from quantcore.api.routes.risk import register_live_risk_engine
+                register_live_risk_engine(self.live_risk_engine)
+                _log.info("LiveRiskEngine active: regime=%s cond_corr=%.3f",
+                          self.live_risk_engine.correlation_regime,
+                          self.live_risk_engine.conditional_correlation)
+            except Exception as exc:
+                _log.warning("LiveRiskEngine init failed: %s — continuing without it", exc)
+                self.live_risk_engine = None
 
         # Broker
         broker_cfg = config.get("broker", {})
@@ -608,6 +631,12 @@ class ProductionRunner:
             # Sync risk manager with reconciled portfolio value — ensures
             # the circuit breaker sees the latest equity after reconciliation.
             self.risk_manager.update_equity(total)
+
+            # Phase 4: Advance the rolling risk model window with today's return
+            if self.live_risk_engine is not None and self._trade_day_start_equity > 0:
+                daily_ret = (total - self._trade_day_start_equity) / self._trade_day_start_equity
+                self.live_risk_engine.update(daily_ret, as_of=date.today())
+
             log.info(
                 "Risk manager post-reconciliation: equity=$%.2f "
                 "daily_pnl=$%.2f peak=$%.2f",
@@ -656,10 +685,13 @@ class ProductionRunner:
             acct = self.broker.get_account()
             equity = float(acct.get("portfolio_value", 0))
             self.risk_manager.update_equity(equity)
+            corr_regime, corr_corr = self._get_corr_regime_info()
             self.circuit_breaker.check(
                 equity=equity,
                 peak_equity=self.risk_manager.peak_equity,
                 daily_pnl=self.risk_manager.current_daily_pnl,
+                correlation_regime=corr_regime,
+                conditional_correlation=corr_corr,
             )
             if self.circuit_breaker.activated:
                 log.warning("Circuit breaker ACTIVE — skipping intraday tick %s", time_slot)
@@ -678,6 +710,7 @@ class ProductionRunner:
             # Inject gap-fade-specific fields into data dict
             ohlcv_snapshot["prev_close"] = prev_close_map
             ohlcv_snapshot["current_time"] = current_time_et
+            ohlcv_snapshot["equity"] = equity
 
             all_signals: list[tuple[str, float, TradeSignal]] = []
             for strat_name, weight, instance, data_source, bar_size in self.strategies:
@@ -832,6 +865,8 @@ class ProductionRunner:
             # Always sync risk manager with latest account snapshot BEFORE
             # any circuit breaker or risk checks.
             self.risk_manager.update_equity(equity)
+            corr_regime, corr_corr = self._get_corr_regime_info()
+            daily_snapshot["equity"] = equity
             log.info(
                 "Risk manager synced: equity=$%.2f start_eq=$%.2f daily_pnl=$%.2f",
                 equity,
@@ -844,6 +879,8 @@ class ProductionRunner:
                 equity=equity,
                 peak_equity=self.risk_manager.peak_equity,
                 daily_pnl=self.risk_manager.current_daily_pnl,
+                correlation_regime=corr_regime,
+                conditional_correlation=corr_corr,
             )
             if self.circuit_breaker.activated:
                 reason = self.circuit_breaker.reason
@@ -1018,6 +1055,26 @@ class ProductionRunner:
                 )
                 return None
 
+            # Phase 4: Advanced risk gate (factor / tail-risk / correlation regime)
+            if self.live_risk_engine is not None:
+                adv_approval = self.live_risk_engine.pre_trade_check(sig, positions, equity)
+                if not adv_approval.approved:
+                    log.warning("ADVANCED RISK REJECT %s %s: %s",
+                               order.side.value.upper(), symbol, adv_approval.reason)
+                    self.circuit_breaker.check(
+                        equity=equity,
+                        peak_equity=self.risk_manager.peak_equity,
+                        daily_pnl=self.risk_manager.current_daily_pnl,
+                        rejected_last=True,
+                        correlation_regime=self.live_risk_engine.correlation_regime,
+                        conditional_correlation=self.live_risk_engine.conditional_correlation,
+                    )
+                    return None
+
+            # Pass correlation regime to circuit breaker so it knows to tighten limits
+            cb_regime = getattr(self.live_risk_engine, 'correlation_regime', 'NORMAL') if self.live_risk_engine else 'NORMAL'
+            cb_cond_corr = getattr(self.live_risk_engine, 'conditional_correlation', 0.0) if self.live_risk_engine else 0.0
+
             order_id = self.broker.submit_order(
                 order,
                 fill_metadata={
@@ -1134,6 +1191,20 @@ class ProductionRunner:
                     rejected_last=True,
                 )
                 return None
+
+            # Phase 4: Advanced risk gate for options
+            if self.live_risk_engine is not None:
+                adv_approval = self.live_risk_engine.pre_trade_check(sig, positions, equity)
+                if not adv_approval.approved:
+                    log.warning("ADVANCED RISK REJECT option %s %s: %s",
+                               action, contract_id, adv_approval.reason)
+                    self.circuit_breaker.check(
+                        equity=equity,
+                        peak_equity=self.risk_manager.peak_equity,
+                        daily_pnl=self.risk_manager.current_daily_pnl,
+                        rejected_last=True,
+                    )
+                    return None
 
             order_id = self.broker.submit_order(
                 order,
@@ -1253,6 +1324,19 @@ class ProductionRunner:
         if pos:
             return float(pos.market_price)
         return 0.0
+
+    def _get_corr_regime_info(self) -> tuple[str, float]:
+        """Correlation-regime info for circuit breaker and logging.
+
+        Returns ``(regime_name, conditional_correlation)`` from the live risk
+        engine, or ``("NORMAL", 0.0)`` if the engine is not available.
+        """
+        if self.live_risk_engine is None:
+            return "NORMAL", 0.0
+        return (
+            self.live_risk_engine.correlation_regime,
+            self.live_risk_engine.conditional_correlation,
+        )
 
     def _get_option_spread_pct(self) -> float:
         """Default bid-ask spread haircut for option fills."""

@@ -162,7 +162,9 @@ def _forward_backward(
                 np.sum(np.exp(log_alpha[t - 1, :] + log_trans[:, j] - max_prev))
             )
 
-    log_likelihood = np.log(np.sum(np.exp(log_alpha[T - 1, :])))
+    # Stabilized log-sum-exp
+    ll_max = np.max(log_alpha[T - 1, :])
+    log_likelihood = ll_max + np.log(np.sum(np.exp(log_alpha[T - 1, :] - ll_max)))
     log_beta = np.full((T, K), -np.inf)
 
     for k in range(K):
@@ -252,7 +254,7 @@ def _baum_welch(
                     trans[i, j] = numer / denom
 
             row_sum = np.sum(trans[i, :])
-            if row_sum > 0:
+            if row_sum > 1e-12 and not np.isnan(row_sum):
                 trans[i, :] /= row_sum
 
     return means, variances, trans, pi

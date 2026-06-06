@@ -132,6 +132,29 @@
     text-transform: uppercase; letter-spacing: 0.5px;
   }
   .kill-btn:hover { opacity: 0.85; }
+
+  /* Risk section */
+  .regime-indicator { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .regime-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .regime-dot.normal { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .regime-dot.elevated { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .regime-dot.crisis { background: var(--red); box-shadow: 0 0 8px var(--red); animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .regime-text { font-size: 0.85rem; color: var(--text); }
+  .risk-metrics-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .risk-metrics-grid { grid-template-columns: repeat(2,1fr); } }
+  .risk-metric { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 8px; text-align: center; }
+  .risk-metric .label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
+  .risk-metric .value { font-size: 1rem; font-weight: 700; color: #fff; }
+  .risk-metric .value.negative { color: var(--red); }
+  .risk-bar-chart { display: flex; flex-direction: column; gap: 4px; }
+  .risk-bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; }
+  .risk-bar-label { width: 60px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .risk-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+  .risk-bar-fill { height: 100%; background: var(--blue); border-radius: 3px; transition: width 0.5s ease; }
+  .risk-bar-fill.systematic { background: var(--blue); }
+  .risk-bar-fill.idiosyncratic { background: var(--yellow); }
+  .risk-bar-value { width: 36px; text-align: right; color: var(--text-dim); font-size: 0.7rem; }
 </style>
 </head>
 <body>
@@ -221,6 +244,68 @@
         <tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No events yet</td></tr>
       </tbody>
     </table>
+  </div>
+
+  <!-- Risk (Phase 4) -->
+  <div class="section-title">Advanced Risk</div>
+  <div class="card" id="risk-section">
+    <div id="risk-loading" class="loading" style="padding:20px">Loading risk metrics…</div>
+
+    <div id="risk-content" style="display:none">
+      <!-- Correlation regime traffic light -->
+      <div class="regime-indicator">
+        <span class="regime-dot" id="regime-dot"></span>
+        <span class="regime-text" id="regime-text"></span>
+      </div>
+
+      <!-- VaR / ES / correlation metrics -->
+      <div class="risk-metrics-grid">
+        <div class="risk-metric">
+          <div class="label">VaR 95%</div>
+          <div class="value" id="risk-var95">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">VaR 99%</div>
+          <div class="value" id="risk-var99">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">Cond. Corr.</div>
+          <div class="value" id="risk-cond-corr">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">High-Corr Days</div>
+          <div class="value" id="risk-high-corr-days">—</div>
+        </div>
+      </div>
+
+      <!-- Risk decomposition bar chart -->
+      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-dim);margin-bottom:6px">
+        Risk Decomposition
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);margin-bottom:4px">
+          <span>Systematic</span><span id="risk-sys-pct">—</span>
+        </div>
+        <div class="risk-bar-track" style="margin-bottom:8px">
+          <div class="risk-bar-fill systematic" id="risk-sys-bar" style="width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);margin-bottom:4px">
+          <span>Idiosyncratic</span><span id="risk-idio-pct">—</span>
+        </div>
+        <div class="risk-bar-track">
+          <div class="risk-bar-fill idiosyncratic" id="risk-idio-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Per-strategy risk contribution -->
+      <div id="risk-strategy-contrib" style="margin-top:12px"></div>
+
+      <!-- Model fit status -->
+      <div style="margin-top:10px;font-size:0.7rem;color:var(--text-dim);display:flex;gap:16px">
+        <span>N observations: <strong id="risk-n-obs" style="color:var(--text)">—</strong></span>
+        <span>Refit in: <strong id="risk-days-since-fit" style="color:var(--text)">—</strong> days</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -376,17 +461,15 @@ function updatePerformance(equity) {
 async function fetchData() {
   const errBanner = document.getElementById('error-banner');
   try {
-    const [healthRes, statusRes] = await Promise.all([
+    const [healthRes, statusRes, riskRes] = await Promise.all([
       fetch('/health'),
       fetch('/status'),
+      fetch('/risk/advanced'),
     ]);
 
-    if (!healthRes.ok || !statusRes.ok) {
-      throw new Error(`API error: health=${healthRes.status} status=${statusRes.status}`);
-    }
-
-    const health = await healthRes.json();
-    const status = await statusRes.json();
+    const health = await healthRes.json().catch(() => ({}));
+    const status = await statusRes.json().catch(() => ({}));
+    const riskData = riskRes.ok ? await riskRes.json().catch(() => null) : null;
 
     errBanner.style.display = 'none';
 
@@ -396,6 +479,7 @@ async function fetchData() {
     renderStrategies(status.strategies || health.strategies || []);
     renderActivity(status.recent_events || []);
     updatePerformance(status.equity || {});
+    updateRiskSection(riskData);
 
     // Timestamp
     document.getElementById('last-update').textContent =
@@ -405,6 +489,79 @@ async function fetchData() {
     errBanner.textContent = 'Connection error: ' + err.message + ' — retrying in 30s';
     errBanner.style.display = 'block';
   }
+}
+
+// --- Risk Section (Phase 4) ---
+function updateRiskSection(data) {
+  const loading = document.getElementById('risk-loading');
+  const content = document.getElementById('risk-content');
+
+  if (!data || data.error === 'not_ready') {
+    loading.textContent = data && data.detail
+      ? 'Not ready: ' + data.detail
+      : 'Risk engine starting up…';
+    content.style.display = 'none';
+    loading.style.display = 'block';
+    return;
+  }
+
+  loading.style.display = 'none';
+  content.style.display = 'block';
+
+  // Traffic-light regime indicator
+  const dot = document.getElementById('regime-dot');
+  const text = document.getElementById('regime-text');
+  const regime = data.correlation_regime || 'NORMAL';
+  dot.className = 'regime-dot ' + regime.toLowerCase();
+  text.innerHTML = `<strong>${regime}</strong> — ${data.regime_description || ''}`;
+
+  // VaR / ES
+  const fmtBps = (v) => v != null ? (v * 10000).toFixed(0) + ' bps' : '—';
+  document.getElementById('risk-var95').textContent = fmtBps(data.var_95);
+  const var99El = document.getElementById('risk-var99');
+  var99El.textContent = fmtBps(data.var_99);
+  var99El.className = 'value' + (data.var_99 > 0.02 ? ' negative' : '');
+  document.getElementById('risk-cond-corr').textContent =
+    data.conditional_correlation ? data.conditional_correlation.toFixed(3) : '—';
+  document.getElementById('risk-high-corr-days').textContent =
+    data.high_corr_days ?? '—';
+
+  // Risk decomposition bars
+  const sysRisk = data.systematic_risk || 0;
+  const idioRisk = data.idiosyncratic_risk || 0;
+  const totalRisk = sysRisk + idioRisk || 1;
+  const sysPct = (sysRisk / totalRisk * 100).toFixed(1);
+  const idioPct = (idioRisk / totalRisk * 100).toFixed(1);
+  document.getElementById('risk-sys-pct').textContent = sysPct + '%';
+  document.getElementById('risk-idio-pct').textContent = idioPct + '%';
+  document.getElementById('risk-sys-bar').style.width = sysPct + '%';
+  document.getElementById('risk-idio-bar').style.width = idioPct + '%';
+
+  // Per-strategy risk contribution
+  const contrib = data.risk_contribution || {};
+  const contribDiv = document.getElementById('risk-strategy-contrib');
+  if (Object.keys(contrib).length === 0) {
+    contribDiv.innerHTML = '<div style="font-size:0.75rem;color:var(--text-dim)">No strategy contribution data available</div>';
+  } else {
+    const total = Object.values(contrib).reduce((s, v) => s + Math.abs(v), 0) || 1;
+    contribDiv.innerHTML = Object.entries(contrib).map(([name, val]) => {
+      const absVal = Math.abs(val);
+      const pct = (absVal / total * 100).toFixed(1);
+      const colour = val > 0 ? 'var(--green)' : 'var(--red)';
+      return `
+        <div class="risk-bar-row">
+          <span class="risk-bar-label" title="${name}">${name}</span>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill" style="width:${pct}%;background:${colour}"></div>
+          </div>
+          <span class="risk-bar-value">${pct}%</span>
+        </div>`;
+    }).join('');
+  }
+
+  // Model status
+  document.getElementById('risk-n-obs').textContent = data.n_observations ?? '—';
+  document.getElementById('risk-days-since-fit').textContent = data.days_since_fit ?? '—';
 }
 
 // --- Kill switch ---

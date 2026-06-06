@@ -306,6 +306,9 @@ class PreprocessingPipeline:
 
     def fit(self, features: NDArray) -> "PreprocessingPipeline":
         """Learn preprocessing statistics from training data."""
+        if features.size == 0:
+            self._fitted = False
+            return self
         result = features.copy().astype(float)
 
         # 1. Winsorize — compute bounds from training data

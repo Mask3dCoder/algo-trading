@@ -124,6 +124,7 @@ class EarningsVolStrategy(Strategy):
 
                 signals.append(TradeSignal(
                     symbol=sym, direction=0, strength=0.0, size=0.0,
+                    instrument_type="option",
                     metadata={
                         "action": "earnings_straddle_exit",
                         "realized_move": float(realized_move),

@@ -115,6 +115,7 @@ class PutWriteVRPStrategy(Strategy):
         self._bar_count = 0
         self._return_history: list[float] = []
         self._trade_history: list[dict] = []
+        self._last_equity: float = 100_000.0
 
     # ------------------------------------------------------------------
     # on_data — main entry point
@@ -212,11 +213,12 @@ class PutWriteVRPStrategy(Strategy):
         contracts_kelly = self._kelly_contracts(
             net_credit_per_contract,
             spot,
-            equity=data.get("equity", 100_000.0),
+            equity=data["equity"],
         )
 
         # 2. Max notional cap (cash-secured)
-        equity = float(data.get("equity", 100_000.0))
+        equity = float(data["equity"])
+        self._last_equity = equity
         max_notional = equity * self.max_notional_pct
         max_contracts_notional = int(max_notional // (strike * self.multiplier))
 
@@ -551,7 +553,7 @@ class PutWriteVRPStrategy(Strategy):
         # Keep rolling return history for Kelly (simplified: use PnL as proxy)
         # In a real system, we'd get daily mark-to-market from the broker
         if self._trade_history:
-            daily_ret = pnl_estimate / 100_000.0  # normalized by nominal equity
+            daily_ret = pnl_estimate / max(self._last_equity, 1.0)  # normalized by actual equity
             self._return_history.append(daily_ret)
             if len(self._return_history) > 252 * 3:
                 self._return_history = self._return_history[-252 * 3:]

@@ -27,6 +27,7 @@ class CircuitBreakerState(str, Enum):
     """Graduated halt states."""
 
     NORMAL = "normal"
+    WARNING = "warning"           # elevated correlation — operator alert
     DAILY_LOSS_HALT = "daily_loss_halt"
     CRITICAL_HALT = "critical_halt"
 
@@ -38,6 +39,11 @@ class CircuitBreakerConfig:
     daily_loss_pct: float = 0.02           # 2% equity loss → daily halt
     critical_drawdown_pct: float = 0.10    # 10% drawdown → critical halt
     consecutive_rejections: int = 5          # n rejections in a row → halt
+    # High-correlation regime: when DCC-GARCH conditional corr > this,
+    # daily loss limit is halved because strategies move together → portfolio
+    # risk is higher than normal.
+    corr_threshold: float = 0.70
+    high_corr_days_persistence_alert: int = 5
     # Env var prefix for overrides
     _env_prefix: str = "QUANTCORE_RISK_"
 
@@ -49,6 +55,10 @@ class CircuitBreakerConfig:
             consecutive_rejections=int(
                 os.environ.get("QUANTCORE_RISK_CONSECUTIVE_REJECTIONS", "5")
             ),
+            corr_threshold=float(
+                os.environ.get("QUANTCORE_RISK_CORR_THRESHOLD", "0.70")),
+            high_corr_days_persistence_alert=int(
+                os.environ.get("QUANTCORE_RISK_HIGH_CORR_PERSISTENCE", "5")),
         )
 
 
@@ -81,6 +91,11 @@ class CircuitBreaker:
         self._rejection_streak = 0
         self._daily_loss_halted_date: date | None = None
 
+        # Correlation-regime tracking (updated by DCC-GARCH via check())
+        self._correlation_regime: str = "NORMAL"
+        self._conditional_correlation: float = 0.0
+        self._high_corr_days: int = 0  # consecutive days in elevated crisis regime
+
     # ------------------------------------------------------------------
     # State queries
     # ------------------------------------------------------------------
@@ -101,6 +116,9 @@ class CircuitBreaker:
         """Return True if trading is permitted."""
         if self._state == CircuitBreakerState.NORMAL:
             return True
+        # WARNING is a non-blocking alert — trading is still permitted
+        if self._state == CircuitBreakerState.WARNING:
+            return True
         # DAILY_LOSS_HALT only applies until next calendar day
         if self._state == CircuitBreakerState.DAILY_LOSS_HALT:
             today = date.today()
@@ -118,6 +136,9 @@ class CircuitBreaker:
         peak_equity: float,
         daily_pnl: float,
         rejected_last: bool = False,
+        correlation_regime: str = "NORMAL",
+        conditional_correlation: float = 0.0,
+        correlation_regime_changed: bool = False,
     ) -> CircuitBreakerState:
         """Evaluate conditions and possibly transition state.
 
@@ -137,6 +158,44 @@ class CircuitBreaker:
         CircuitBreakerState
             The (possibly updated) state.
         """
+        # 0. Update and log correlation regime (DCC-GARCH feeds this in)
+        prev_regime = self._correlation_regime
+        self._correlation_regime = correlation_regime
+        self._conditional_correlation = conditional_correlation
+
+        if prev_regime != correlation_regime:
+            log.info(
+                "CORRELATION REGIME: %s → %s | cond_corr=%.3f | high_corr_days=%d",
+                prev_regime, correlation_regime,
+                conditional_correlation, self._high_corr_days,
+            )
+            # Alert via logging for live monitoring
+            if correlation_regime == "CRISIS":
+                log.warning(
+                    "CRISIS correlation regime: portfolio risk elevated. "
+                    "All strategies highly correlated — circuit breaker limits tightened.",
+                )
+            elif correlation_regime == "ELEVATED":
+                log.info(
+                    "ELEVATED correlation regime: daily loss limit halved until regime normalises.",
+                )
+
+        # Count consecutive high-corr days
+        if correlation_regime in ("ELEVATED", "CRISIS"):
+            self._high_corr_days += 1
+        else:
+            self._high_corr_days = 0
+
+        # In elevated Crisis regime, persist high-corr → WARN state (not a halt, but alert)
+        if (self._high_corr_days >= self.config.high_corr_days_persistence_alert
+                and self._state == CircuitBreakerState.NORMAL):
+            self._transition(
+                CircuitBreakerState.WARNING,
+                f"High correlation regime persisted {self._high_corr_days} days "
+                f"(cond_corr={conditional_correlation:.3f}) — operator attention required",
+            )
+            self._high_corr_days = 0  # reset counter after triggering
+
         # Log equity snapshot BEFORE evaluation so false positives
         # can be traced immediately from the log output.
         log.info(
@@ -161,12 +220,21 @@ class CircuitBreaker:
                 )
             return self._state
 
-        # 2. Daily loss limit
-        if daily_pnl < -equity * self.config.daily_loss_pct:
-            if self._state in (CircuitBreakerState.NORMAL, CircuitBreakerState.DAILY_LOSS_HALT):
+        # 2. Daily loss limit — tightened if correlation regime is elevated/crisis
+        # When strategies are highly correlated, portfolio risk is higher per unit of loss.
+        effective_daily_loss_pct = self.config.daily_loss_pct
+        if self._correlation_regime in ("ELEVATED", "CRISIS"):
+            effective_daily_loss_pct *= 0.5  # halve the limit in high-corr regimes
+            log.info(
+                "High-corr regime active: effective daily loss limit = %.2f%% (was %.2f%%)",
+                effective_daily_loss_pct * 100, self.config.daily_loss_pct * 100,
+            )
+        if daily_pnl < -equity * effective_daily_loss_pct:
+            if self._state in (CircuitBreakerState.NORMAL, CircuitBreakerState.WARNING, CircuitBreakerState.DAILY_LOSS_HALT):
                 self._transition(
                     CircuitBreakerState.DAILY_LOSS_HALT,
-                    f"Daily loss {daily_pnl:,.2f} exceeds {self.config.daily_loss_pct:.1%} of equity",
+                    f"Daily loss {daily_pnl:,.2f} exceeds {effective_daily_loss_pct:.1%} of equity "
+                    f"(correlation_regime={self._correlation_regime}, cond_corr={self._conditional_correlation:.3f})",
                 )
             return self._state
 

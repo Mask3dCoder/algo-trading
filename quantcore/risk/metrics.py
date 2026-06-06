@@ -314,7 +314,7 @@ def burke_ratio(returns: NDArray[np.floating]) -> float:
 def skewness(returns: NDArray[np.floating]) -> float:
     """Sample skewness."""
     r = np.asarray(returns, dtype=float).flatten()
-    if len(r) < 3 or np.std(r) == 0:
+    if len(r) < 3 or np.ptp(r) < 1e-12:
         return 0.0
     return float(sp_stats.skew(r))
 
@@ -322,7 +322,7 @@ def skewness(returns: NDArray[np.floating]) -> float:
 def kurtosis(returns: NDArray[np.floating]) -> float:
     """Excess kurtosis (normal = 0)."""
     r = np.asarray(returns, dtype=float).flatten()
-    if len(r) < 4 or np.std(r) == 0:
+    if len(r) < 4 or np.ptp(r) < 1e-12:
         return 0.0
     return float(sp_stats.kurtosis(r))
 

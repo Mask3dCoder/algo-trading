@@ -35,6 +35,7 @@ class TestPutWriteVRPStrategy:
             "close": np.linspace(400, 500, n_periods * 6).reshape(n_periods, 6),
             "implied_vol": np.full((n_periods, 1), 0.25),
             "symbols": ["SPY", "QQQ", "IWM", "GLD", "TLT", "DBC"],
+            "equity": np.array(100_000.0),
         }
 
         # This must not raise "only 0-dimensional arrays can be converted to Python scalars"
@@ -56,6 +57,7 @@ class TestPutWriteVRPStrategy:
             "close": np.linspace(400, 500, n_periods * 6).reshape(n_periods, 6),
             "implied_vol": np.full(n_periods, 0.30),
             "symbols": ["SPY", "QQQ", "IWM", "GLD", "TLT", "DBC"],
+            "equity": np.array(100_000.0),
         }
 
         signals = strat.on_data(data)
@@ -112,6 +114,7 @@ class TestPutWriteVRPStrategy:
             "close": np.linspace(400, 500, n_periods * 6).reshape(n_periods, 6),
             "implied_vol": np.array(0.25),
             "symbols": ["SPY", "QQQ", "IWM", "GLD", "TLT", "DBC"],
+            "equity": np.array(100_000.0),
         }
 
         signals = strat.on_data(data)

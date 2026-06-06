@@ -8,6 +8,29 @@ from typing import Any
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 
+# Module-level global set by production_runner at startup.
+# Guards against attempts to access before the runner is initialised.
+_live_risk_engine: Any = None
+
+
+def register_live_risk_engine(engine: Any) -> None:
+    """Called by ProductionRunner during bootstrap to expose the engine to the API."""
+    global _live_risk_engine
+    _live_risk_engine = engine
+
+
+def _require_engine() -> Any:
+    """Return the registered LiveRiskEngine or raise 503."""
+    if _live_risk_engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "LiveRiskEngine not yet initialised",
+                "hint": "The production runner is still starting up. Retry in a few seconds.",
+            },
+        )
+    return _live_risk_engine
+
 from quantcore.risk.limits import RiskLimits
 from quantcore.risk.metrics import compute_all_metrics, drawdown_stats
 from quantcore.risk.reports import generate_daily_risk_report, generate_weekly_summary
@@ -315,4 +338,54 @@ def api_weekly_report(
         "profit_factor": summary.profit_factor,
         "top_contributors": summary.top_contributors,
         "top_detractors": summary.top_detractors,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Advanced risk API (wired from LiveRiskEngine)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/advanced")
+def api_advanced_risk() -> dict[str, Any]:
+    """Read-only snapshot of all Phase-4 advanced risk model outputs.
+
+    Returns:
+        - Factor exposures (PCA/ICA factor loadings on current return window)
+        - Tail-risk VaR and Expected Shortfall (EVT-GPD)
+        - Correlation regime (NORMAL / ELEVATED / CRISIS)
+        - Conditional correlation from DCC-GARCH
+        - Risk decomposition (systematic vs idiosyncratic, per-strategy contribution)
+        - Days since last model refit
+
+    This endpoint is read-only and safe to poll from the dashboard every 30 s.
+    It does NOT mutate any model state.
+    """
+    try:
+        engine = _require_engine()
+    except HTTPException:
+        return {
+            "error": "not_ready",
+            "detail": "LiveRiskEngine not yet initialised",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    snap = engine.get_snapshot()
+
+    # Human-readable regime label for dashboard traffic-light
+    regime_colours = {
+        "NORMAL": "#3fb950",    # green
+        "ELEVATED": "#d29922",  # yellow/amber
+        "CRISIS": "#f85149",    # red
+    }
+    regime_colour = regime_colours.get(snap["correlation_regime"], "#8b949e")
+
+    return {
+        **snap,
+        "regime_colour": regime_colour,
+        "regime_description": {
+            "NORMAL": "Strategies largely uncorrelated — normal risk regime",
+            "ELEVATED": "Above-average inter-strategy correlation — limits tightened",
+            "CRISIS": "High correlation across all strategies — severe risk alert",
+        }.get(snap["correlation_regime"], ""),
     }

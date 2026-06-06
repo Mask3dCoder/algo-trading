@@ -53,6 +53,8 @@ def kupiec_pof_test(
         observed_rate = max(x / n, 1.0 / n)
     else:
         observed_rate = x / n
+    # Clamp away from boundaries to prevent log(0)
+    observed_rate = max(min(observed_rate, 1.0 - 1e-12), 1e-12)
 
     # Log-likelihood under H0 vs H1
     ll_h0 = (n - x) * np.log(1.0 - p) + x * np.log(p) if x > 0 else (n - x) * np.log(1.0 - p)

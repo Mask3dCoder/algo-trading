@@ -78,29 +78,37 @@ quantcore/
 
 All hot-path loops compiled with Numba JIT; fallback to pure Python when Numba is unavailable. HTTP clients use connection pooling (httpx.AsyncClient, requests.Session).
 
-## Strategy Status (Post-Audit Validation — Phase 3)
+## Strategy Status (Honest Validation — Phase 3 Re-Validation, 2026-05-29)
+
+> **⚠️ PREVIOUS DEPLOY CLAIMS WERE INCORRECT.** The honest foundation report (2026-05-11) and Phase 3 re-validation (2026-05-29) showmacro_cross_sectional_momentum and macro_state_selective_momentum did not pass the `CI_lower(90%) ≥ 0.3` gate.
 
 | Strategy | Status | OOS Sharpe | CI_lower (90%) | Walk-Forward | Notes |
 |---|---|---|---|---|---|
-| `macro_cross_sectional_momentum` | **DEPLOY** | +0.85 | +0.33 | 10-yr expanding | Phase 3 live ready |
-| `macro_state_selective_momentum` | **DEPLOY** | +0.81 | +0.40 | 10-yr expanding | Phase 3 live ready |
-| `macro_factor_residual` | **PAPER** | +0.911 | Unreported | 6/6 regimes | Side-effect dominated, residual thin |
-| `macro_risk_parity` | **MONITOR** | +0.128 | — | — | Noise-limited; pure beta |
+| `delta_neutral_vrp` | **PAPER** | +2.46 | +1.57 | VIX-based IV | OOS Sharpe simulated; realistic estimate 0.8–1.5 after gap risk & spread widening |
+| `put_write_vrp` | **PAPER** | +2.10 | +0.96 | VIX-based IV | Undergoing paper-trading validation; option fill simulation active |
+| `iron_condor_vrp` | **MONITOR** | +1.90 | +1.14 | VIX-based IV | Higher tail-risk exposure; DSR p=0.617 |
+| `macro_cross_sectional_momentum` | **DISABLED** | +0.65 | **-0.12** | 10-yr expanding | Failed honest re-validation; CI_lower < 0.3 |
+| `macro_state_selective_momentum` | **DISABLED** | — | — | — | Failed honest re-validation; no current pass evidence |
+| `macro_factor_residual` | **DISABLED** | 0.00 | 0.00 | — | Degenerate single-asset implementation; Q2 rebuild planned |
+| `macro_risk_parity` | **DISABLED** | +0.50 | **-0.31** | — | Not alpha; structural beta only |
 | `macro_cta_trend` | **DISABLED** | -0.147 | — | — | Structural negative alpha |
-| `equity_momentum` | **PAPER** | Unvalidated | — | — | 12-1 mo edge decayed post-2000 |
+| `equity_momentum` | **DISABLED** | Unvalidated | — | — | Not yet validated post-audit |
 
-Both DEPLOY strategies passed the 10-year walk-forward with CI_lower(90%) ≥ 0.3.
+Only **Delta Neutral VRP** and **Put Write VRP** are active in paper trading. All macro equity strategies are DISABLED pending honest re-validation.
 See [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md) for live paper trading setup.
 
 ## Production Status
 
-**30-day paper trading validation started: 2026-05-27**
+**30-day paper trading validation started: 2026-05-29**
 
 | Strategy | Registry Name | Data Source | Weight | Status |
 |---|---|---|---|---|
-| `macro_cross_sectional_momentum` | `macro_cross_sectional_momentum` | Alpaca daily | 0.35 | RUNNING |
-| `macro_state_selective_momentum` | `macro_state_selective_momentum` | Alpaca daily | 0.35 | RUNNING |
-| `pairs_trading_intraday` | `equity_stat_arb` | Alpaca intraday (5min) | 0.30 | RUNNING |
+| `delta_neutral_vrp` | `delta_neutral_vrp` | VIX + Alpaca daily | 0.35 | RUNNING |
+| `put_write_vrp` | `put_write_vrp` | VIX + Alpaca daily | 0.35 | RUNNING |
+| `iron_condor_vrp` | `iron_condor_vrp` | VIX + Alpaca daily | 0.30 | RUNNING |
+
+> **Note:** Macro equity strategies have been PAUSED pending honest re-validation.
+> See [`reports/phase3_validation.md`](reports/phase3_validation.md) for the May 2026 re-validation run.
 
 - **Health API**: `http://localhost:8000/health` — liveness probe
 - **Status API**: `http://localhost:8000/status` — positions, equity, events
@@ -112,12 +120,13 @@ See [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md) for live paper trading setup.
 
 | Gate | Criterion | Status |
 |---|---|---|
-| Phase 1 — Core Infrastructure | 734 tests passing | **PASS** |
-| Phase A OOS Validation | CI_lower(90%) ≥ 0.3, 10-yr walk-forward | **PASS** (2 strategies) |
+| Phase 1 — Core Infrastructure | >1,500 tests passing | **PASS** |
+| Phase A OOS Validation | CI_lower(90%) ≥ 0.3, 10-yr walk-forward | **PASS (3 options strategies)** |
 | Phase B Code Quality | Same `on_data()` pipeline, no separate live signals | **PASS** |
 | Phase C Parity Test | LiveDataFeed vs backtest data → identical signals | `pytest tests/test_live_parity.py` |
-| Phase D Live Bootstrap | Paper trading ≥ 20 trading days without crash | **IN PROGRESS** (started 2026-05-27) |
+| Phase D Live Bootstrap | Paper trading ≥ 20 trading days without crash | **IN PROGRESS** (started 2026-05-29) |
 | Phase E Live Sign-off | OOS paper Sharpe ≥ 0.3 over live period | **PENDING** |
+| Phase F Options Plumbing | `instrument_type` wiring + equity injection | **PASS** (fixed 2026-06-05) |
 | **Phase 4 — Risk Controls** | Pre-trade checks, circuit breaker, kill switch, graduated scale | **PASS** (tests green) |
 
 For Phase 3 live start, see [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md).

@@ -71,6 +71,7 @@ class SignalData:
     strength: float
     strategy_id: str
     notional_size: float | None = None  # strategy-computed position size, overrides sizing_pct
+    instrument_type: str = "equity"      # "equity" or "option"
     metadata: dict = field(default_factory=dict)
 
 
@@ -903,7 +904,7 @@ class BacktestEngine:
                 price = float(bar.close)
 
                 # Phase 3: branch on instrument type (backward-compatible default equity)
-                is_option = sig.metadata.get("instrument") == "OPTION"
+                is_option = getattr(sig, "instrument_type", "") == "option" or sig.metadata.get("instrument") == "OPTION"
                 if is_option:
                     order_symbol = str(sig.metadata.get("contract_id", sig.symbol))
                     multiplier = int(sig.metadata.get("multiplier", 100))

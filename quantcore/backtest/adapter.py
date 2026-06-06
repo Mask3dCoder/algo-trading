@@ -76,6 +76,9 @@ class FrameworkStrategyAdapter:
         if data is None:
             return []
 
+        # Inject current portfolio equity so strategies can size dynamically
+        data["equity"] = portfolio.total_value
+
         trade_signals = self._strategy.on_data(data)
         return [self._to_signal_data(s) for s in trade_signals]
 
@@ -138,6 +141,7 @@ class FrameworkStrategyAdapter:
             strategy_id=self._strategy.name,
             notional_size=notional,
             metadata=dict(ts.metadata),
+            instrument_type=ts.instrument_type,
         )
 
 
