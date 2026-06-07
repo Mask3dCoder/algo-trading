@@ -423,7 +423,9 @@ class FillSimulator:
         self,
         slippage_bps: float = 5.0,
         commission_per_share: float = 0.005,
-        fill_at: str = "next_open",
+        fill_at: str = "close",  # DAILY-BAR BACKTEST DEFAULT: use close to avoid look-ahead
+                               # bias. next_open creates -0.29 mean Sharpe on zero-drift
+                               # data (entry at tomorrow's open but MTM at today's close).
         impact_config: MarketImpactConfig | None = None,
         volume_filter_config: VolumeFilterConfig | None = None,
     ) -> None:
@@ -725,9 +727,13 @@ class BacktestEngine:
         cash = self.portfolio.cash
         pv = self.portfolio.total_value
 
-        # Strategy-computed notional_size takes priority
-        if sig.notional_size is not None and sig.notional_size > 0:
-            qty = int(sig.notional_size / price)
+        # Strategy-computed notional_size (SignalData) or size (TradeSignal) takes priority
+        # SignalData uses notional_size; TradeSignal uses size
+        strat_size = getattr(sig, 'notional_size', None)
+        if strat_size is None:
+            strat_size = getattr(sig, 'size', 0)
+        if strat_size is not None and strat_size > 0:
+            qty = int(strat_size / price)
             if side == Side.BUY:
                 return min(qty, int(cash / price)) if cash > 0 else 0
             else:
@@ -917,8 +923,8 @@ class BacktestEngine:
                 pos = self.portfolio.positions.get(order_symbol)
                 current_qty = float(pos.quantity) if pos else 0.0
 
-                # "flat" signal: close any existing position
-                if sig.direction == "flat":
+                # "flat" signal: close any existing position (string "flat" or int 0)
+                if sig.direction == "flat" or sig.direction == 0:
                     if abs(current_qty) > 1e-8:
                         close_side = Side.SELL if current_qty > 0 else Side.BUY
                         close_order = Order(
@@ -930,9 +936,9 @@ class BacktestEngine:
                         pending_orders.append(close_order)
                     continue
 
-                if sig.direction == "long":
+                if sig.direction == "long" or sig.direction == 1:
                     side = Side.BUY
-                elif sig.direction == "short":
+                elif sig.direction == "short" or sig.direction == -1:
                     side = Side.SELL
                 else:
                     continue
