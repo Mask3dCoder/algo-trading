@@ -77,6 +77,7 @@ operations/validation_log.csv
 # Reports and results (generated, not source)
 /reports/
 /results/
+HONEST_FOUNDATION_REPORT.json
 
 # External tool repos
 ruflo/
