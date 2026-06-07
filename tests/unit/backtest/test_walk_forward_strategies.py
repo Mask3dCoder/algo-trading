@@ -71,6 +71,7 @@ _MACRO_PARAMS: dict[str, dict] = {
     "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
     "macro_vrp": {"rebalance_freq": 1},
     "macro_fred_regime": {"rebalance_freq": 1},
+    "simple_buy_hold": {},  # No params — buy-and-hold sanity check
     # NOTE: "macro_fred_regime" is registered via quantcore.strategies.macro.fred_regime_strategy
 }
 
