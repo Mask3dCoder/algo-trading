@@ -340,7 +340,7 @@ class VolatilityRiskPremiumStrategy(Strategy):
                     ))
 
         # ── Phase 4: conditional tail hedge ────────────────────────────────────
-        if self.tail_hedge_pct > 0 and self._positions:
+        if self.tail_hedge_pct > 0:
             hedge_size = self.tail_hedge_pct * float(self.config.max_position_notional)
             trade_signals.append(TradeSignal(
                 symbol="VIX_CALL",
