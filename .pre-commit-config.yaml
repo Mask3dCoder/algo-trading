@@ -1,0 +1,101 @@
+# QuantCore Pre-Commit Hooks — Synthetic Data Ban
+# Phase 0.2: No np.random price/return/volatility data in validation pipelines.
+#
+# EXCEPTIONS (allowed):
+#   - NullStrategy (engine integrity check)
+#   - Any identifier/label prefixed with MC_SANITY_CHECK_
+#   - Test setup that generates random lookback windows, indices, or fold splits
+#     (i.e., random integers for fold assignment, NOT random price/return data)
+#
+# Install: pre-commit install
+# Run:     pre-commit run --all-files
+
+default_language_version:
+  python: python3.12
+
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      # ── Block synthetic price/return/volatility data in validation dirs ──────
+
+      - id: no-synthetic-price-data
+        name: "Ban synthetic price/return/volatility data (tests/backtest/validation)"
+        entry: python -c "
+import re, sys
+BLOCK_PATTERNS = [
+    # np.random + price/return/vol data shapes
+    (r'np\.random\.(normal|randn|uniform|random_integers|lognormal|poisson)', 'price/return/vol'),
+    (r'np\.random\.default_rng.*?\.normal\(', 'price/return/vol'),
+    (r'np\.random\.default_rng.*?\.lognormal\(', 'price/return/vol'),
+    (r'np\.random\.default_rng.*?\.uniform\(.*?\d{4,}', 'price/return/vol'),
+    (r'np\.cumsum\(rng\.(normal|uniform)', 'return data'),
+    (r'base\s*=\s*100.*?(normal|uniform)', 'price base'),
+    (r'close\s*=.*?(normal|uniform)', 'price close'),
+    (r'implied_vol.*?(normal|uniform)', 'vol synth'),
+    # Explicit cumsum + rng pattern: the classic random-walk fixture
+    (r'np\.cumsum\(rng\.normal\(', 'random-walk return'),
+    (r'np\.cumsum\(np\.random\.normal\(', 'random-walk return'),
+    (r'ret\s*=\s*rng\.normal\(.*?(close|price|return)', 'random return'),
+    # Data shape that looks like price generation (n_bars, n_assets)
+    (r'\(N_BARS\s*,\s*N_ASSET', 'price matrix'),
+]
+ALLOW_IFACE = ['NullStrategy', 'MC_SANITY_CHECK_', 'random_seed', 'seed_rng',
+               'test_null', 'null_check', 'mc_', 'sensitivity']
+BLOCK_DIRS = ['tests/', 'backtest/', 'validation/', 'strategies/tests/']
+EXIT = 0
+import fnmatch, pathlib, sys
+for path in sys.argv[1:]:
+    p = pathlib.Path(path)
+    if not any(p.match(d.rstrip('/') + '/*') for d in BLOCK_DIRS if not d.endswith('/*')):
+        if not any(d in str(p) for d in BLOCK_DIRS):
+            continue  # Not a target file
+    text = p.read_text(errors='ignore')
+    for pat, tag in BLOCK_PATTERNS:
+        if re.search(pat, text):
+            # Check: is this in an exception block?
+            # Look for class/function name containing an allow-list keyword
+            context = text[max(0, text.find(pat) - 200): text.find(pat) + 200]
+            if any(k in context for k in ALLOW_IFACE):
+                continue
+            print(f'FORBIDDEN synthetic {tag} data: {p}')
+            print(f'  Pattern: {pat}')
+            print(f'  Found near: {context[:120].strip()}')
+            EXIT = 1
+sys.exit(EXIT)
+"
+        language: system
+        pass_filenames: true
+        types: [python]
+
+      # ── Block hardcoded API keys ────────────────────────────────────────────
+      - id: no-hardcoded-secrets
+        name: "No hardcoded API keys or credentials"
+        entry: python -c "
+import re, pathlib, sys
+BLOCK = [r'alpaca[_\w]*key[:=][\\'\"]\\s*[A-Z0-9]{16,}',
+         r'alpaca[_\w]*secret[:=][\\'\"]\\s*[A-Za-z0-9]{20,}',
+         r'telegram[_\w]*token[:=][\\'\"]\\s*[0-9]{8,}:[0-9A-Za-z_-]{30,}',
+         r'slack[_\w]*webhook[:=][\\'\"]https://hooks\\.slack\\.com',
+         r'api[_\w]*key[:=][\\'\"]sk-[A-Za-z0-9]{20,}']
+SKIP = ['.env.example', '.env.template', 'SYSTEM_HALT_LOG.md']
+EXIT = 0
+for path in sys.argv[1:]:
+    p = pathlib.Path(path)
+    if p.name in SKIP: continue
+    if p.name.startswith('.'): continue
+    text = p.read_text(errors='ignore')
+    for pat in BLOCK:
+        for m in re.finditer(pat, text):
+            print(f'HARDCODED SECRET: {p}:{text[:m.start()+50].split(chr(10))[-1].strip()!r}')
+            EXIT = 1
+sys.exit(EXIT)
+"
+        language: system
+        pass_filenames: true
+        types: [python, yaml]
+
+      # ── Block np.testing.assert_* on synthetic data (tests only) ───────────
+      # (Allowed in real-data tests; blocked only in synthetic test dirs)
+      # NOTE: Overly complex; skip for now. See phase 0.2 follow-up.

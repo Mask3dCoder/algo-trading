@@ -1,0 +1,9 @@
+strategy,oos_sharpe,ci_lower,ci_upper,max_dd_pct,n_trades,dsr_p,status,n_folds,costs_applied,mean_oos_return,std_oos_return,n_observations,cost_tier
+equity_tsmom,1.1039,-0.2983,2.5061,22.57,0,0.3778,DISABLE,17,False,0.00093,0.013735,357,zero
+equity_tsmom,-0.1332,-1.522,1.2461,28.48,429,1.0,DISABLE,17,True,-0.000137,0.014299,357,realistic
+equity_full_universe_xs_momentum,2.2191,0.8342,3.5503,18.52,0,0.0184,KEEP,17,False,0.004048,0.029199,347,zero
+equity_full_universe_xs_momentum,1.2671,-0.1181,2.5802,24.2,672,0.2741,DISABLE,17,True,0.002374,0.029421,347,realistic
+macro_cta_trend,-1.6617,-4.8383,1.406,11.57,0,1.0,DISABLE,17,False,-0.00149,0.014737,70,zero
+macro_cta_trend,-2.5687,-5.7771,0.5036,15.83,131,1.0,DISABLE,17,True,-0.002363,0.015045,70,realistic
+macro_risk_parity,2.2542,-4.4991,8.6712,3.03,0,1.0,DISABLE,17,False,0.002129,0.014246,17,zero
+macro_risk_parity,-1.1192,-8.6696,5.4437,5.26,102,1.0,DISABLE,17,True,-0.000671,0.014246,17,realistic

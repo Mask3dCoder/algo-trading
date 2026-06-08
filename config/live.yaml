@@ -1,12 +1,29 @@
 # QuantCore Multi-Strategy Live Configuration
-# Updated: 2026-05-29 — Institutional-grade multi-strategy paper trading
+# Updated: 2026-06-08 — ⚠️ EMERGENCY HALT: All weights zeroed pending real-data validation
+#
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  SYSTEM HALT — 2026-06-08                                          ║
+# ║  Forensic audit found ALL strategies operating on unvalidated      ║
+# ║  backtests. Options strategies (delta_neutral, put_write,           ║
+# ║  iron_condor) claim Sharpe 1.9–2.5 but were never tested on       ║
+# ║  real market data. Walk-forward tests use np.random synthetic      ║
+# ║  fixtures. Only 3 honest-sweep survivors (macro_csm +0.81,         ║
+# ║  equity_tsmom +0.56, equity_xs_momentum +0.05) had real-data      ║
+# ║  validation — and they were excluded from this config.             ║
+# ║                                                                    ║
+# ║  DO NOT RESTORE WEIGHTS until:                                     ║
+# ║  1. honest_sweep.py runs on real yfinance 2018-2024 data           ║
+# ║  2. NullStrategy engine integrity check passes                     ║
+# ║  3. Each strategy shows ci_lower > 0 on real data                  ║
+# ║  4. Options strategies pass real-data frictions backtest            ║
+# ║                                                                    ║
+# ║  See: SYSTEM_HALT_LOG.md for full rationale and restart criteria.  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 #
 # SECURITY: All API keys via environment variables (never hardcoded).
 #   Required env vars:
 #     ALPACA_API_KEY, ALPACA_API_SECRET
 #     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-#
-# Multi-strategy: each strategy has independent weight, data source, and risk limits.
 
 broker:
   type: paper
@@ -32,7 +49,7 @@ strategies:
   # OOS Sharpe: 2.48, CI: [1.57, 3.43], MaxDD: 0.5%, DSR p: 0.044
   - name: options_delta_neutral
     enabled: true
-    weight: 0.317    # reduced from 0.352 to make room for opening_gap_fade
+    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 2.48 on synthetic)
     data_source: yfinance_vix
     strategy_type: OPTIONS
     circuit_breaker:
@@ -52,7 +69,7 @@ strategies:
   # OOS Sharpe: 2.10, CI: [0.96, 4.18], MaxDD: 0.3%, DSR p: 0.399
   - name: options_put_write
     enabled: true
-    weight: 0.522    # reduced from 0.580 to make room for opening_gap_fade
+    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 2.10 on synthetic)
     data_source: yfinance_vix
     strategy_type: OPTIONS
     circuit_breaker:
@@ -82,7 +99,7 @@ strategies:
   # OOS Sharpe: 1.90, CI: [1.14, 2.58], MaxDD: 1.4%, DSR p: 0.617
   - name: options_iron_condor
     enabled: true
-    weight: 0.061    # reduced from 0.068 to make room for opening_gap_fade
+    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 1.90 on synthetic)
     data_source: yfinance_vix
     strategy_type: OPTIONS
     circuit_breaker:
@@ -100,7 +117,7 @@ strategies:
   # Uncorrelated with VRP options strategies; trades equity universe.
   - name: opening_gap_fade
     enabled: true
-    weight: 0.10
+    weight: 0.0      # HALTED — no real-data OOS validation
     data_source: alpaca_intraday
     bar_size: 5min
     strategy_type: EQUITY

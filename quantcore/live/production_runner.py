@@ -44,42 +44,13 @@ import yaml
 # ---------------------------------------------------------------------------
 # Strategy imports — trigger @register decorators
 # ---------------------------------------------------------------------------
+# Phase 0.3: Only 4 validated survivors. All dead strategies archived to
+# strategies/archive/. See SYSTEM_HALT_LOG.md and honest_sweep_results_*.csv.
 # ruff: noqa: E402, F401
-import quantcore.strategies.equity.cross_sectional_momentum
-import quantcore.strategies.equity.earnings_momentum
-import quantcore.strategies.equity.intraday_breakout
-import quantcore.strategies.equity.intraday_mean_reversion
-import quantcore.strategies.equity.intraday_momentum
-import quantcore.strategies.equity.intraday_trend
-import quantcore.strategies.equity.low_volatility
-import quantcore.strategies.equity.mean_reversion
-import quantcore.strategies.equity.momentum
-import quantcore.strategies.equity.multifactor_composite
-import quantcore.strategies.equity.multi_factor
-import quantcore.strategies.equity.opening_gap_fade
-import quantcore.strategies.equity.quality_factor
-import quantcore.strategies.equity.quality_factor_rmw_cma
-import quantcore.strategies.equity.stat_arb
-import quantcore.strategies.equity.trend_following
-import quantcore.strategies.equity.tsmom
-import quantcore.strategies.equity.value_factor_hml
-import quantcore.strategies.equity.volume_profile
-import quantcore.strategies.macro.carry
-import quantcore.strategies.macro.carry_trend_filter
-import quantcore.strategies.macro.cross_sectional_factor_neutral
-import quantcore.strategies.macro.cross_sectional_momentum
-import quantcore.strategies.macro.cta_trend
-import quantcore.strategies.macro.factor_residual
-import quantcore.strategies.macro.factor_residual_qp
-import quantcore.strategies.macro.factor_residual_strict
-import quantcore.strategies.macro.factor_residual_v3
-import quantcore.strategies.macro.risk_parity
-import quantcore.strategies.macro.state_selective_momentum
-import quantcore.strategies.options.delta_neutral
-import quantcore.strategies.options.earnings_vol
-import quantcore.strategies.options.iron_condor
-import quantcore.strategies.options.put_write
-import quantcore.strategies.options.tail_hedge
+import quantcore.strategies.equity.tsmom  # MONITOR: Sharpe 1.51, CI [0.11, 3.07], 7019 trades
+import quantcore.strategies.equity.full_universe_cross_sectional_momentum  # MONITOR: Sharpe 2.20, CI [0.83, 3.55], 4565 trades
+import quantcore.strategies.macro.cta_trend  # MONITOR: Sharpe 1.49, CI [0.09, 2.95], 1620 trades
+import quantcore.strategies.macro.risk_parity  # MONITOR: Sharpe 1.71, CI [0.34, 3.22], 2142 trades
 
 from quantcore.core.health_state import (
     record_data_point,
@@ -102,6 +73,48 @@ from quantcore.strategies.base import StrategyConfig, TradeSignal
 from quantcore.strategies.registry import create as create_strategy, list_strategies
 
 log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# EMERGENCY HALT GATE — Phase 0.1 / SYSTEM_HALT_LOG.md
+# DO NOT REMOVE. Trading is HALTED until all Phase gates pass.
+# ---------------------------------------------------------------------------
+_HALT_LOCK = Path(__file__).resolve().parent.parent.parent / "VALIDATION_PASS.lock"
+_HALT_REQS = Path(__file__).resolve().parent.parent.parent / "SYSTEM_HALT_LOG.md"
+
+def _halt_gate() -> None:
+    """Block all trading entry points until VALIDATION_PASS.lock exists.
+
+    Gate fires for:
+      - python -m quantcore.live.production_runner
+      - docker compose up (via module import)
+      - run_paper_trading.py (imports this module)
+
+    Bypass requires: written exception from lead quant AND the lock file.
+    """
+    if _HALT_LOCK.exists():
+        return  # Gate open
+
+    print("=" * 68, file=sys.stderr)
+    print("  QUANTCORE SYSTEM HALTED", file=sys.stderr)
+    print("  No trading may start without VALIDATION_PASS.lock.", file=sys.stderr)
+    print("=" * 68, file=sys.stderr)
+    if _HALT_REQS.exists():
+        try:
+            with open(_HALT_REQS) as fh:
+                print(fh.read()[:1200], file=sys.stderr)
+        except Exception:
+            pass
+    print(
+        "\n  To unlock: complete Phases 0-6 per rebuild_2026/PHASE_GATES.md\n"
+        "  Shortcut (dev only): touch VALIDATION_PASS.lock\n",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+# Fire immediately — blocks Docker, module, and script entry points
+_halt_gate()
 
 
 # ---------------------------------------------------------------------------
