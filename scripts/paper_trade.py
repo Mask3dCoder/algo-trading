@@ -22,6 +22,7 @@ import sys
 import time
 import traceback
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -55,46 +56,8 @@ from quantcore.risk.config_loader import (  # noqa: E402
 )
 from quantcore.risk.limits import check_order  # noqa: E402
 
-# Import framework strategy modules so @register decorators fire
-import quantcore.strategies.equity.momentum  # noqa: F401, E402
-import quantcore.strategies.equity.mean_reversion  # noqa: F401, E402
-import quantcore.strategies.equity.trend_following  # noqa: F401, E402
-import quantcore.strategies.equity.stat_arb  # noqa: F401, E402
-import quantcore.strategies.equity.intraday_mean_reversion  # noqa: F401, E402
-import quantcore.strategies.equity.intraday_momentum  # noqa: F401, E402
-import quantcore.strategies.equity.intraday_trend  # noqa: F401, E402
-import quantcore.strategies.equity.intraday_breakout  # noqa: F401, E402
-import quantcore.strategies.macro.cta_trend  # noqa: F401, E402
-import quantcore.strategies.macro.carry  # noqa: F401, E402
-import quantcore.strategies.macro.risk_parity  # noqa: F401, E402
-import quantcore.strategies.macro.cross_sectional_momentum  # noqa: F401, E402
-import quantcore.strategies.macro.cross_sectional_factor_neutral  # noqa: F401, E402
-import quantcore.strategies.macro.state_selective_momentum  # noqa: F401, E402
-import quantcore.strategies.macro.factor_residual  # noqa: F401, E402
-import quantcore.strategies.macro.factor_residual_qp  # noqa: F401, E402
-import quantcore.strategies.macro.factor_residual_strict  # noqa: F401, E402
-import quantcore.strategies.macro.factor_residual_v3  # noqa: F401, E402
-import quantcore.strategies.macro.carry_trend_filter  # noqa: F401, E402
-import quantcore.strategies.macro.regime_adaptive_momentum  # noqa: F401, E402
-import quantcore.strategies.macro.true_carry_strategy  # noqa: F401, E402
-import quantcore.strategies.macro.simple_test_strategy  # noqa: F401, E402
-import quantcore.strategies.equity.earnings_momentum  # noqa: F401, E402
-import quantcore.strategies.equity.low_volatility  # noqa: F401, E402
-import quantcore.strategies.equity.multifactor_composite  # noqa: F401, E402
-import quantcore.strategies.equity.quality_factor  # noqa: F401, E402
-import quantcore.strategies.equity.multi_factor  # noqa: F401, E402
-import quantcore.strategies.equity.quality_factor_rmw_cma  # noqa: F401, E402
-import quantcore.strategies.equity.tsmom  # noqa: F401, E402
-import quantcore.strategies.equity.value_factor_hml  # noqa: F401, E402
-import quantcore.strategies.equity.cross_sectional_momentum  # noqa: F401, E402
-import quantcore.strategies.equity.volume_profile  # noqa: F401, E402
-import quantcore.strategies.equity.volatility_breakout  # noqa: F401, E402
-import quantcore.strategies.equity.value_factor  # noqa: F401, E402
-import quantcore.strategies.options.delta_neutral  # noqa: F401, E402
-import quantcore.strategies.options.earnings_vol  # noqa: F401, E402
-import quantcore.strategies.options.iron_condor  # noqa: F401, E402
-import quantcore.strategies.options.tail_hedge  # noqa: F401, E402
-import quantcore.strategies.macro.fred_regime_strategy  # noqa: F401, E402
+# Phase 1 rebuild: framework strategy imports removed.
+# Paper trading is frozen to the built-in mock strategy until Phase 4.
 
 # ---------------------------------------------------------------------------
 # Duration parsing
@@ -372,7 +335,6 @@ class IntradayDataFeed:
 
     def is_market_open(self) -> bool:
         """Check if US market is open (9:30-16:00 ET, weekdays)."""
-        from datetime import timezone
         import pytz
         et = pytz.timezone("US/Eastern")
         now = datetime.now(et)
@@ -504,53 +466,8 @@ _STRATEGIES: dict[str, type] = {
     "momentum": SimpleMACrossover,
 }
 
-# Framework strategies available via --framework flag.
-# Keys must match registry names from @register decorators.
-_FRAMEWORK_STRATEGIES: set[str] = {
-    # Equity
-    "equity_mean_reversion",
-    "equity_momentum",
-    "equity_trend_following",
-    "equity_stat_arb",
-    "equity_earnings_momentum",
-    "equity_cross_sectional_momentum",
-    "equity_low_volatility",
-    "equity_multifactor_composite",
-    "equity_quality_factor",
-    "equity_multi_factor",
-    "equity_quality_rmw_cma",
-    "equity_tsmom",
-    "equity_value_hml",
-    "equity_volume_profile",
-    "equity_volatility_breakout",
-    "equity_value_factor",
-    # Intraday
-    "intraday_mean_reversion",
-    "intraday_momentum",
-    "intraday_trend",
-    "intraday_breakout",
-    # Macro
-    "macro_cta_trend",
-    "macro_carry",
-    "macro_carry_trend_filter",
-    "macro_risk_parity",
-    "macro_cross_sectional_momentum",
-    "macro_cross_sectional_factor_neutral",
-    "macro_state_selective_momentum",
-    "macro_factor_residual",
-    "macro_factor_residual_qp",
-    "macro_factor_residual_strict",
-    "macro_factor_residual_v3",
-    "macro_regime_adaptive_momentum",
-    "macro_true_carry",
-    "macro_fred_regime",
-    "simple_buy_hold",
-    # Options
-    "options_delta_neutral",
-    "options_earnings_vol",
-    "options_iron_condor",
-    "options_tail_hedge",
-}
+# Phase 1 rebuild: framework strategies removed.
+# Paper trading is frozen to the built-in mock strategy until Phase 4.
 
 
 # ---------------------------------------------------------------------------
@@ -814,13 +731,9 @@ def run_paper_trade(
     Parameters
     ----------
     framework:
-        If set, loads a framework strategy from the registry (e.g.
-        ``equity_mean_reversion``) and wraps it in ``LiveStrategyAdapter``.
-        Overrides the built-in ``strategy_name``.
+        Reserved for future Phase 4; currently rejected.
     factory_config:
-        If set, loads a ConfigurableStrategy from a YAML config file in
-        ``quantcore/strategy_factory/configs/``. Overrides both ``framework``
-        and ``strategy_name``.
+        Reserved for future Phase 4; currently rejected.
     symbols:
         List of symbols to trade. Defaults to ``["SPY"]`` for live data
         or ``["STK0000"]`` for mock.
@@ -930,113 +843,29 @@ def run_paper_trade(
     elif hasattr(broker, "config"):
         broker.config.initial_capital = initial_capital
 
-    # Initialize strategy
-    is_factory = bool(factory_config)
-    is_framework = bool(framework) and not is_factory
-    if is_factory:
-        from quantcore.backtest.adapter import LiveStrategyAdapter
-        from quantcore.strategy_factory.configurable_strategy import (
-            ConfigurableStrategy,
-            load_factory_config_by_name,
+    # Initialize strategy.
+    # Phase 1 freezes paper trading to the built-in mock strategy; framework
+    # and factory strategies were removed with the dead strategy graveyard.
+    if factory_config:
+        logger.error(
+            "--factory-config is unavailable in Phase 1; quantcore.strategy_factory was removed."
         )
-
-        try:
-            fc = load_factory_config_by_name(factory_config)
-        except FileNotFoundError as e:
-            logger.error("Factory config not found: %s", e)
-            return 2
-
-        strat = ConfigurableStrategy(fc)
-        if not symbols:
-            symbols = ["SPY"]
-        strategy = LiveStrategyAdapter(strat, symbols, resample_minutes=resample_minutes)
-        logger.info(
-            "Factory strategy initialized: %s (signal=%s) on %s",
-            fc.name, fc.signal.formula, symbols,
+        return 2
+    if framework:
+        logger.error(
+            "--framework is unavailable in Phase 1; all framework strategy code was removed."
         )
+        return 2
 
-        # Preload historical bars for warmup
-        if data_source in ("alpaca", "ibkr"):
-            logger.info("Preloading historical bars for strategy warmup...")
-            historical = _preload_historical_bars(symbols, lookback_minutes=120)
-            if historical:
-                strategy.warmup(historical)
-                logger.info(
-                    "Warmed up with %d historical bars across %d symbols",
-                    len(historical), len(symbols),
-                )
-            else:
-                logger.warning(
-                    "No historical bars loaded — strategy starts cold "
-                    "(may need ~21 bars to generate first signal)"
-                )
-    elif is_framework:
-        if framework not in _FRAMEWORK_STRATEGIES:
-            logger.error(
-                "Unknown framework strategy: %s. Available: %s",
-                framework, sorted(_FRAMEWORK_STRATEGIES),
-            )
-            return 2
-        from quantcore.backtest.adapter import LiveStrategyAdapter
-        from quantcore.strategies.base import StrategyConfig, StrategyType
-        from quantcore.strategies.registry import create as create_fw
-
-        stype = StrategyType.EQUITY
-        if framework.startswith("macro_"):
-            stype = StrategyType.MACRO
-        elif framework.startswith("options_"):
-            stype = StrategyType.OPTIONS
-
-        import json
-
-        fw_params: dict[str, Any] = {}
-        if framework_params:
-            try:
-                fw_params = json.loads(framework_params)
-            except json.JSONDecodeError:
-                logger.warning(
-                    "Could not parse --fw-params '%s', using defaults",
-                    framework_params,
-                )
-
-        config = StrategyConfig(
-            name=framework,
-            strategy_type=stype,
-            max_position_notional=initial_capital,
-            risk_budget_pct=float(
-                fw_params.pop("risk_budget_pct", 0.25)
-            ),
-            params=fw_params,
+    strat_cls = _STRATEGIES.get(strategy_name)
+    if strat_cls is None:
+        logger.error(
+            "Unknown strategy: %s. Available: %s",
+            strategy_name, list(_STRATEGIES),
         )
-        fw = create_fw(framework, config)
-        strategy = LiveStrategyAdapter(fw, symbols, resample_minutes=resample_minutes)
-        logger.info("Framework strategy initialized: %s on %s", framework, symbols)
-
-        # Preload historical bars for warmup
-        if data_source in ("alpaca", "ibkr"):
-            logger.info("Preloading historical bars for strategy warmup...")
-            historical = _preload_historical_bars(symbols, lookback_minutes=120)
-            if historical:
-                strategy.warmup(historical)
-                logger.info(
-                    "Warmed up with %d historical bars across %d symbols",
-                    len(historical), len(symbols),
-                )
-            else:
-                logger.warning(
-                    "No historical bars loaded — strategy starts cold "
-                    "(may need ~21 bars to generate first signal)"
-                )
-    else:
-        strat_cls = _STRATEGIES.get(strategy_name)
-        if strat_cls is None:
-            logger.error(
-                "Unknown strategy: %s. Available: %s",
-                strategy_name, list(_STRATEGIES),
-            )
-            return 2
-        strategy = strat_cls(symbol=symbols[0])
-        logger.info("Strategy initialized: %s", strategy_name)
+        return 2
+    strategy = strat_cls(symbol=symbols[0])
+    logger.info("Strategy initialized: %s", strategy_name)
 
     # Wire up IBKR fill tracking via event callback
     ibkr_pending_fills: list = []
@@ -1430,8 +1259,7 @@ def main() -> int:
             "  python scripts/paper_trade.py --duration 5d --capital 500000\n"
             "  python scripts/paper_trade.py --duration 5d --resume\n"
             "  python scripts/paper_trade.py --duration 5d --data-source alpaca --broker ibkr\n"
-            "  python scripts/paper_trade.py --duration 5d --factory-config carry\n"
-            "  python scripts/paper_trade.py --duration 5d --factory-config time_series_momentum\n"
+            "Phase 1 paper trading is frozen to the built-in mock strategy.\n"
         ),
     )
     parser.add_argument(
@@ -1471,24 +1299,8 @@ def main() -> int:
         help="Verify kill switch mechanism and exit without trading",
     )
     parser.add_argument(
-        "--framework", default=None,
-        help=(
-            "Framework strategy to use instead of built-in. "
-            "E.g., equity_mean_reversion, equity_momentum, equity_trend_following. "
-            "Available: "
-            + ", ".join(sorted(_FRAMEWORK_STRATEGIES))
-        ),
-    )
-    parser.add_argument(
         "--symbols", default=None,
         help="Comma-separated symbols to trade (default: SPY). E.g., SPY,QQQ,AAPL",
-    )
-    parser.add_argument(
-        "--fw-params", default=None,
-        help=(
-            "JSON dict of framework strategy params to override defaults. "
-            'E.g., \'{"risk_budget_pct": 0.25, "rsi_window": 10}\''
-        ),
     )
     parser.add_argument(
         "--resample", type=int, default=None,
@@ -1517,15 +1329,6 @@ def main() -> int:
         help="Unique session identifier for state file isolation. "
         "Each strategy should use a different ID to avoid file conflicts.",
     )
-    parser.add_argument(
-        "--factory-config", default=None,
-        help=(
-            "Strategy factory YAML config name (without .yaml extension). "
-            "Loads a ConfigurableStrategy from quantcore/strategy_factory/configs/. "
-            "E.g., 'time_series_momentum', 'carry', 'pairs_trading'. "
-            "Overrides --framework and --strategy."
-        ),
-    )
 
     args = parser.parse_args()
 
@@ -1543,7 +1346,7 @@ def main() -> int:
         print(f"  Scale:    {args.scale}")
         print(f"  Capital:  ${args.capital:,.0f}")
         print(f"  Duration: {args.duration}")
-        print(f"  Strategy: {args.factory_config or args.framework or args.strategy}")
+        print(f"  Strategy: {args.strategy}")
         print()
         if args.broker == "ibkr":
             port = int(os.environ.get("IBKR_PORT", "7497"))
@@ -1614,14 +1417,14 @@ def main() -> int:
         initial_capital=args.capital,
         resume=args.resume,
         risk_config=risk_cfg,
-        framework=args.framework,
+        framework=None,
         symbols=symbols_list,
-        framework_params=args.fw_params,
+        framework_params=None,
         resample_minutes=args.resample or 1,
         live_mode=args.live,
         scale_mode=args.scale,
         session_id=args.session_id,
-        factory_config=args.factory_config,
+        factory_config=None,
     )
 
 

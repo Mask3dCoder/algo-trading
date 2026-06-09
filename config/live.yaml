@@ -1,24 +1,11 @@
-# QuantCore Multi-Strategy Live Configuration
-# Updated: 2026-06-08 — ⚠️ EMERGENCY HALT: All weights zeroed pending real-data validation
+# QuantCore Live Configuration
+# Updated: 2026-06-08 — Phase 1 rebuild: all strategies removed
 #
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  SYSTEM HALT — 2026-06-08                                          ║
-# ║  Forensic audit found ALL strategies operating on unvalidated      ║
-# ║  backtests. Options strategies (delta_neutral, put_write,           ║
-# ║  iron_condor) claim Sharpe 1.9–2.5 but were never tested on       ║
-# ║  real market data. Walk-forward tests use np.random synthetic      ║
-# ║  fixtures. Only 3 honest-sweep survivors (macro_csm +0.81,         ║
-# ║  equity_tsmom +0.56, equity_xs_momentum +0.05) had real-data      ║
-# ║  validation — and they were excluded from this config.             ║
-# ║                                                                    ║
-# ║  DO NOT RESTORE WEIGHTS until:                                     ║
-# ║  1. honest_sweep.py runs on real yfinance 2018-2024 data           ║
-# ║  2. NullStrategy engine integrity check passes                     ║
-# ║  3. Each strategy shows ci_lower > 0 on real data                  ║
-# ║  4. Options strategies pass real-data frictions backtest            ║
-# ║                                                                    ║
-# ║  See: SYSTEM_HALT_LOG.md for full rationale and restart criteria.  ║
-# ╚══════════════════════════════════════════════════════════════════════╝
+# Phase 1 strip complete. No strategies configured.
+# Strategy code deleted from codebase — zero deployable alpha confirmed.
+#
+# Rebuild sequence: data → hypothesis → validation → code
+# See execution plan for Phase 2-5 details.
 #
 # SECURITY: All API keys via environment variables (never hardcoded).
 #   Required env vars:
@@ -41,102 +28,11 @@ broker:
     readonly: false
 
 # ── Strategies ─────────────────────────────────────────────────────────────
-# Walk-forward validated 2026-05-29 (504-day train, 126-day test, 2018-2024)
-# Risk-parity weights computed from trailing OOS realized volatility.
-# Triage: KEEP (CI_low>0, DSR p<0.1), MONITOR (CI_low>0), DISABLE (CI_low<=0)
-strategies:
-  # ── KEEP: Delta Neutral VRP ─────────────────────────────────────────────
-  # OOS Sharpe: 2.48, CI: [1.57, 3.43], MaxDD: 0.5%, DSR p: 0.044
-  - name: options_delta_neutral
-    enabled: true
-    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 2.48 on synthetic)
-    data_source: yfinance_vix
-    strategy_type: OPTIONS
-    circuit_breaker:
-      max_daily_loss_pct: 0.01
-      max_drawdown_pct: 0.05
-    params:
-      ivr_entry: 50
-      ivr_exit: 25
-      dte_min: 30
-      dte_max: 60
-      delta_target: 0.3
-      hedge_freq: 1
-      gamma_scalp_threshold: 0.01
-      max_positions: 5
-
-  # ── MONITOR: Put Write VRP ──────────────────────────────────────────────
-  # OOS Sharpe: 2.10, CI: [0.96, 4.18], MaxDD: 0.3%, DSR p: 0.399
-  - name: options_put_write
-    enabled: true
-    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 2.10 on synthetic)
-    data_source: yfinance_vix
-    strategy_type: OPTIONS
-    circuit_breaker:
-      max_daily_loss_pct: 0.02
-      max_drawdown_pct: 0.05
-    params:
-      vix_entry: 15
-      otm_pct: 0.95
-      dte: 30
-      risk_per_trade: 0.02
-      max_positions: 3
-      # Phase 2 parameters (2026-06-04)
-      use_enhanced_iv: true
-      min_vrp: 0.03
-      profit_take_pct: 0.50
-      dte_exit: 21
-      stop_loss_mult: 2.0
-      kelly_fraction: 0.25
-      max_notional_pct: 0.05
-      gap_percentile: 0.99
-      commission_per_contract: 0.65
-      bid_ask_spread_pct: 0.05
-      risk_free_rate: 0.045
-      multiplier: 100
-
-  # ── MONITOR: Iron Condor VRP ────────────────────────────────────────────
-  # OOS Sharpe: 1.90, CI: [1.14, 2.58], MaxDD: 1.4%, DSR p: 0.617
-  - name: options_iron_condor
-    enabled: true
-    weight: 0.0      # HALTED — not validated on real data (claimed Sharpe 1.90 on synthetic)
-    data_source: yfinance_vix
-    strategy_type: OPTIONS
-    circuit_breaker:
-      max_daily_loss_pct: 0.01
-      max_drawdown_pct: 0.03
-    params:
-      delta_short: 0.3
-      delta_long: 0.15
-      dte_min: 30
-      dte_max: 45
-      ivr_entry: 40
-
-  # ── KEEP: Opening Gap Fade ──────────────────────────────────────────────
-  # Intraday mean-reversion: fade >2% overnight gaps, exit by 10:00 ET
-  # Uncorrelated with VRP options strategies; trades equity universe.
-  - name: opening_gap_fade
-    enabled: true
-    weight: 0.0      # HALTED — no real-data OOS validation
-    data_source: alpaca_intraday
-    bar_size: 5min
-    strategy_type: EQUITY
-    circuit_breaker:
-      max_daily_loss_pct: 0.015
-      max_drawdown_pct: 0.04
-    params:
-      gap_threshold_pct: 2.0
-      exit_minutes: 30
-      retracement_target: 0.50
-      max_positions: 10
-      max_position_pct: 0.05
-      stop_loss_pct: 1.5
-
-  # ── DISABLED: Macro strategies (CI_lower <= 0) ──────────────────────────
-  # macro_cross_sectional_momentum: Sharpe 0.65, CI [-0.12, 1.40] — DISABLE
-  # macro_risk_parity: Sharpe 0.50, CI [-0.31, 1.15] — DISABLE
-  # macro_vrp: Sharpe 0.00 (no signals) — DISABLE
-  # tail_hedge: Sharpe -0.06 — DISABLE
+# Phase 1 rebuild: all strategy code removed from codebase.
+# No strategies configured until Phase 4 (build one clean strategy).
+# The registry is empty — new strategies must be registered via @register()
+# and validated through the full phase-gate process before appearing here.
+strategies: []
 
 universe:
   tickers:

@@ -44,14 +44,9 @@ import yaml
 # ---------------------------------------------------------------------------
 # Strategy imports — trigger @register decorators
 # ---------------------------------------------------------------------------
-# Phase 0.3: Only 4 validated survivors. All dead strategies archived to
-# strategies/archive/. See SYSTEM_HALT_LOG.md and honest_sweep_results_*.csv.
-# ruff: noqa: E402, F401
-import quantcore.strategies.equity.tsmom  # MONITOR: Sharpe 1.51, CI [0.11, 3.07], 7019 trades
-import quantcore.strategies.equity.full_universe_cross_sectional_momentum  # MONITOR: Sharpe 2.20, CI [0.83, 3.55], 4565 trades
-import quantcore.strategies.macro.cta_trend  # MONITOR: Sharpe 1.49, CI [0.09, 2.95], 1620 trades
-import quantcore.strategies.macro.risk_parity  # MONITOR: Sharpe 1.71, CI [0.34, 3.22], 2142 trades
-
+# Phase 1 rebuild: all strategy code removed. Registry is empty.
+# New strategies must be registered via @register() before they can be loaded.
+# ruff: noqa: F401
 from quantcore.core.health_state import (
     record_data_point,
     record_order_submitted,
@@ -60,20 +55,20 @@ from quantcore.core.health_state import (
 )
 from quantcore.core.types import Order, OrderStatus, OrderType, Side
 from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from quantcore.live.risk_manager import RiskManagerLive, RiskLimitsConfig
+from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
 from quantcore.live.watchdog import Watchdog, WatchdogConfig, WatchdogState
+from quantcore.monitoring.alerting import Alerter, AlertingConfig
+from quantcore.strategies.base import StrategyConfig, TradeSignal
+from quantcore.strategies.registry import create as create_strategy
+from quantcore.strategies.registry import list_strategies
+
+log = logging.getLogger(__name__)
 
 try:
     from quantcore.live.live_risk_engine import LiveRiskEngine
 except ImportError:
     LiveRiskEngine = None
-    _log.warning("LiveRiskEngine not available — advanced risk checks disabled")
-from quantcore.monitoring.alerting import Alerter, AlertingConfig
-from quantcore.strategies.base import StrategyConfig, TradeSignal
-from quantcore.strategies.registry import create as create_strategy, list_strategies
-
-log = logging.getLogger(__name__)
-
+    log.warning("LiveRiskEngine not available — advanced risk checks disabled")
 
 # ---------------------------------------------------------------------------
 # EMERGENCY HALT GATE — Phase 0.1 / SYSTEM_HALT_LOG.md
@@ -372,11 +367,11 @@ class ProductionRunner:
                 # Expose to the API server (runs in the same process)
                 from quantcore.api.routes.risk import register_live_risk_engine
                 register_live_risk_engine(self.live_risk_engine)
-                _log.info("LiveRiskEngine active: regime=%s cond_corr=%.3f",
-                          self.live_risk_engine.correlation_regime,
-                          self.live_risk_engine.conditional_correlation)
+                log.info("LiveRiskEngine active: regime=%s cond_corr=%.3f",
+                         self.live_risk_engine.correlation_regime,
+                         self.live_risk_engine.conditional_correlation)
             except Exception as exc:
-                _log.warning("LiveRiskEngine init failed: %s — continuing without it", exc)
+                log.warning("LiveRiskEngine init failed: %s — continuing without it", exc)
                 self.live_risk_engine = None
 
         # Broker
@@ -1084,10 +1079,6 @@ class ProductionRunner:
                     )
                     return None
 
-            # Pass correlation regime to circuit breaker so it knows to tighten limits
-            cb_regime = getattr(self.live_risk_engine, 'correlation_regime', 'NORMAL') if self.live_risk_engine else 'NORMAL'
-            cb_cond_corr = getattr(self.live_risk_engine, 'conditional_correlation', 0.0) if self.live_risk_engine else 0.0
-
             order_id = self.broker.submit_order(
                 order,
                 fill_metadata={
@@ -1145,8 +1136,6 @@ class ProductionRunner:
         """Submit an option order using signal metadata rather than equity pricing."""
         try:
             symbol = str(sig.symbol).strip().upper()
-            direction = sig.direction
-            strength = float(sig.strength)
 
             contracts = int(meta.get("contracts", 1))
             strike = float(meta.get("strike", 0))
@@ -1159,9 +1148,6 @@ class ProductionRunner:
 
             # Determine order side: selling a put = SELL (credit received)
             side = Side.SELL if is_sell else Side.BUY
-
-            # Option notional used for risk checks
-            notional = float(sig.size) if sig.size else contracts * strike * 100
 
             # Build an Equity order (the broker handles option fills via metadata)
             order = Order(
@@ -1416,7 +1402,6 @@ class ProductionRunner:
                         sdf = pd.DataFrame(columns=["date", "equity", "daily_pnl", "weight", "status"])
 
                     prev_eq = float(sdf["equity"].iloc[-1]) if not sdf.empty else strat_equity
-                    strat_ret = (strat_equity / prev_eq - 1) if prev_eq > 0 else 0.0
 
                     new_strat_row = pd.DataFrame([{
                         "date": str(trade_date),

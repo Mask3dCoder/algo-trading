@@ -1,4 +1,4 @@
-"""Paper trading orchestrator — daily loop for Phase 3/4 live validation.
+"""Paper trading orchestrator — daily loop for live validation.
 
 One code path: the same ``strategy.on_data(data)`` that the walk-forward
 backtest calls is called here with live data, producing the same signals.
@@ -6,7 +6,7 @@ backtest calls is called here with live data, producing the same signals.
 Components wired on construction (all via constructor — no singletons):
     feed     : LiveDataFeed   — market OHLCV in on_data() format
     broker   : LiveExecutionGateway  — paper order execution + position tracking
-    strategy : StateSelectiveMomentumStrategy | CrossSectionalMomentumStrategy
+    strategy : Any Strategy subclass registered via @register()
 
 Daily loop (schedule library, cross-platform):
     1. At 16:15 ET Mon-Fri: fetch daily snapshot → on_data() → submit orders
@@ -19,22 +19,12 @@ Output files (relative to CWD / reports/):
 
 Usage::
 
-    from quantcore.live.orchestrator import PaperTrader
-    from quantcore.live.data_feed import LiveDataFeed
-    from quantcore.live.broker import LiveExecutionGateway
-    from quantcore.strategies.macro.cross_sectional_momentum import (
-        CrossSectionalMomentumStrategy,
-    )
-    from quantcore.strategies.base import StrategyConfig
+    from quantcore.live.orchestrator import make_paper_trader
 
-    feed     = LiveDataFeed(tickers=["SVXY","SPXL","TMF","TLT","SPY","QQQ"])
-    broker   = LiveExecutionGateway(initial_cash=100_000)
-    strategy = CrossSectionalMomentumStrategy(
-        StrategyConfig(name="macro_cross_sectional_momentum", strategy_type="MACRO",
-                       max_position_notional=None, params={})
+    trader = make_paper_trader(
+        strategy_name="my_validated_strategy",
+        tickers=["SPY", "QQQ"],
     )
-
-    trader = PaperTrader(feed=feed, broker=broker, strategy=strategy)
     trader.run()   # blocks — Ctrl+C to exit
 """
 
@@ -43,30 +33,32 @@ from __future__ import annotations
 import atexit
 import json
 import logging
-import os
 import signal
-import sys
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from quantcore.core.types import Position
 
 # schedule is a pure stdlib-compatible scheduling library (pip install schedule)
 try:
     import schedule
-except ImportError:
-    raise ImportError(
-        "schedule module required: pip install schedule"
-    )
+except ImportError as exc:
+    raise ImportError("schedule module required: pip install schedule") from exc
 
 from quantcore.core.types import Order, Side
 from quantcore.live.broker import LiveExecutionGateway
-from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerState
+from quantcore.live.circuit_breaker import CircuitBreaker
 from quantcore.live.data_feed import LiveDataFeed
-from quantcore.live.risk_manager import Approval, RiskManagerLive, RiskLimitsConfig
-from quantcore.strategies.base import Strategy, TradeSignal
+from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
+from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
+from quantcore.strategies.registry import create as registry_create
+from quantcore.strategies.registry import list_strategies
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +97,7 @@ class LiveBroker:
     def cancel_order(self, order_id: str) -> bool:
         return self._gw.cancel_order(order_id)
 
-    def get_positions(self) -> dict[str, "Position"]:  # type: ignore[name-defined]
+    def get_positions(self) -> dict[str, Position]:
         return self._gw.get_positions()
 
     def get_account(self) -> dict[str, float]:
@@ -272,7 +264,6 @@ class PaperTrader:
             as_of = pd.Timestamp(trade_date)
             snapshot = self.feed.get_daily_snapshot(as_of)
             close_matrix = snapshot.get("close")
-            symbols = snapshot.get("symbols", [])
 
             if close_matrix is None or close_matrix.size == 0:
                 log.warning("No price data for %s — skipping tick", trade_date)
@@ -408,7 +399,7 @@ class PaperTrader:
 
             # Log event
             event = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "event":     "submit",
                 "symbol":    symbol,
                 "side":      side.value,
@@ -452,7 +443,7 @@ class PaperTrader:
         )
         order_id = self.broker.submit_order(order)
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event":     "close",
             "symbol":    symbol,
             "qty":       qty,
@@ -547,18 +538,21 @@ class PaperTrader:
 # ---------------------------------------------------------------------------
 
 def make_paper_trader(
-    strategy_name: str = "macro_cross_sectional_momentum",
+    strategy_name: str,
     tickers: list[str] | None = None,
     initial_cash: float = 100_000.0,
     scale_mode: ScaleMode | str = ScaleMode.FULL,
     risk_config: RiskLimitsConfig | None = None,
+    strategy_type: str = "MACRO",
+    params: dict | None = None,
 ) -> PaperTrader:
-    """Factory: build a fully-wired PaperTrader for a named DEPLOY strategy.
+    """Factory: build a fully-wired PaperTrader for a named registered strategy.
 
     Parameters
     ----------
     strategy_name : str
-        "macro_cross_sectional_momentum" or "macro_state_selective_momentum".
+        Name of a strategy registered via @register().
+        Use list_strategies() to see available names.
     tickers : list[str], optional
         Assets to trade.  Defaults to the 6-asset macro universe.
     initial_cash : float
@@ -567,30 +561,33 @@ def make_paper_trader(
         single_share | fractional | full
     risk_config : RiskLimitsConfig, optional
         Pre-built risk configuration.  If None, loads from env vars.
+    strategy_type : str
+        Strategy type for config. Default "MACRO".
+    params : dict, optional
+        Strategy parameters forwarded to StrategyConfig.
+
+    Raises
+    ------
+    KeyError
+        If strategy_name is not found in the registry.
     """
+    available = list_strategies()
+    if strategy_name not in available:
+        raise KeyError(
+            f"Strategy '{strategy_name}' not found in registry. "
+            f"Available: {available}"
+        )
+
     feed = LiveDataFeed(tickers=tickers)
     broker = LiveExecutionGateway(initial_cash=initial_cash)
 
-    if strategy_name == "macro_cross_sectional_momentum":
-        from quantcore.strategies.macro.cross_sectional_momentum import (
-            CrossSectionalMomentumStrategy as StratClass,
-        )
-    elif strategy_name == "macro_state_selective_momentum":
-        from quantcore.strategies.macro.state_selective_momentum import (
-            StateSelectiveMomentumStrategy as StratClass,
-        )
-    else:
-        raise ValueError(f"Unknown strategy: {strategy_name!r}")
-
-    from quantcore.strategies.base import StrategyConfig
-
     cfg = StrategyConfig(
         name=strategy_name,
-        strategy_type="MACRO",
+        strategy_type=strategy_type,  # type: ignore[arg-type]
         max_position_notional=None,
-        params={},
+        params=params or {},
     )
-    strategy = StratClass(cfg)
+    strategy = registry_create(strategy_name, cfg)
     risk = RiskManagerLive(config=risk_config or RiskLimitsConfig.from_env())
     circuit = CircuitBreaker()
 

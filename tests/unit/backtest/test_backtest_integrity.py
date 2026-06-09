@@ -4,20 +4,14 @@ Validates:
   A4: Drawdown graduated actions (REDUCE_25/50/75) actually reduce positions
   A5: Drawdown FLATTEN closes all positions
   A6: Walk-forward embargo defaults to 1%
-  B2: CTA trend vol_scale is capped at max_vol_scale
 """
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
 from quantcore.backtest.walk_forward import (
-    Fold,
     anchored_walk_forward,
     rolling_walk_forward,
 )
-
 
 # ---------------------------------------------------------------------------
 # A6: Walk-forward embargo default
@@ -58,49 +52,6 @@ class TestEmbargoDefault:
         for fold in folds:
             gap = fold.test_start - fold.train_end
             assert gap >= 10  # 10% of 100 = 10 bars
-
-
-# ---------------------------------------------------------------------------
-# B2: Vol targeting cap
-# ---------------------------------------------------------------------------
-
-class TestVolTargetingCap:
-    def test_cta_trend_has_max_vol_scale(self):
-        """CTATrendStrategy should have max_vol_scale attribute."""
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
-        from quantcore.strategies.base import StrategyConfig, StrategyType
-
-        config = StrategyConfig(
-            name="test_cta",
-            strategy_type=StrategyType.MACRO,
-            params={},
-            max_position_notional=100_000.0,
-        )
-        strategy = CTATrendStrategy(config)
-        assert hasattr(strategy, "max_vol_scale")
-        assert strategy.max_vol_scale == 3.0
-
-    def test_vol_scale_capped_at_max(self):
-        """Vol scale should never exceed max_vol_scale."""
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
-        from quantcore.strategies.base import StrategyConfig, StrategyType
-
-        config = StrategyConfig(
-            name="test_cta",
-            strategy_type=StrategyType.MACRO,
-            params={"max_vol_scale": 2.0, "slow_window": 10},
-            max_position_notional=100_000.0,
-        )
-        strategy = CTATrendStrategy(config)
-
-        # Build price data with very low vol
-        np.random.seed(42)
-        prices = np.cumprod(1 + np.random.normal(0.0, 0.0001, 300)) * 100
-        close = prices.reshape(-1, 1)
-
-        signals = strategy.on_data({"close": close, "symbols": ["AAPL"]})
-        for sig in signals:
-            assert sig.strength <= 5.0
 
 
 # ---------------------------------------------------------------------------
