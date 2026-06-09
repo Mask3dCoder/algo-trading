@@ -123,11 +123,13 @@ class GradientBoostingSignal:
         self.cv_splits = cv_splits
         self.trees_: list[DecisionTreeRegressor] = []
         self.base_prediction_: float = 0.0
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(self, features: NDArray, target: NDArray) -> dict:
         """Fit gradient boosting model with early stopping via CV."""
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline
 
         valid = ~(np.any(np.isnan(X), axis=1) | np.isnan(target))
         X_clean = X[valid]
@@ -173,8 +175,9 @@ class GradientBoostingSignal:
         return {"n_trees": len(self.trees_), "best_oos_ic": best_ic}
 
     def predict(self, features: NDArray) -> NDArray:
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
         result = np.full(len(X), self.base_prediction_, dtype=float)
         for tree in self.trees_:
             result += self.learning_rate * tree.predict(X)
@@ -217,10 +220,12 @@ class RandomForestSignal:
         self.max_features = max_features
         self.trees_: list[DecisionTreeRegressor] = []
         self.feature_masks_: list[NDArray] = []
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(self, features: NDArray, target: NDArray) -> dict:
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline
         valid = ~(np.any(np.isnan(X), axis=1) | np.isnan(target))
         X_clean = X[valid]
         y_clean = target[valid]
@@ -251,8 +256,9 @@ class RandomForestSignal:
         return {"n_trees": len(self.trees_)}
 
     def predict(self, features: NDArray) -> NDArray:
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
 
         preds = np.zeros(len(X), dtype=float)
         for tree, mask in zip(self.trees_, self.feature_masks_):

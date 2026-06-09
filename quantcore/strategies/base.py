@@ -24,6 +24,28 @@ class StrategyType(str, Enum):
     MACRO = "macro"
 
 
+class StrategyStatus(str, Enum):
+    """Lifecycle / validity status for a strategy.
+
+    A strategy must NOT be instantiated in live or paper trading unless its
+    status is PAPER_TRADING or LIVE.  DISABLED strategies are retained in the
+    codebase as historical artifacts pending rebuild.
+
+    Statuses:
+        DISABLED      — Forensic audit confirmed no deployable edge.  Do not
+                        use in any automated run.  Kept for record-keeping.
+        RESEARCH      — Early-stage; unit-tested but not walk-forward validated.
+        DEVELOPMENT   — Walk-forward validation in progress; OOS Sharpe CI < 0.3.
+        PAPER_TRADING — OOS Sharpe lower CI >= 0.3; permitted for paper trading only.
+        LIVE          — Full compliance sign-off; permitted for real capital.
+    """
+    DISABLED = "disabled"
+    RESEARCH = "research"
+    DEVELOPMENT = "development"
+    PAPER_TRADING = "paper_trading"
+    LIVE = "live"
+
+
 @dataclass
 class StrategyConfig:
     """Base configuration for all strategies."""
@@ -56,6 +78,7 @@ class TradeSignal:
     direction: int  # -1, 0, +1
     strength: float  # [0, 1]
     size: float  # suggested position size (notional)
+    instrument_type: str = "equity"  # "equity" or "option"
     stop_loss: float | None = None
     take_profit: float | None = None
     metadata: dict = field(default_factory=dict)
@@ -109,6 +132,8 @@ class Strategy(ABC):
             self._positions[symbol] = self._positions.get(symbol, 0.0) + fill_qty
         else:
             self._positions[symbol] = self._positions.get(symbol, 0.0) - fill_qty
+        if abs(self._positions.get(symbol, 0.0)) < 1e-8:
+            self._positions.pop(symbol, None)
         self.metrics.n_trades += 1
 
     def update_pnl(self, realized: float, unrealized: float) -> None:

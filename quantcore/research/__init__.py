@@ -1,39 +1,30 @@
-"""Research tools: alpha evaluation, experiment tracking, statistical testing."""
+"""Alpha research framework for institutional-grade strategy validation."""
 
 from quantcore.research.alpha_research import (
     DeflatedSharpeResult,
     deflated_sharpe,
     fdr_correction,
-    haircut_sharpe,
-    holm_correction,
     minimum_backtest_length,
-    multiple_testing_summary,
     overfitting_probability,
     probabilistic_sharpe_ratio,
 )
-from quantcore.research.experiment_tracker import (
-    ExperimentConfig,
-    ExperimentResult,
-    ExperimentStatus,
-    ExperimentTracker,
-    find_best_parameters,
-    sensitivity_analysis,
-)
+from quantcore.research.bootstrap import bootstrap_confidence_interval
+from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
+from quantcore.research.experiment_tracker import Experiment, log_experiment, load_experiments
+from quantcore.research.walkforward import WalkForwardBacktester, WalkForwardResult
 
 __all__ = [
     "DeflatedSharpeResult",
-    "ExperimentConfig",
-    "ExperimentResult",
-    "ExperimentStatus",
-    "ExperimentTracker",
     "deflated_sharpe",
     "fdr_correction",
-    "find_best_parameters",
-    "haircut_sharpe",
-    "holm_correction",
     "minimum_backtest_length",
-    "multiple_testing_summary",
     "overfitting_probability",
     "probabilistic_sharpe_ratio",
-    "sensitivity_analysis",
+    "bootstrap_confidence_interval",
+    "deflated_sharpe_ratio",
+    "Experiment",
+    "log_experiment",
+    "load_experiments",
+    "WalkForwardBacktester",
+    "WalkForwardResult",
 ]

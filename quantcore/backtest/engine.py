@@ -6,6 +6,8 @@ drawdown tracking, and risk metrics.
 
 from __future__ import annotations
 
+from quantcore.backtest.simulation import OptionFillSimulator
+
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,6 +34,8 @@ from quantcore.backtest.financing import (
     compute_daily_borrow_cost,
     compute_daily_margin_interest,
 )
+from quantcore.core import economic_kernel
+from quantcore.core.cash import AssetClass, CashLedger
 from quantcore.core.types import OHLCV, Fill, Order, OrderType, Position, Side
 from quantcore.risk.drawdown import DrawdownAction, DrawdownConfig, DrawdownTracker
 from quantcore.risk.limits import LimitCheckResult, RiskLimits, check_pre_trade
@@ -67,6 +71,8 @@ class SignalData:
     strength: float
     strategy_id: str
     notional_size: float | None = None  # strategy-computed position size, overrides sizing_pct
+    instrument_type: str = "equity"      # "equity" or "option"
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -101,12 +107,22 @@ class PortfolioState:
     """Tracks positions, cash, and portfolio value during backtest.
 
     Integrated with Phase 3: drawdown tracking, regime state, trade logging.
+    Optionally accepts a CashLedger for settlement-aware cash tracking
+    (used by the live system; backtest defaults to a simple float).
+
+    When a CashLedger is provided, all cash mutations route through it
+    for proper settlement tracking.
     """
 
-    def __init__(self, initial_cash: float = 1_000_000.0) -> None:
-        self.cash: float = initial_cash
+    def __init__(
+        self,
+        initial_cash: float = 1_000_000.0,
+        cash_ledger: CashLedger | None = None,
+    ) -> None:
+        self._cash: float = initial_cash
+        self._cash_ledger: CashLedger | None = cash_ledger
         self.initial_cash: float = initial_cash
-        self.positions: dict[str, Position] = {}
+        self._positions: dict[str, Position] = {}
         self._prices: dict[str, float] = {}
         self.equity_curve: list[tuple[float, float]] = []  # (timestamp, value)
         self.trades: list[Fill] = []
@@ -118,14 +134,73 @@ class PortfolioState:
         self.total_margin_interest: float = 0.0
         self._financing_config: FinancingConfig | None = None
 
+    # ------------------------------------------------------------------
+    # Property guards — economic state is READ-ONLY through the public API.
+    # All mutation must go through EconomicEngineCore via apply_fill().
+    # ------------------------------------------------------------------
+
+    @property
+    def cash(self) -> float:
+        """Settled cash. Delegates to CashLedger if available."""
+        if self._cash_ledger is not None:
+            return self._cash_ledger.settled_cash
+        return self._cash
+
+    @cash.setter
+    def cash(self, value: float) -> None:
+        raise AttributeError(
+            "Direct assignment to PortfolioState.cash is forbidden. "
+            "All cash mutations must go through EconomicEngineCore via apply_fill()."
+        )
+
+    @property
+    def cash_ledger(self) -> CashLedger | None:
+        """Access the settlement-aware cash ledger, if configured."""
+        return self._cash_ledger
+
+    @property
+    def unsettled_cash(self) -> float:
+        """Cash pending settlement (T+1/T+2). 0 if no ledger."""
+        if self._cash_ledger is not None:
+            return self._cash_ledger.unsettled_cash
+        return 0.0
+
+    @property
+    def committed_cash(self) -> float:
+        """Cash reserved for open orders. 0 if no ledger."""
+        if self._cash_ledger is not None:
+            return self._cash_ledger.committed_cash
+        return 0.0
+
+    def available_cash(self) -> float:
+        """Cash available for trading: settled - committed.
+
+        This is the canonical method for order sizing in the live system.
+        In backtest mode (no ledger), returns total cash.
+        """
+        if self._cash_ledger is not None:
+            return self._cash_ledger.available()
+        return self._cash
+
+    @property
+    def positions(self) -> dict[str, Position]:
+        return dict(self._positions)  # return a copy to prevent external mutation
+
+    @positions.setter
+    def positions(self, value: dict[str, Position]) -> None:
+        raise AttributeError(
+            "Direct assignment to PortfolioState.positions is forbidden. "
+            "All position mutations must go through EconomicEngineCore via apply_fill()."
+        )
+
     @property
     def total_value(self) -> float:
         positions_value = sum(
             float(pos.quantity) * self._prices.get(pos.symbol, float(pos.market_price))
-            for pos in self.positions.values()
+            for pos in self._positions.values()
             if float(pos.quantity) != 0
         )
-        return self.cash + positions_value
+        return self._cash + positions_value
 
     @property
     def returns(self) -> float:
@@ -135,9 +210,9 @@ class PortfolioState:
 
     def update_price(self, symbol: str, price: float) -> None:
         self._prices[symbol] = price
-        if symbol in self.positions:
-            pos = self.positions[symbol]
-            self.positions[symbol] = Position(
+        if symbol in self._positions:
+            pos = self._positions[symbol]
+            self._positions[symbol] = Position(
                 symbol=symbol,
                 quantity=pos.quantity,
                 avg_cost=pos.avg_cost,
@@ -147,63 +222,91 @@ class PortfolioState:
             )
 
     def apply_fill(self, fill: Fill, symbol: str) -> None:
-        """Apply a fill to the portfolio."""
+        """Apply a fill to the portfolio.
+
+        Delegates all position math to the canonical EconomicEngineCore.
+        This method is a thin wrapper: it determines direction, calls the
+        kernel, and applies the resulting state update to portfolio cash
+        and positions.
+
+        When a CashLedger is attached, cash mutations route through it
+        for settlement tracking (unsettled entries created for fills).
+        """
         qty = float(fill.quantity)
         price = float(fill.price)
         commission = float(fill.commission)
-        self.cash -= commission
+        is_buy = False
 
         # Track market impact cost as a separate line item (already reflected in fill price)
         self.total_market_impact_cost += float(fill.market_impact_cost)
 
         self.trades.append(fill)
 
-        if symbol not in self.positions:
-            self.positions[symbol] = Position(
-                symbol=symbol,
-                quantity=Decimal(str(qty if fill.order_id.endswith("_buy") else -qty)),
-                avg_cost=Decimal(str(price)),
-                market_price=Decimal(str(price)),
-            )
-            self.cash -= qty * price if fill.order_id.endswith("_buy") else 0.0
-            self.cash += qty * price if fill.order_id.endswith("_sell") else 0.0
+        # Determine direction: prefer fill.side, fall back to order_id parsing
+        if fill.side is not None:
+            is_buy = fill.side == Side.BUY
         else:
-            pos = self.positions[symbol]
-            current_qty = float(pos.quantity)
-            new_qty = current_qty + qty if fill.order_id.endswith("_buy") else current_qty - qty
-            # Update average cost for buys
-            if fill.order_id.endswith("_buy"):
-                total_cost = float(pos.avg_cost) * abs(current_qty) + price * qty
-                new_avg = total_cost / abs(new_qty) if abs(new_qty) > 1e-10 else float(pos.avg_cost)
-            else:
-                new_avg = float(pos.avg_cost)
+            is_buy = fill.order_id.endswith("_buy")
 
-            realized = 0.0
-            if fill.order_id.endswith("_sell"):
-                if current_qty > 0:
-                    realized = (price - float(pos.avg_cost)) * qty
-                # current_qty <= 0: adding to short, no realized P&L yet
-                self.cash += qty * price
-            elif fill.order_id.endswith("_buy"):
-                if current_qty < 0:
-                    realized = (float(pos.avg_cost) - price) * qty
-                # current_qty >= 0: adding to long, no realized P&L yet
-                self.cash -= qty * price
+        # Build current position for the kernel (None if no existing position)
+        current = self._positions.get(symbol)
+        current_kernel = None
+        if current is not None and abs(float(current.quantity)) > 1e-10:
+            current_kernel = {
+                "symbol": symbol,
+                "quantity": float(current.quantity),
+                "avg_cost": float(current.avg_cost),
+                "market_price": float(current.market_price),
+                "realized_pnl": float(current.realized_pnl),
+            }
 
-            self.positions[symbol] = Position(
-                symbol=symbol,
-                quantity=Decimal(str(new_qty)),
-                avg_cost=Decimal(str(new_avg)),
-                market_price=Decimal(str(price)),
-                realized_pnl=Decimal(str(float(pos.realized_pnl) + realized)),
+        # Delegate to the canonical economic kernel
+        fa = economic_kernel.apply_fill(
+            current_kernel,
+            fill_price=price,
+            fill_quantity=qty,
+            is_buy=is_buy,
+            symbol=symbol,
+        )
+
+        # Apply cash delta from the kernel (after commission)
+        total_cash_delta = fa.cash_delta - commission
+
+        if self._cash_ledger is not None:
+            # Settlement-aware path: create unsettled entries
+            cash_amount = -total_cash_delta  # +cash_delta = money in
+            asset_class: AssetClass = "option" if "/" in symbol else "equity"
+            self._cash_ledger.add_unsettled(
+                amount=cash_amount,
+                asset_class=asset_class,
+                description=f"{'Buy' if is_buy else 'Sell'} {qty} {symbol} @ {price}",
             )
+        else:
+            # Backtest path: immediate settlement
+            self._cash += total_cash_delta
 
-        # Remove zero positions
-        if abs(float(self.positions[symbol].quantity)) < 1e-10:
-            del self.positions[symbol]
+        # Apply position update from the kernel
+        if fa.position is None:
+            self._positions.pop(symbol, None)
+        else:
+            self._positions[symbol] = Position(
+                symbol=symbol,
+                quantity=Decimal(str(fa.position["quantity"])),
+                avg_cost=Decimal(str(fa.position["avg_cost"])),
+                market_price=Decimal(str(price)),
+                realized_pnl=Decimal(str(fa.position["realized_pnl"])),
+            )
 
     def record_equity(self, timestamp: float) -> None:
         self.equity_curve.append((timestamp, self.total_value))
+
+    def _deduct_cash(self, amount: float) -> None:
+        """Deduct cash, routing through CashLedger if available."""
+        if self._cash_ledger is not None:
+            self._cash_ledger.add_unsettled(-amount, "equity",
+                                            description=f"financing cost")
+        else:
+            self._cash -= amount
 
     def set_financing_config(self, config: FinancingConfig | None) -> None:
         """Set the financing config for borrow/margin cost calculations."""
@@ -224,7 +327,7 @@ class PortfolioState:
         total_short_value = 0.0
         total_long_value = 0.0
 
-        for symbol, pos in self.positions.items():
+        for symbol, pos in self._positions.items():
             qty = float(pos.quantity)
             price = self._prices.get(symbol, float(pos.market_price))
             market_value = qty * price
@@ -235,17 +338,19 @@ class PortfolioState:
                 borrow_rate = registry.get_rate(symbol) if registry else 0.005
                 daily_cost = abs_value * borrow_rate / 360.0
                 if daily_cost > 0:
-                    self.cash -= daily_cost
+                    self._deduct_cash(daily_cost)
                     self.total_borrow_cost += daily_cost
             elif qty > 0:  # Long position
                 total_long_value += market_value
 
         # Margin interest on leveraged long positions
-        if config.margin_rate > 0 and total_long_value > self.cash:
-            margin_used = total_long_value - self.cash
+        # Guard: floor cash at 0 — negative cash must not overstate margin
+        effective_cash = max(0.0, self.cash)
+        if config.margin_rate > 0 and total_long_value > effective_cash:
+            margin_used = total_long_value - effective_cash
             daily_interest = margin_used * config.margin_rate / 360.0
             if daily_interest > 0:
-                self.cash -= daily_interest
+                self._deduct_cash(daily_interest)
                 self.total_margin_interest += daily_interest
 
     @property
@@ -260,11 +365,11 @@ class PortfolioState:
         # Margin used = total position value / equity (1.0 = no leverage)
         long_value = sum(
             max(0, float(p.quantity)) * self._prices.get(s, float(p.market_price))
-            for s, p in self.positions.items()
+            for s, p in self._positions.items()
         )
         short_value = sum(
             abs(min(0, float(p.quantity))) * self._prices.get(s, float(p.market_price))
-            for s, p in self.positions.items()
+            for s, p in self._positions.items()
         )
         total_exposure = long_value + short_value
         leverage = total_exposure / total_value
@@ -318,7 +423,9 @@ class FillSimulator:
         self,
         slippage_bps: float = 5.0,
         commission_per_share: float = 0.005,
-        fill_at: str = "next_open",
+        fill_at: str = "close",  # DAILY-BAR BACKTEST DEFAULT: use close to avoid look-ahead
+                               # bias. next_open creates -0.29 mean Sharpe on zero-drift
+                               # data (entry at tomorrow's open but MTM at today's close).
         impact_config: MarketImpactConfig | None = None,
         volume_filter_config: VolumeFilterConfig | None = None,
     ) -> None:
@@ -344,6 +451,10 @@ class FillSimulator:
 
     def simulate_fill(self, order: Order) -> Fill | None:
         """Simulate a fill for the given order. Returns None if order cannot fill."""
+        # Phase 3: route option orders to BSM-based pricing
+        if order.metadata.get("instrument") == "OPTION":
+            return self._simulate_option_fill(order)
+
         bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
         if bar is None:
             bar = self._current_bar
@@ -391,21 +502,29 @@ class FillSimulator:
             else:
                 fill_price -= temp_impact_price
 
-            # Apply accumulated permanent impact from prior trades
+            # Apply accumulated permanent impact from prior trades.
+            # Permanent impact is signed: buys push price up (+), sells push
+            # price down (-).  The fill adjustment is always additive so that
+            # a long accumulation makes subsequent buys more expensive AND
+            # subsequent sells more profitable (unwind benefits).
             sym_perm = self._permanent_impact.get(order.symbol, 0.0)
             if sym_perm != 0.0:
-                if order.side == Side.BUY:
-                    fill_price += sym_perm
-                else:
-                    fill_price -= sym_perm
+                fill_price += sym_perm
 
-            # Update cumulative permanent impact
+            # Update cumulative permanent impact (signed by side)
             perm_impact_price = float(bar.open) * result.perm_impact_bps / 10_000.0
+            sign = 1.0 if order.side == Side.BUY else -1.0
             self._permanent_impact[order.symbol] = (
-                self._permanent_impact.get(order.symbol, 0.0) + perm_impact_price
+                self._permanent_impact.get(order.symbol, 0.0) + sign * perm_impact_price
             )
 
             market_impact_cost = result.total_cost_dollars
+
+        # Clip fill price to bar's high/low range — slippage + impact
+        # can push the price outside the observed bar, which is impossible.
+        bar_high = float(bar.high)
+        bar_low = float(bar.low)
+        fill_price = max(bar_low, min(fill_price, bar_high))
 
         # Check limit orders
         if order.type == OrderType.LIMIT and order.limit_price is not None:
@@ -422,9 +541,54 @@ class FillSimulator:
             quantity=Decimal(str(qty)),
             commission=Decimal(str(round(commission, 4))),
             timestamp=bar.timestamp,
+            side=order.side,
             slippage_bps=Decimal(str(self.slippage_bps)),
             market_impact_cost=Decimal(str(round(market_impact_cost, 4))),
             impact_bps=Decimal(str(round(impact_bps, 4))),
+        )
+
+    def _simulate_option_fill(self, order: Order) -> Fill | None:
+        """BSM-based fill for option orders using OptionFillSimulator."""
+        meta = order.metadata
+        strike = float(meta.get("strike", 0.0))
+        iv = float(meta.get("iv", 0.0))
+        dte = float(meta.get("dte", 0.0))
+        contracts = int(meta.get("contracts", 0))
+        if contracts <= 0 or strike <= 0 or iv <= 0 or dte <= 0:
+            return None
+
+        bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
+        if bar is None:
+            bar = self._current_bar
+        if bar is None:
+            return None
+        underlying_price = float(bar.close)
+
+        is_call = meta.get("option_type", "PUT").upper() == "CALL"
+        option_sim = OptionFillSimulator()
+        result = option_sim.simulate_option_fill(
+            underlying_price=underlying_price,
+            strike=strike,
+            iv=iv,
+            dte=dte,
+            r=float(meta.get("risk_free_rate", 0.045)),
+            is_call=is_call,
+            side=order.side,
+            contracts=contracts,
+            spread_pct=float(meta.get("bid_ask_spread_pct", 0.05)),
+            commission_per_contract=float(meta.get("commission_per_contract", 0.65)),
+        )
+
+        return Fill(
+            order_id=f"{order.id}_{order.side.value}",
+            price=Decimal(str(round(result["fill_price"], 6))),
+            quantity=order.quantity,
+            commission=Decimal(str(round(result["commission"], 4))),
+            timestamp=bar.timestamp,
+            side=order.side,
+            slippage_bps=Decimal("0"),
+            market_impact_cost=Decimal("0"),
+            impact_bps=Decimal("0"),
         )
 
 
@@ -475,10 +639,86 @@ class BacktestEngine:
         self.drawdown_tracker = DrawdownTracker(drawdown_config) if drawdown_config else None
         self.regime_model = regime_model
         self._rejected_orders: list[tuple[Order, LimitCheckResult]] = []
+        # Phase 3: track option metadata by contract_id for EOP/liquidation pricing
+        self._option_meta: dict[str, dict] = {}
 
     @property
     def rejected_orders(self) -> list[tuple[Order, LimitCheckResult]]:
         return self._rejected_orders
+
+    def _force_fill(self, order: Order, bar: OHLCV) -> Fill:
+        """Create a forced fill at worst-case price when simulate_fill fails.
+
+        Uses bar.low for sells, bar.high for buys — worst-case execution.
+        """
+        if order.side == Side.SELL:
+            price = Decimal(str(bar.low))
+        else:
+            price = Decimal(str(bar.high))
+        return Fill(
+            order_id=order.id,
+            price=price,
+            quantity=order.quantity,
+            commission=Decimal("0"),
+            exchange="FORCED",
+            side=order.side,
+        )
+
+    def _reduce_positions(self, bar: OHLCV, fraction: float) -> None:
+        """Reduce all positions by the given fraction (0.0 to 1.0).
+
+        Args:
+            bar: Current bar for fill simulation.
+            fraction: Fraction of each position to close (e.g., 0.25 = close 25%).
+        """
+        for sym in list(self.portfolio.positions.keys()):
+            pos = self.portfolio.positions[sym]
+            current_qty = float(pos.quantity)
+            if abs(current_qty) < 1e-8:
+                continue
+            reduce_qty = int(abs(current_qty) * fraction)
+            if reduce_qty <= 0:
+                continue
+            close_side = Side.SELL if current_qty > 0 else Side.BUY
+            oid = f"ord_dd_reduce_{sym}_{close_side.value}"
+            meta = getattr(self, '_option_meta', {}).get(sym, {})
+            order = Order(
+                id=oid, symbol=sym, side=close_side,
+                type=OrderType.MARKET, quantity=Decimal(str(reduce_qty)),
+                metadata=meta,
+            )
+            self.fill_sim.set_bars(bar, None)
+            fill = self.fill_sim.simulate_fill(order)
+            if fill is None:
+                fill = self._force_fill(order, bar)
+            self.portfolio.apply_fill(fill, sym)
+            self.strategy.on_fill(fill, self.portfolio)
+
+    def _flatten_all_positions(self, bar: OHLCV) -> None:
+        """Close ALL open positions immediately at current bar price.
+
+        Args:
+            bar: Current bar for fill simulation.
+        """
+        for sym in list(self.portfolio.positions.keys()):
+            pos = self.portfolio.positions[sym]
+            close_qty = int(abs(float(pos.quantity)))
+            if close_qty == 0:
+                continue
+            close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
+            oid = f"ord_dd_flatten_{sym}_{close_side.value}"
+            meta = getattr(self, '_option_meta', {}).get(sym, {})
+            order = Order(
+                id=oid, symbol=sym, side=close_side,
+                type=OrderType.MARKET, quantity=Decimal(str(close_qty)),
+                metadata=meta,
+            )
+            self.fill_sim.set_bars(bar, None)
+            fill = self.fill_sim.simulate_fill(order)
+            if fill is None:
+                fill = self._force_fill(order, bar)
+            self.portfolio.apply_fill(fill, sym)
+            self.strategy.on_fill(fill, self.portfolio)
 
     def _compute_sizing(
         self, side: Side, price: float, bar: OHLCV, sig: SignalData
@@ -487,9 +727,13 @@ class BacktestEngine:
         cash = self.portfolio.cash
         pv = self.portfolio.total_value
 
-        # Strategy-computed notional_size takes priority
-        if sig.notional_size is not None and sig.notional_size > 0:
-            qty = int(sig.notional_size / price)
+        # Strategy-computed notional_size (SignalData) or size (TradeSignal) takes priority
+        # SignalData uses notional_size; TradeSignal uses size
+        strat_size = getattr(sig, 'notional_size', None)
+        if strat_size is None:
+            strat_size = getattr(sig, 'size', 0)
+        if strat_size is not None and strat_size > 0:
+            qty = int(strat_size / price)
             if side == Side.BUY:
                 return min(qty, int(cash / price)) if cash > 0 else 0
             else:
@@ -575,9 +819,10 @@ class BacktestEngine:
                     )
                     self.fill_sim.set_bars(bar, None)
                     fill = self.fill_sim.simulate_fill(order)
-                    if fill is not None:
-                        self.portfolio.apply_fill(fill, sym)
-                        self.strategy.on_fill(fill, self.portfolio)
+                    if fill is None:
+                        fill = self._force_fill(order, bar)
+                    self.portfolio.apply_fill(fill, sym)
+                    self.strategy.on_fill(fill, self.portfolio)
                 # Skip signal processing for this bar (all positions closed)
                 self.portfolio.record_equity(
                     bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
@@ -589,16 +834,58 @@ class BacktestEngine:
                 dd_state = self.drawdown_tracker.update(self.portfolio.total_value)
                 self.portfolio.regime_state = dd_state.action.value
 
-                # Circuit-breaker: halt on extreme drawdowns
-                if dd_state.action in (DrawdownAction.FLATTEN, DrawdownAction.HALT):
+                # Graduated drawdown actions
+                if dd_state.action == DrawdownAction.REDUCE_25:
+                    self._reduce_positions(bar, 0.25)
+                elif dd_state.action == DrawdownAction.REDUCE_50:
+                    self._reduce_positions(bar, 0.50)
+                elif dd_state.action == DrawdownAction.REDUCE_75:
+                    self._reduce_positions(bar, 0.75)
+                elif dd_state.action == DrawdownAction.FLATTEN:
+                    # Close ALL positions immediately
+                    self._flatten_all_positions(bar)
+                    pending_orders.clear()
+                elif dd_state.action == DrawdownAction.HALT:
+                    # Close ALL positions and stop trading
+                    self._flatten_all_positions(bar)
                     pending_orders.clear()
                     self.portfolio.record_equity(
                         bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
                     )
                     continue
 
-            # Set up fill simulator with current and next bar
-            next_bar = None
+            # ─── Process pending orders from previous bar at CURRENT bar's open ───
+            # set_bars(bar, bar) makes simulate_fill use bar.open for fill price.
+            # next_bar is NOT loaded here — no future data touches fill logic yet.
+            self.fill_sim.set_bars(bar, bar)
+            for order in pending_orders:
+                fill = self.fill_sim.simulate_fill(order)
+                if fill is not None:
+                    self.portfolio.apply_fill(fill, order.symbol)
+                    self.strategy.on_fill(fill, self.portfolio)
+            pending_orders.clear()
+
+            # ─── LOOK-AHEAD BARRIER ──────────────────────────────────────────────
+            # Reset fill_sim to (bar, None) so that NO next-bar price data is
+            # reachable during regime detection or signal generation.  Any strategy
+            # that tried to call fill_sim.simulate_fill() here would only see the
+            # current bar's prices — never the future.
+            self.fill_sim.set_bars(bar, None)
+
+            # Detect regime
+            regime = self._current_regime(bar)
+            if regime:
+                self.portfolio.regime_state = regime
+
+            # Generate signals using ONLY data up to and including the current bar.
+            # next_bar has NOT been peeked yet — the strategy receives no future info.
+            signals = self.strategy.on_bar(bar, self.portfolio)
+
+            # ─── POST-SIGNAL PEEK ─────────────────────────────────────────────────
+            # Only AFTER signal generation is complete do we look at the next bar.
+            # This data is used exclusively to simulate fill prices for new orders.
+            # It MUST NOT feed back into strategy logic.
+            next_bar: OHLCV | None = None
             peek_idx = handler._index
             if peek_idx < len(handler._data):
                 next_row = handler._data.iloc[peek_idx]
@@ -615,78 +902,80 @@ class BacktestEngine:
                 except Exception:
                     next_bar = None
 
+            # Configure fill simulator for NEW signals (will fill at next_bar.open)
             self.fill_sim.set_bars(bar, next_bar)
-
-            # Process pending orders from previous bar
-            for order in pending_orders:
-                fill = self.fill_sim.simulate_fill(order)
-                if fill is not None:
-                    self.portfolio.apply_fill(fill, order.symbol)
-                    self.strategy.on_fill(fill, self.portfolio)
-
-            pending_orders.clear()
-
-            # Detect regime
-            regime = self._current_regime(bar)
-            if regime:
-                self.portfolio.regime_state = regime
-
-            # Generate signals from strategy
-            signals = self.strategy.on_bar(bar, self.portfolio)
 
             # Convert signals to orders with risk checks and sizing
             for sig in signals:
                 price = float(bar.close)
-                pos = self.portfolio.positions.get(sig.symbol)
+
+                # Phase 3: branch on instrument type (backward-compatible default equity)
+                is_option = getattr(sig, "instrument_type", "") == "option" or sig.metadata.get("instrument") == "OPTION"
+                if is_option:
+                    order_symbol = str(sig.metadata.get("contract_id", sig.symbol))
+                    multiplier = int(sig.metadata.get("multiplier", 100))
+                    contracts = int(sig.metadata.get("contracts", 0))
+                    option_qty = contracts * multiplier if contracts > 0 else 0
+                else:
+                    order_symbol = sig.symbol
+                    option_qty = 0
+
+                pos = self.portfolio.positions.get(order_symbol)
                 current_qty = float(pos.quantity) if pos else 0.0
 
-                # "flat" signal: close any existing position
-                if sig.direction == "flat":
+                # "flat" signal: close any existing position (string "flat" or int 0)
+                if sig.direction == "flat" or sig.direction == 0:
                     if abs(current_qty) > 1e-8:
                         close_side = Side.SELL if current_qty > 0 else Side.BUY
                         close_order = Order(
-                            id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_exit",
-                            symbol=sig.symbol, side=close_side, type=OrderType.MARKET,
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_exit",
+                            symbol=order_symbol, side=close_side, type=OrderType.MARKET,
                             quantity=Decimal(str(int(abs(current_qty)))),
+                            metadata=sig.metadata,
                         )
                         pending_orders.append(close_order)
                     continue
 
-                if sig.direction == "long":
+                if sig.direction == "long" or sig.direction == 1:
                     side = Side.BUY
-                elif sig.direction == "short":
+                elif sig.direction == "short" or sig.direction == -1:
                     side = Side.SELL
                 else:
                     continue
 
                 # Close opposing position before opening new one
-                if side == Side.BUY and current_qty < 0:
-                    cover_qty = int(abs(current_qty))
-                    cover_order = Order(
-                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_buy_cover",
-                        symbol=sig.symbol, side=Side.BUY, type=OrderType.MARKET,
-                        quantity=Decimal(str(cover_qty)),
-                    )
-                    pending_orders.append(cover_order)
-                elif side == Side.SELL and current_qty > 0:
-                    close_qty = int(abs(current_qty))
-                    close_order = Order(
-                        id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_sell_close",
-                        symbol=sig.symbol, side=Side.SELL, type=OrderType.MARKET,
-                        quantity=Decimal(str(close_qty)),
-                    )
-                    pending_orders.append(close_order)
+                if not is_option:
+                    if side == Side.BUY and current_qty < 0:
+                        cover_qty = int(abs(current_qty))
+                        cover_order = Order(
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_buy_cover",
+                            symbol=order_symbol, side=Side.BUY, type=OrderType.MARKET,
+                            quantity=Decimal(str(cover_qty)),
+                        )
+                        pending_orders.append(cover_order)
+                    elif side == Side.SELL and current_qty > 0:
+                        close_qty = int(abs(current_qty))
+                        close_order = Order(
+                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_sell_close",
+                            symbol=order_symbol, side=Side.SELL, type=OrderType.MARKET,
+                            quantity=Decimal(str(close_qty)),
+                        )
+                        pending_orders.append(close_order)
 
-                qty = self._compute_sizing(side, price, bar, sig)
+                if is_option:
+                    qty = option_qty
+                else:
+                    qty = self._compute_sizing(side, price, bar, sig)
                 if qty <= 0:
                     continue
 
                 order = Order(
-                    id=f"ord_{bar.timestamp.isoformat()}_{sig.symbol}_{side.value}",
-                    symbol=sig.symbol,
+                    id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_{side.value}",
+                    symbol=order_symbol,
                     side=side,
                     type=OrderType.MARKET,
                     quantity=Decimal(str(qty)),
+                    metadata=sig.metadata,
                 )
 
                 # Pre-trade risk check
@@ -697,17 +986,24 @@ class BacktestEngine:
                         positions=self.portfolio.positions,
                         total_value=Decimal(str(self.portfolio.total_value)),
                     )
-                    result = check_pre_trade(order, snap, self.risk_limits)
+                    result = check_pre_trade(
+                        order, snap, self.risk_limits,
+                        market_price=price,
+                    )
                     if result.status.value == "rejected":
                         self._rejected_orders.append((order, result))
                         continue
 
                 pending_orders.append(order)
 
+                # Phase 3: cache option metadata for EOP / liquidation pricing
+                if is_option:
+                    self._option_meta[order_symbol] = sig.metadata
+
                 # Log signal
                 self.portfolio.signal_log.append({
                     "timestamp": bar.timestamp,
-                    "symbol": sig.symbol,
+                    "symbol": order_symbol,
                     "direction": sig.direction,
                     "strength": sig.strength,
                     "regime": self.portfolio.regime_state,
@@ -728,9 +1024,10 @@ class BacktestEngine:
             for order in pending_orders:
                 self.fill_sim.set_bars(bar, None)
                 fill = self.fill_sim.simulate_fill(order)
-                if fill is not None:
-                    self.portfolio.apply_fill(fill, order.symbol)
-                    self.strategy.on_fill(fill, self.portfolio)
+                if fill is None:
+                    fill = self._force_fill(order, bar)
+                self.portfolio.apply_fill(fill, order.symbol)
+                self.strategy.on_fill(fill, self.portfolio)
             pending_orders.clear()
 
             # Close any remaining open positions at the last available price
@@ -741,25 +1038,28 @@ class BacktestEngine:
                     continue
                 close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
                 oid = f"ord_eop_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
+                meta = getattr(self, '_option_meta', {}).get(sym, {})
                 order = Order(
                     id=oid,
                     symbol=sym,
                     side=close_side,
                     type=OrderType.MARKET,
                     quantity=Decimal(str(close_qty)),
+                    metadata=meta,
                 )
                 self.fill_sim.set_bars(bar, None)
                 fill = self.fill_sim.simulate_fill(order)
-                if fill is not None:
-                    self.portfolio.apply_fill(fill, sym)
-                    self.strategy.on_fill(fill, self.portfolio)
-                    self.portfolio.signal_log.append({
-                        "timestamp": bar.timestamp,
-                        "symbol": sym,
-                        "direction": "eop_close",
-                        "strength": 1.0,
-                        "regime": self.portfolio.regime_state,
-                    })
+                if fill is None:
+                    fill = self._force_fill(order, bar)
+                self.portfolio.apply_fill(fill, sym)
+                self.strategy.on_fill(fill, self.portfolio)
+                self.portfolio.signal_log.append({
+                    "timestamp": bar.timestamp,
+                    "symbol": sym,
+                    "direction": "eop_close",
+                    "strength": 1.0,
+                    "regime": self.portfolio.regime_state,
+                })
 
             # Record final equity after EOP closes
             ts = bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
@@ -831,9 +1131,9 @@ class BacktestEngine:
                 price = float(fill.price)
                 comm = float(fill.commission)
 
-                if fill.order_id.endswith("_buy"):
+                if fill.side == Side.BUY:
                     buy_queue.append((price, qty, comm))
-                elif fill.order_id.endswith("_sell"):
+                elif fill.side == Side.SELL:
                     sell_qty = qty
                     sell_price = price
                     total_sell_qty = sell_qty

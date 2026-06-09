@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantCore — Live Trading Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --green: #3fb950;
+    --green-bg: rgba(63,185,80,0.12);
+    --red: #f85149;
+    --red-bg: rgba(248,81,73,0.12);
+    --yellow: #d29922;
+    --yellow-bg: rgba(210,153,34,0.12);
+    --blue: #58a6ff;
+    --blue-bg: rgba(88,166,255,0.12);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+  }
+  .header h1 { font-size: 1.25rem; font-weight: 600; color: #fff; }
+  .header h1 span { color: var(--blue); }
+  .header-right { display: flex; align-items: center; gap: 16px; font-size: 0.8rem; color: var(--text-dim); }
+  .refresh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* Health Banner */
+  .health-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
+    font-weight: 600; font-size: 0.9rem;
+  }
+  .health-banner.ok { background: var(--green-bg); border: 1px solid var(--green); color: var(--green); }
+  .health-banner.kill { background: var(--red-bg); border: 1px solid var(--red); color: var(--red); }
+  .health-banner .badge {
+    padding: 2px 10px; border-radius: 12px; font-size: 0.75rem;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .health-banner.ok .badge { background: var(--green); color: #000; }
+  .health-banner.kill .badge { background: var(--red); color: #fff; }
+  .health-banner .uptime { margin-left: auto; font-weight: 400; color: var(--text-dim); font-size: 0.8rem; }
+
+  /* Grid layout */
+  .grid { display: grid; gap: 16px; margin-bottom: 16px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 900px) { .grid-4 { grid-template-columns: repeat(2,1fr); } .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 4px; }
+  .card-value { font-size: 1.5rem; font-weight: 700; color: #fff; }
+  .card-sub { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
+  .positive { color: var(--green); }
+  .negative { color: var(--red); }
+
+  /* Strategy cards */
+  .strategy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .strategy-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; position: relative;
+  }
+  .strategy-card .name { font-weight: 600; font-size: 0.95rem; color: #fff; margin-bottom: 8px; }
+  .strategy-card .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.8rem; }
+  .strategy-card .meta .label { color: var(--text-dim); }
+  .strategy-card .meta .val { text-align: right; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.running { background: var(--green); }
+  .status-dot.stopped { background: var(--yellow); }
+  .status-dot.error { background: var(--red); }
+
+  /* Section headers */
+  .section-title {
+    font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+
+  /* Activity feed */
+  .feed-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .feed-table th {
+    text-align: left; padding: 8px 10px; color: var(--text-dim);
+    border-bottom: 1px solid var(--border); font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.3px; font-size: 0.7rem;
+  }
+  .feed-table td { padding: 6px 10px; border-bottom: 1px solid rgba(48,54,61,0.5); }
+  .feed-table tr:hover td { background: rgba(88,166,255,0.04); }
+  .event-tag {
+    padding: 1px 6px; border-radius: 4px; font-size: 0.7rem;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .event-tag.signal { background: var(--blue-bg); color: var(--blue); }
+  .event-tag.order { background: var(--yellow-bg); color: var(--yellow); }
+  .event-tag.fill { background: var(--green-bg); color: var(--green); }
+  .event-tag.error { background: var(--red-bg); color: var(--red); }
+
+  /* Performance metrics */
+  .perf-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  @media (max-width: 700px) { .perf-grid { grid-template-columns: repeat(2,1fr); } }
+  .perf-item { text-align: center; }
+  .perf-item .metric-val { font-size: 1.3rem; font-weight: 700; }
+  .perf-item .metric-label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Loading / error states */
+  .loading { text-align: center; padding: 40px; color: var(--text-dim); }
+  .error-banner { background: var(--red-bg); border: 1px solid var(--red); color: var(--red); padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 0.85rem; display: none; }
+
+  /* Kill switch button */
+  .kill-btn {
+    background: var(--red); color: #fff; border: none; padding: 6px 14px;
+    border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .kill-btn:hover { opacity: 0.85; }
+
+  /* Risk section */
+  .regime-indicator { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .regime-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .regime-dot.normal { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .regime-dot.elevated { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .regime-dot.crisis { background: var(--red); box-shadow: 0 0 8px var(--red); animation: blink 1s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .regime-text { font-size: 0.85rem; color: var(--text); }
+  .risk-metrics-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .risk-metrics-grid { grid-template-columns: repeat(2,1fr); } }
+  .risk-metric { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 6px; padding: 8px; text-align: center; }
+  .risk-metric .label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-dim); }
+  .risk-metric .value { font-size: 1rem; font-weight: 700; color: #fff; }
+  .risk-metric .value.negative { color: var(--red); }
+  .risk-bar-chart { display: flex; flex-direction: column; gap: 4px; }
+  .risk-bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; }
+  .risk-bar-label { width: 60px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .risk-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+  .risk-bar-fill { height: 100%; background: var(--blue); border-radius: 3px; transition: width 0.5s ease; }
+  .risk-bar-fill.systematic { background: var(--blue); }
+  .risk-bar-fill.idiosyncratic { background: var(--yellow); }
+  .risk-bar-value { width: 36px; text-align: right; color: var(--text-dim); font-size: 0.7rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1><span>QuantCore</span> — Live Dashboard</h1>
+    <div class="header-right">
+      <span id="last-update">—</span>
+      <span class="refresh-dot"></span>
+      <span>Auto-refresh 30s</span>
+      <button class="kill-btn" onclick="activateKillSwitch()">Kill Switch</button>
+    </div>
+  </div>
+
+  <!-- Error banner -->
+  <div id="error-banner" class="error-banner"></div>
+
+  <!-- Health Banner -->
+  <div id="health-banner" class="health-banner ok">
+    <span class="badge" id="health-badge">HEALTHY</span>
+    <span id="health-msg">System operational</span>
+    <span class="uptime" id="uptime">—</span>
+  </div>
+
+  <!-- Portfolio Summary Cards -->
+  <div class="grid grid-4" id="summary-cards">
+    <div class="card">
+      <div class="card-title">Total Equity</div>
+      <div class="card-value" id="equity">—</div>
+      <div class="card-sub" id="equity-sub">—</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily P&L</div>
+      <div class="card-value" id="daily-pnl">—</div>
+      <div class="card-sub" id="daily-pnl-pct">—</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Open Positions</div>
+      <div class="card-value" id="positions">—</div>
+      <div class="card-sub" id="orders-sub">Orders: —</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Circuit Breaker</div>
+      <div class="card-value" id="circuit-breaker">—</div>
+      <div class="card-sub" id="memory-sub">Memory: —</div>
+    </div>
+  </div>
+
+  <!-- Strategy Cards -->
+  <div class="section-title">Strategies</div>
+  <div class="strategy-grid" id="strategy-cards">
+    <div class="loading">Loading strategies...</div>
+  </div>
+
+  <!-- Daily Performance -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="section-title" style="border:none;margin:0;padding:0">Daily Performance</div>
+    <div class="perf-grid" id="perf-metrics" style="margin-top:12px">
+      <div class="perf-item">
+        <div class="metric-val" id="perf-return">—</div>
+        <div class="metric-label">Today's Return</div>
+      </div>
+      <div class="perf-item">
+        <div class="metric-val" id="perf-sharpe">—</div>
+        <div class="metric-label">Sharpe Ratio</div>
+      </div>
+      <div class="perf-item">
+        <div class="metric-val" id="perf-dd">—</div>
+        <div class="metric-label">Max Drawdown</div>
+      </div>
+      <div class="perf-item">
+        <div class="metric-val" id="perf-winrate">—</div>
+        <div class="metric-label">Win Rate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div class="card">
+    <div class="section-title" style="border:none;margin:0;padding:0">Recent Activity</div>
+    <table class="feed-table" style="margin-top:8px">
+      <thead>
+        <tr><th>Time</th><th>Strategy</th><th>Event</th><th>Ticker</th><th>Qty</th><th>Price</th></tr>
+      </thead>
+      <tbody id="activity-body">
+        <tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No events yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Risk (Phase 4) -->
+  <div class="section-title">Advanced Risk</div>
+  <div class="card" id="risk-section">
+    <div id="risk-loading" class="loading" style="padding:20px">Loading risk metrics…</div>
+
+    <div id="risk-content" style="display:none">
+      <!-- Correlation regime traffic light -->
+      <div class="regime-indicator">
+        <span class="regime-dot" id="regime-dot"></span>
+        <span class="regime-text" id="regime-text"></span>
+      </div>
+
+      <!-- VaR / ES / correlation metrics -->
+      <div class="risk-metrics-grid">
+        <div class="risk-metric">
+          <div class="label">VaR 95%</div>
+          <div class="value" id="risk-var95">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">VaR 99%</div>
+          <div class="value" id="risk-var99">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">Cond. Corr.</div>
+          <div class="value" id="risk-cond-corr">—</div>
+        </div>
+        <div class="risk-metric">
+          <div class="label">High-Corr Days</div>
+          <div class="value" id="risk-high-corr-days">—</div>
+        </div>
+      </div>
+
+      <!-- Risk decomposition bar chart -->
+      <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-dim);margin-bottom:6px">
+        Risk Decomposition
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);margin-bottom:4px">
+          <span>Systematic</span><span id="risk-sys-pct">—</span>
+        </div>
+        <div class="risk-bar-track" style="margin-bottom:8px">
+          <div class="risk-bar-fill systematic" id="risk-sys-bar" style="width:0%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-dim);margin-bottom:4px">
+          <span>Idiosyncratic</span><span id="risk-idio-pct">—</span>
+        </div>
+        <div class="risk-bar-track">
+          <div class="risk-bar-fill idiosyncratic" id="risk-idio-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Per-strategy risk contribution -->
+      <div id="risk-strategy-contrib" style="margin-top:12px"></div>
+
+      <!-- Model fit status -->
+      <div style="margin-top:10px;font-size:0.7rem;color:var(--text-dim);display:flex;gap:16px">
+        <span>N observations: <strong id="risk-n-obs" style="color:var(--text)">—</strong></span>
+        <span>Refit in: <strong id="risk-days-since-fit" style="color:var(--text)">—</strong> days</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const REFRESH_INTERVAL = 30000;
+let refreshTimer = null;
+
+function formatUptime(seconds) {
+  if (!seconds && seconds !== 0) return '—';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${m}m ${s}s`;
+}
+
+function formatMoney(val) {
+  if (val === null || val === undefined) return '—';
+  return '$' + Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatPct(val) {
+  if (val === null || val === undefined) return '—';
+  const pct = (val * 100).toFixed(2);
+  return (val >= 0 ? '+' : '') + pct + '%';
+}
+
+function colorClass(val) {
+  if (val > 0) return 'positive';
+  if (val < 0) return 'negative';
+  return '';
+}
+
+function formatTime(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en-US', { hour12: false }) + ' ' +
+           d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return ts; }
+}
+
+function eventTypeTag(type) {
+  const t = (type || '').toLowerCase();
+  let cls = 'signal';
+  if (t.includes('fill')) cls = 'fill';
+  else if (t.includes('order')) cls = 'order';
+  else if (t.includes('error') || t.includes('reject')) cls = 'error';
+  return `<span class="event-tag ${cls}">${type || '—'}</span>`;
+}
+
+// --- Health Banner ---
+function updateHealthBanner(health) {
+  const banner = document.getElementById('health-banner');
+  const badge = document.getElementById('health-badge');
+  const msg = document.getElementById('health-msg');
+  const uptimeEl = document.getElementById('uptime');
+
+  if (health.kill_switch_active) {
+    banner.className = 'health-banner kill';
+    badge.textContent = 'KILL SWITCH ACTIVE';
+    msg.textContent = 'All trading halted — operator action required';
+  } else {
+    banner.className = 'health-banner ok';
+    badge.textContent = 'HEALTHY';
+    msg.textContent = 'System operational';
+  }
+  uptimeEl.textContent = 'Uptime: ' + formatUptime(health.uptime_seconds);
+}
+
+// --- Summary Cards ---
+function updateSummaryCards(health, status) {
+  const eq = status.equity || {};
+  const equity = eq.total_equity;
+  const dailyRet = eq.daily_return;
+
+  document.getElementById('equity').textContent = formatMoney(equity);
+  document.getElementById('equity-sub').textContent =
+    eq.date ? `As of ${eq.date}` : '—';
+
+  const pnlVal = dailyRet !== undefined ? dailyRet * (equity || 0) : null;
+  const pnlEl = document.getElementById('daily-pnl');
+  pnlEl.textContent = formatMoney(pnlVal);
+  pnlEl.className = 'card-value ' + colorClass(dailyRet || 0);
+  const pnlPctEl = document.getElementById('daily-pnl-pct');
+  pnlPctEl.textContent = formatPct(dailyRet);
+  pnlPctEl.className = 'card-sub ' + colorClass(dailyRet || 0);
+
+  document.getElementById('positions').textContent = health.open_positions_count ?? '—';
+  document.getElementById('orders-sub').textContent =
+    `Orders: ${status.open_orders_count ?? '—'}`;
+
+  const cbActive = health.kill_switch_active || status.kill_switch_file;
+  const cbEl = document.getElementById('circuit-breaker');
+  cbEl.textContent = cbActive ? 'TRIGGERED' : 'OK';
+  cbEl.className = 'card-value ' + (cbActive ? 'negative' : 'positive');
+  document.getElementById('memory-sub').textContent =
+    `Memory: ${health.memory_rss_mb ? health.memory_rss_mb + ' MB' : '—'}`;
+}
+
+// --- Strategy Cards ---
+function renderStrategies(strategies) {
+  const container = document.getElementById('strategy-cards');
+  if (!strategies || strategies.length === 0) {
+    container.innerHTML = '<div class="card" style="text-align:center;color:var(--text-dim)">No active strategies</div>';
+    return;
+  }
+  container.innerHTML = strategies.map(s => `
+    <div class="strategy-card">
+      <div class="name"><span class="status-dot ${s.status || 'stopped'}"></span>${s.name || 'Unnamed'}</div>
+      <div class="meta">
+        <span class="label">Status</span><span class="val">${s.status || '—'}</span>
+        <span class="label">Data Source</span><span class="val">${s.data_source || '—'}</span>
+        <span class="label">Bar Size</span><span class="val">${s.bar_size || '—'}</span>
+        <span class="label">Weight</span><span class="val">${s.weight !== undefined ? (s.weight * 100).toFixed(1) + '%' : '—'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Activity Feed ---
+function renderActivity(events) {
+  const tbody = document.getElementById('activity-body');
+  if (!events || events.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim)">No events yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = events.slice(-20).reverse().map(e => `
+    <tr>
+      <td>${formatTime(e.timestamp || e.time)}</td>
+      <td>${e.strategy || e.source || '—'}</td>
+      <td>${eventTypeTag(e.event_type || e.type)}</td>
+      <td>${e.ticker || e.symbol || '—'}</td>
+      <td>${e.quantity || e.qty || '—'}</td>
+      <td>${e.price ? formatMoney(e.price) : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+// --- Performance Metrics ---
+function updatePerformance(equity) {
+  // These metrics are computed from the equity CSV if available
+  // For now, display what we have from the API
+  document.getElementById('perf-return').textContent =
+    equity.daily_return !== undefined ? formatPct(equity.daily_return) : '—';
+  // Sharpe, drawdown, win rate require historical data — show placeholders
+  // The /status endpoint or future endpoints can provide these
+}
+
+// --- Data fetching ---
+async function fetchData() {
+  const errBanner = document.getElementById('error-banner');
+  try {
+    const [healthRes, statusRes, riskRes] = await Promise.all([
+      fetch('/health'),
+      fetch('/status'),
+      fetch('/risk/advanced'),
+    ]);
+
+    const health = await healthRes.json().catch(() => ({}));
+    const status = await statusRes.json().catch(() => ({}));
+    const riskData = riskRes.ok ? await riskRes.json().catch(() => null) : null;
+
+    errBanner.style.display = 'none';
+
+    // Update all sections
+    updateHealthBanner(health);
+    updateSummaryCards(health, status);
+    renderStrategies(status.strategies || health.strategies || []);
+    renderActivity(status.recent_events || []);
+    updatePerformance(status.equity || {});
+    updateRiskSection(riskData);
+
+    // Timestamp
+    document.getElementById('last-update').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+
+  } catch (err) {
+    errBanner.textContent = 'Connection error: ' + err.message + ' — retrying in 30s';
+    errBanner.style.display = 'block';
+  }
+}
+
+// --- Risk Section (Phase 4) ---
+function updateRiskSection(data) {
+  const loading = document.getElementById('risk-loading');
+  const content = document.getElementById('risk-content');
+
+  if (!data || data.error === 'not_ready') {
+    loading.textContent = data && data.detail
+      ? 'Not ready: ' + data.detail
+      : 'Risk engine starting up…';
+    content.style.display = 'none';
+    loading.style.display = 'block';
+    return;
+  }
+
+  loading.style.display = 'none';
+  content.style.display = 'block';
+
+  // Traffic-light regime indicator
+  const dot = document.getElementById('regime-dot');
+  const text = document.getElementById('regime-text');
+  const regime = data.correlation_regime || 'NORMAL';
+  dot.className = 'regime-dot ' + regime.toLowerCase();
+  text.innerHTML = `<strong>${regime}</strong> — ${data.regime_description || ''}`;
+
+  // VaR / ES
+  const fmtBps = (v) => v != null ? (v * 10000).toFixed(0) + ' bps' : '—';
+  document.getElementById('risk-var95').textContent = fmtBps(data.var_95);
+  const var99El = document.getElementById('risk-var99');
+  var99El.textContent = fmtBps(data.var_99);
+  var99El.className = 'value' + (data.var_99 > 0.02 ? ' negative' : '');
+  document.getElementById('risk-cond-corr').textContent =
+    data.conditional_correlation ? data.conditional_correlation.toFixed(3) : '—';
+  document.getElementById('risk-high-corr-days').textContent =
+    data.high_corr_days ?? '—';
+
+  // Risk decomposition bars
+  const sysRisk = data.systematic_risk || 0;
+  const idioRisk = data.idiosyncratic_risk || 0;
+  const totalRisk = sysRisk + idioRisk || 1;
+  const sysPct = (sysRisk / totalRisk * 100).toFixed(1);
+  const idioPct = (idioRisk / totalRisk * 100).toFixed(1);
+  document.getElementById('risk-sys-pct').textContent = sysPct + '%';
+  document.getElementById('risk-idio-pct').textContent = idioPct + '%';
+  document.getElementById('risk-sys-bar').style.width = sysPct + '%';
+  document.getElementById('risk-idio-bar').style.width = idioPct + '%';
+
+  // Per-strategy risk contribution
+  const contrib = data.risk_contribution || {};
+  const contribDiv = document.getElementById('risk-strategy-contrib');
+  if (Object.keys(contrib).length === 0) {
+    contribDiv.innerHTML = '<div style="font-size:0.75rem;color:var(--text-dim)">No strategy contribution data available</div>';
+  } else {
+    const total = Object.values(contrib).reduce((s, v) => s + Math.abs(v), 0) || 1;
+    contribDiv.innerHTML = Object.entries(contrib).map(([name, val]) => {
+      const absVal = Math.abs(val);
+      const pct = (absVal / total * 100).toFixed(1);
+      const colour = val > 0 ? 'var(--green)' : 'var(--red)';
+      return `
+        <div class="risk-bar-row">
+          <span class="risk-bar-label" title="${name}">${name}</span>
+          <div class="risk-bar-track">
+            <div class="risk-bar-fill" style="width:${pct}%;background:${colour}"></div>
+          </div>
+          <span class="risk-bar-value">${pct}%</span>
+        </div>`;
+    }).join('');
+  }
+
+  // Model status
+  document.getElementById('risk-n-obs').textContent = data.n_observations ?? '—';
+  document.getElementById('risk-days-since-fit').textContent = data.days_since_fit ?? '—';
+}
+
+// --- Kill switch ---
+async function activateKillSwitch() {
+  if (!confirm('ACTIVATE KILL SWITCH? This will halt all trading immediately.')) return;
+  try {
+    const res = await fetch('/kill-switch/activate', { method: 'POST' });
+    const data = await res.json();
+    alert(data.message || 'Kill switch activated');
+    fetchData();
+  } catch (err) {
+    alert('Failed to activate kill switch: ' + err.message);
+  }
+}
+
+// --- Init ---
+fetchData();
+refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+</script>
+</body>
+</html>

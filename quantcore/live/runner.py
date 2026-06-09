@@ -5,6 +5,7 @@ Flow: MarketData -> Regime -> Strategy -> Sizing -> RiskCheck -> OMS -> Executio
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,9 +13,20 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any, Protocol
 
+from quantcore.core.cash import CashLedger
 from quantcore.core.types import Order, PortfolioSnapshot, Position, Side
 from quantcore.execution.oms import OrderManager, market_order
+from quantcore.portfolio.aggregator import (
+    CheckVerdict,
+    GlobalExposureLimits,
+    StrategyAggregator,
+)
 from quantcore.portfolio.rebalance import RebalanceConfig, RebalanceEngine, RebalanceTrigger
+from quantcore.risk.intraday_risk import (
+    IntradayRiskConfig,
+    IntradayRiskLoop,
+    RiskAction,
+)
 from quantcore.risk.drawdown import (
     DrawdownAction,
     DrawdownConfig,
@@ -29,6 +41,8 @@ from quantcore.risk.limits import (
     check_post_trade,
     check_pre_trade,
 )
+
+log = logging.getLogger(__name__)
 
 
 class LiveState(str, Enum):
@@ -77,6 +91,10 @@ class LiveStateSnapshot:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     portfolio_value: float = 0.0
     cash: float = 0.0
+    settled_cash: float = 0.0
+    unsettled_cash: float = 0.0
+    committed_cash: float = 0.0
+    available_cash: float = 0.0
     positions: dict[str, Position] = field(default_factory=dict)
     pending_orders: int = 0
     drawdown: DrawdownState | None = None
@@ -132,12 +150,26 @@ class LiveRunner:
         self.state = LiveState.IDLE
         self._portfolio_value: float = 0.0
         self._cash: float = 0.0
+        self._cash_ledger: CashLedger = CashLedger()
         self._positions: dict[str, Position] = {}
 
         # Risk components
         self.drawdown_tracker = DrawdownTracker(self.config.drawdown)
         self.circuit_breaker = CircuitBreaker(
             limits=self.config.risk_limits or RiskLimits(),
+        )
+        self.intraday_risk = IntradayRiskLoop(IntradayRiskConfig(
+            max_leverage=self.config.max_leverage,
+        ))
+        self._intraday_risk_count: int = 0
+
+        # Cross-strategy exposure control
+        self.aggregator = StrategyAggregator(
+            limits=GlobalExposureLimits(
+                max_gross_exposure=float(config.max_leverage * 10_000_000) if config else 20_000_000.0,
+                max_single_name_pct=config.max_position_pct if config else 0.10,
+                max_leverage=config.max_leverage if config else 1.0,
+            ),
         )
         self._consecutive_losses: int = 0
         self._daily_pnl: float = 0.0
@@ -212,6 +244,9 @@ class LiveRunner:
         if self.state not in (LiveState.RUNNING,):
             return self._snapshot()
 
+        # 0. Process pending settlements
+        self._cash_ledger.settle_pending()
+
         # 1. Refresh portfolio from broker
         self._sync_portfolio()
 
@@ -232,7 +267,27 @@ class LiveRunner:
                 self.on_drawdown_action(dd_state.action, dd_state)
             self._reduce_positions(dd_state.action)
 
-        # 3. Check daily/weekly loss limits
+        # 3. Intraday risk check (every ~60 ticks at 1s interval)
+        self._intraday_risk_count += 1
+        if self._intraday_risk_count % 60 == 0:
+            risk_snapshot = self.intraday_risk.check(
+                positions=self._positions,
+                cash=self._cash_ledger.settled_cash if hasattr(self, '_cash_ledger') else self._cash,
+                equity=self._current_value(),
+                drawdown_pct=abs(self.drawdown_tracker.current_drawdown) if self.drawdown_tracker else 0.0,
+                prices={},  # Would use data_provider here in production
+                limits=self.config.risk_limits,
+            )
+            if risk_snapshot.action in (RiskAction.FLATTEN, RiskAction.HALT):
+                if self.on_risk_breach:
+                    class _Breach:
+                        status = LimitStatus.REJECTED  # type: ignore[attr-defined]
+                        reason = risk_snapshot.details
+                    self.on_risk_breach(_Breach())  # type: ignore[arg-type]
+                self._flatten_all()
+                return self._snapshot()
+
+        # 4. Check daily/weekly loss limits
         daily_pnl = self._current_value() - self._daily_start_value
         daily_loss_pct = abs(daily_pnl) / self._daily_start_value if self._daily_start_value > 0 and daily_pnl < 0 else 0.0
         if daily_loss_pct > self.config.max_daily_loss_pct:
@@ -281,11 +336,24 @@ class LiveRunner:
         if self.broker:
             try:
                 acct = self.broker.get_account()
-                self._cash = float(acct.get("cash", 0))
+                broker_cash = float(acct.get("cash", 0))
+                # Update cash ledger: first settle pending, then sync settled
+                self._cash_ledger.settle_pending()
+                diff = broker_cash - self._cash_ledger.total_cash
+                if abs(diff) > 1.0:
+                    self._cash_ledger.add_cash(diff)
+                self._cash = self._cash_ledger.settled_cash
                 self._portfolio_value = float(acct.get("portfolio_value", 0))
                 self._positions = self.broker.get_positions()
-            except Exception:
-                pass
+                # Update aggregator with current positions
+                self.aggregator.update_positions(
+                    "live",
+                    self._positions,
+                    self._cash_ledger.settled_cash,
+                )
+                self.aggregator.update_equity(self._portfolio_value)
+            except Exception as exc:
+                log.error("Portfolio sync failed: %s", exc)
 
     def _current_value(self) -> float:
         """Current total portfolio value."""
@@ -295,7 +363,7 @@ class LiveRunner:
                 return float(acct.get("portfolio_value", self._portfolio_value))
             except Exception:
                 pass
-        return self._portfolio_value or self._cash
+        return self._portfolio_value or self._cash_ledger.settled_cash
 
     def _update_regime(self) -> None:
         """Update market regime from configured model."""
@@ -335,9 +403,9 @@ class LiveRunner:
             if price <= 0 or not symbol:
                 continue
 
-            # Sizing
-            cash = self._cash
-            qty = int(cash * self.config.max_position_pct / price)
+            # Sizing using settlement-aware available cash
+            avail = self._cash_ledger.available()
+            qty = int(avail * self.config.max_position_pct / price)
 
             if side == Side.SELL:
                 pos = self._positions.get(symbol)
@@ -348,11 +416,29 @@ class LiveRunner:
             if qty <= 0:
                 continue
 
+            # Pre-trade cash availability check (settlement-aware)
+            order_value = qty * price
+            avail = self._cash_ledger.available()
+            if order_value > avail + 1.0:
+                # Cannot trade — would violate settlement constraint
+                continue
+
+            # Reserve cash for this order
+            try:
+                self._cash_ledger.reserve(order_value, f"order-{symbol}-{datetime.utcnow().timestamp():.0f}")
+            except Exception:
+                continue  # not enough settled cash
+
             order = market_order(
                 symbol=symbol,
                 side=side,
                 quantity=Decimal(str(qty)),
             )
+
+            # Cross-strategy aggregator pre-trade check
+            if self.aggregator.check_order(order) == CheckVerdict.REJECTED:
+                self._cash_ledger.release(order.id)  # release committed cash
+                continue
 
             # Pre-trade risk check
             if self.config.risk_limits:
@@ -363,6 +449,7 @@ class LiveRunner:
                 )
                 result = check_pre_trade(order, snap, self.config.risk_limits)
                 if result.status == LimitStatus.REJECTED:
+                    self._cash_ledger.release(order.id)  # release committed cash
                     if self.on_risk_breach:
                         self.on_risk_breach(result)
                     continue
@@ -374,6 +461,7 @@ class LiveRunner:
                     self.broker.submit_order(order)
                 except Exception:
                     self.oms.reject(order.id, "Broker rejected")
+                    self._cash_ledger.release(order.id)  # release on reject
 
     def _check_rebalance(self) -> None:
         """Check and execute rebalancing if needed."""
@@ -503,11 +591,18 @@ class LiveRunner:
         daily_pnl = self._current_value() - self._daily_start_value
         weekly_pnl = self._current_value() - self._weekly_start_value
 
+        # Settle pending cash before snapshot
+        self._cash_ledger.settle_pending()
+
         return LiveStateSnapshot(
             state=self.state,
             timestamp=datetime.utcnow(),
             portfolio_value=self._current_value(),
-            cash=self._cash,
+            cash=self._cash_ledger.settled_cash,
+            settled_cash=self._cash_ledger.settled_cash,
+            unsettled_cash=self._cash_ledger.unsettled_cash,
+            committed_cash=self._cash_ledger.committed_cash,
+            available_cash=self._cash_ledger.available(),
             positions=self._positions,
             pending_orders=len(self.oms.orders),
             drawdown=dd,

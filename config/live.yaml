@@ -1,0 +1,162 @@
+# QuantCore Live Configuration
+# Updated: 2026-06-08 — Phase 1 rebuild: all strategies removed
+#
+# Phase 1 strip complete. No strategies configured.
+# Strategy code deleted from codebase — zero deployable alpha confirmed.
+#
+# Rebuild sequence: data → hypothesis → validation → code
+# See execution plan for Phase 2-5 details.
+#
+# SECURITY: All API keys via environment variables (never hardcoded).
+#   Required env vars:
+#     ALPACA_API_KEY, ALPACA_API_SECRET
+#     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+broker:
+  type: paper
+  alpaca:
+    # Credentials loaded from environment: ALPACA_API_KEY, ALPACA_API_SECRET
+    api_key: ''
+    secret_key: ''
+    base_url: https://paper-api.alpaca.markets
+  ibkr:
+    host: 127.0.0.1
+    port: 7497
+    client_id: 1
+    account_id: ''
+    timeout: 30
+    readonly: false
+
+# ── Strategies ─────────────────────────────────────────────────────────────
+# Phase 1 rebuild: all strategy code removed from codebase.
+# No strategies configured until Phase 4 (build one clean strategy).
+# The registry is empty — new strategies must be registered via @register()
+# and validated through the full phase-gate process before appearing here.
+strategies: []
+
+universe:
+  tickers:
+  - SPY
+  - QQQ
+  - IWM
+  - GLD
+  - TLT
+  - DBC
+  - AAPL
+  - MSFT
+  - AMZN
+  - NVDA
+  - GOOGL
+  - META
+  - TSLA
+  - BRK.B
+  - UNH
+  - JNJ
+  - V
+  - XOM
+  - JPM
+  - PG
+  - MA
+  - HD
+  - CVX
+  - MRK
+  - LLY
+  - ABBV
+  - PFE
+  - KO
+  - AVGO
+  - PEP
+  - COST
+  - TMO
+  - MCD
+  - WMT
+  - CSCO
+  - ACN
+  - ABT
+  - DHR
+  - LIN
+  - TXN
+  - UPS
+  - RTX
+  - QCOM
+  - PM
+  - HON
+  - LOW
+  - AMGN
+  - INTU
+  - BA
+  - GE
+  - CAT
+  - SBUX
+  - ISRG
+  - AMD
+  - PLD
+  macro_assets:
+  - SPY
+  - QQQ
+  - IWM
+  - GLD
+  - TLT
+  - DBC
+
+# ── Risk ───────────────────────────────────────────────────────────────────
+# Portfolio-level risk limits. Per-strategy limits defined above in strategies[].
+risk:
+  max_position_per_ticker_pct: 0.05
+  max_gross_exposure_pct: 2.0
+  max_daily_loss_pct: 0.03       # 3% portfolio-level daily loss
+  max_drawdown_pct: 0.12         # 12% portfolio-level max drawdown
+  max_single_order_pct: 0.05
+  max_leverage: 2.0
+  circuit_breaker:
+    daily_loss_pct: 0.03          # aligned with max_daily_loss_pct
+    critical_drawdown_pct: 0.12   # aligned with max_drawdown_pct
+    consecutive_rejections: 10    # increased from 5 to avoid false positives
+
+execution:
+  scale_mode: fractional
+  initial_cash: 100000.0
+  slippage_bps: 5
+  commission_per_share: 0.005
+
+schedule:
+  trading_time: '16:15'
+  reconciliation_time: '16:30'
+  timezone: US/Eastern
+
+monitoring:
+  health_check_interval_sec: 60
+  log_file: reports/live_events.jsonl
+  equity_file: reports/live_equity.csv
+
+# ── Alerting ───────────────────────────────────────────────────────────────
+# Telegram is the PRIMARY alert channel for critical events.
+# Credentials loaded from: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID env vars.
+alerting:
+  enabled: true
+  file_path: reports/alerts.log
+  telegram:
+    enabled: true
+    # Credentials loaded from environment variables (never hardcoded)
+    bot_token: ''
+    chat_id: ''
+  slack:
+    enabled: false
+    webhook_url: ''
+  email:
+    enabled: false
+    smtp_host: ''
+    smtp_port: 587
+    from_addr: ''
+    to_addrs: []
+    username: ''
+    password: ''
+
+kill_switch:
+  file_path: KILL_SWITCH
+  check_interval_sec: 10
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  enabled: true

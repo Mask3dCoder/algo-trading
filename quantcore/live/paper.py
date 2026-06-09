@@ -17,8 +17,8 @@ from quantcore.risk.drawdown import DrawdownTracker
 class PaperConfig:
     """Configuration for paper trading simulation."""
     initial_capital: float = 100_000.0
-    slippage_bps: float = 2.0  # base slippage in basis points
-    commission_per_share: float = 0.005
+    slippage_bps: float = 5.0  # base slippage in basis points (10bps comm + 5bps slip = 15bps total)
+    commission_per_share: float = 0.01  # ~10bps commission (on $100 stock)
     min_commission: float = 1.0
     max_commission_pct: float = 0.01
     latency_ms: float = 5.0

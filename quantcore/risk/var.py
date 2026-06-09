@@ -111,39 +111,103 @@ def _ewma_covariance(
     return np.asarray(r_demean.T @ (r_demean * w[:, np.newaxis]))
 
 
+def _estimate_t_dof(returns: NDArray[np.floating]) -> float:
+    """MLE estimate of Student-t degrees of freedom from returns.
+
+    Returns np.inf (Gaussian) when MLE fails or returns has < 10 obs.
+    """
+    r = np.asarray(returns, dtype=float).flatten()
+    if len(r) < 10:
+        return float("inf")
+    try:
+        df, _, _ = sp_stats.t.fit(r)
+        return max(float(df), 2.01)
+    except Exception:
+        return float("inf")
+
+
 def parametric_var(
     mu: float | NDArray[np.floating],
     sigma: float | NDArray[np.floating],
     confidence: float = 0.95,
     horizon_days: int = 1,
+    weights: NDArray[np.floating] | None = None,
+    returns_for_t: NDArray[np.floating] | None = None,
+    nu: float | None = None,
 ) -> VaRResult:
-    """Parametric (Gaussian) VaR: VaR_α = -μ - σ * Φ⁻¹(1-α).
+    """Parametric VaR with Student-t or Gaussian distribution.
+
+    When returns_for_t is provided (or nu is set), uses a Student-t
+    quantile instead of the Gaussian z-score. This produces wider VaR for
+    heavy-tailed return distributions -- critical for portfolios with
+    kurtosis > 3.
 
     Args:
         mu: Expected return (scalar or per-asset).
         sigma: Volatility (scalar or covariance matrix).
         confidence: VaR confidence level.
         horizon_days: Scaling horizon.
+        weights: Portfolio weights. When provided with a covariance matrix,
+            computes portfolio vol as sqrt(w'Sigma w) instead of averaging.
+        returns_for_t: Return series for MLE estimation of Student-t df.
+            Ignored when nu is explicitly provided.
+        nu: Degrees of freedom for Student-t. If None and returns_for_t is
+            provided, estimated via MLE. If both None, falls back to Gaussian.
     """
     sigma_arr = np.atleast_1d(np.asarray(sigma, dtype=float))
     mu_scalar = float(np.asarray(mu).mean())
 
     if sigma_arr.ndim <= 1:
-        port_sigma = float(sigma_arr.mean())  # For scalar case
+        port_sigma = float(sigma_arr.mean())
+    elif weights is not None:
+        w = np.asarray(weights, dtype=float).flatten()
+        port_sigma = float(np.sqrt(w @ sigma_arr @ w))
     else:
-        port_sigma = float(np.sqrt(np.mean(sigma_arr)))  # Simplified
+        port_sigma = float(np.sqrt(np.mean(sigma_arr)))
 
-    z_alpha = sp_stats.norm.ppf(1.0 - confidence)
-    var_val = mu_scalar * horizon_days + port_sigma * np.sqrt(horizon_days) * z_alpha
-    cvar_val = mu_scalar * horizon_days - port_sigma * np.sqrt(horizon_days) * sp_stats.norm.pdf(z_alpha) / (1.0 - confidence)
+    # Determine degrees of freedom
+    if nu is not None:
+        df = nu
+    elif returns_for_t is not None:
+        df = _estimate_t_dof(returns_for_t)
+    else:
+        df = float("inf")
+
+    use_t = df < 1e6  # Effectively finite -> Student-t
+
+    if use_t:
+        t_alpha = sp_stats.t.ppf(1.0 - confidence, df=df)
+        var_val = mu_scalar * horizon_days + port_sigma * np.sqrt(horizon_days) * t_alpha
+        # Student-t CVaR
+        g_f = sp_stats.t.pdf(t_alpha, df=df)
+        cvar_val = (
+            mu_scalar * horizon_days
+            - port_sigma * np.sqrt(horizon_days)
+            * g_f * (df + t_alpha**2) / ((df - 1) * (1.0 - confidence))
+        )
+        method = "parametric_t"
+    else:
+        z_alpha = sp_stats.norm.ppf(1.0 - confidence)
+        var_val = (
+            mu_scalar * horizon_days
+            + port_sigma * np.sqrt(horizon_days) * z_alpha
+        )
+        cvar_val = (
+            mu_scalar * horizon_days
+            - port_sigma * np.sqrt(horizon_days)
+            * sp_stats.norm.pdf(z_alpha) / (1.0 - confidence)
+        )
+        method = "parametric"
 
     return VaRResult(
-        method="parametric",
+        method=method,
         confidence=confidence,
         horizon_days=horizon_days,
         var=float(var_val),
         cvar=float(cvar_val),
     )
+
+
 
 
 def portfolio_parametric_var(
@@ -181,11 +245,22 @@ def cornish_fisher_var(
     kurtosis: float,
     confidence: float = 0.95,
     horizon_days: int = 1,
+    n_observations: int = 0,
 ) -> VaRResult:
     """Cornish-Fisher VaR adjustment for non-normality.
 
-    CF expansion: z_cf = z_α + (z_α² - 1)γ/6 + (z_α³ - 3z_α)κ/24 - (2z_α³ - 5z_α)γ²/36
+    CF expansion: z_cf = z + (z^2 - 1)*S/6 + (z^3 - 3z)*K/24 - (2z^3 - 5z)*S^2/36
+
+    Warning: CF expansion is unreliable with fewer than 100 observations.
+    When n_observations < 100, the method field is prefixed with "unstable_".
     """
+    import warnings
+    if 0 < n_observations < 100:
+        warnings.warn(
+            f"Cornish-Fisher VaR with only {n_observations} observations is unreliable. "
+            f"High-order moment estimates (skew, kurtosis) are unstable below n=100.",
+            stacklevel=2,
+        )
     z_alpha = sp_stats.norm.ppf(1.0 - confidence)
     z_cf = (
         z_alpha
@@ -195,8 +270,9 @@ def cornish_fisher_var(
     )
 
     var_val = mu * horizon_days + sigma * np.sqrt(horizon_days) * z_cf
+    method_name = "unstable_cornish_fisher" if (0 < n_observations < 100) else "cornish_fisher"
     return VaRResult(
-        method="cornish_fisher",
+        method=method_name,
         confidence=confidence,
         horizon_days=horizon_days,
         var=float(var_val),

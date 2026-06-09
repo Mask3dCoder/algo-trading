@@ -36,6 +36,9 @@ class BrokerOrder:
     stop_price: Decimal | None = None
     time_in_force: str = "day"
     client_order_id: str = ""
+    take_profit_price: Decimal | None = None
+    stop_loss_price: Decimal | None = None
+    market_price: Decimal | None = None  # Current market price for fill simulation
 
 
 class BrokerAdapter(ABC):

@@ -1,13 +1,6 @@
-"""Equity strategies: momentum, stat-arb, mean-reversion, trend-following."""
+"""Equity strategies — cleared during Phase 1 rebuild.
 
-from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
-from quantcore.strategies.equity.momentum import MomentumStrategy
-from quantcore.strategies.equity.stat_arb import StatArbStrategy
-from quantcore.strategies.equity.trend_following import TrendFollowingStrategy
-
-__all__ = [
-    "MeanReversionStrategy",
-    "MomentumStrategy",
-    "StatArbStrategy",
-    "TrendFollowingStrategy",
-]
+All equity strategy implementations removed 2026-06-08.
+Forensic audit found zero deployable alpha across all strategies.
+Rebuild follows: data → hypothesis → validation → code.
+"""

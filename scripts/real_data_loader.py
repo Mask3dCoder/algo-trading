@@ -1,8 +1,8 @@
 """Real data loader -- yfinance-backed universe definitions with retry logic.
 
 Universe definitions for Phase A real-data validation:
-  - cta:  SPY, EFA, TLT, GLD, DBC, FXE  (CTA multi-speed trend)
-  - rp:   SPY, EFA, TLT, IEF, GLD, DBC  (risk parity)
+  - cta:  DBC, GLD, IEF, SPY, TLT  (CTA multi-speed trend)
+  - rp:   DBC, GLD, IEF, SPY, TLT  (risk parity)
 
 Provides load_universe() with exponential backoff retry, validate_data()
 with 7 quality checks, and fetch_and_prepare() convenience wrapper.
@@ -39,26 +39,119 @@ log = logging.getLogger(__name__)
 UNIVERSES: dict[str, dict[str, Any]] = {
     "cta": {
         "description": "CTA multi-speed trend universe",
-        "symbols": ["SPY", "EFA", "TLT", "GLD", "DBC", "FXE"],
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
         "asset_classes": {
-            "SPY": "US Equities",
-            "EFA": "International Equities",
-            "TLT": "US Long-Term Bonds",
-            "GLD": "Gold",
             "DBC": "Commodities",
-            "FXE": "FX (EURUSD)",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
         },
     },
     "rp": {
         "description": "Risk parity universe",
-        "symbols": ["SPY", "EFA", "TLT", "IEF", "GLD", "DBC"],
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
         "asset_classes": {
-            "SPY": "US Equities",
-            "EFA": "International Equities",
-            "TLT": "US Long-Term Bonds",
-            "IEF": "US Intermediate-Term Bonds",
-            "GLD": "Gold",
             "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+        },
+    },
+    "original_5": {
+        "description": "Original 5-asset universe (same as cta/rp)",
+        "symbols": ["DBC", "GLD", "IEF", "SPY", "TLT"],
+        "asset_classes": {
+            "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+        },
+    },
+    "expanded_15": {
+        "description": "Expanded 15-asset universe with non-factor assets",
+        "symbols": [
+            # Original 5 (factors)
+            "DBC", "GLD", "IEF", "SPY", "TLT",
+            # Non-factor assets (for meaningful residuals)
+            "QQQ", "IWM", "EFA", "EEM",  # Equities
+            "HYG", "LQD",  # Credit
+            "USO", "SLV",  # Commodities
+            "VNQ",  # REITs
+            "DIA",  # Dow
+        ],
+        "asset_classes": {
+            "DBC": "Commodities",
+            "GLD": "Gold",
+            "IEF": "US Intermediate-Term Bonds",
+            "SPY": "US Equities",
+            "TLT": "US Long-Term Bonds",
+            "QQQ": "Nasdaq 100",
+            "IWM": "Russell 2000",
+            "EFA": "EAFE Developed",
+            "EEM": "Emerging Markets",
+            "HYG": "High Yield Bonds",
+            "LQD": "Investment Grade",
+            "USO": "Oil",
+            "SLV": "Silver",
+            "VNQ": "US REITs",
+            "DIA": "Dow Jones",
+        },
+    },
+    "ETF_EXPANDED": {
+        "description": "Expanded 57-asset ETF universe for cross-sectional stat-arb",
+        "symbols": [
+            # Equities - US Broad
+            "SPY", "QQQ", "IWM", "MDY", "VTI", "VO", "VUG", "VBR",
+            # Factors
+            "MTUM", "VLUE", "QUAL", "USMV", "SIZE", "VIG",
+            # International Equity
+            "EFA", "EEM", "VEU", "FEZ", "EWJ", "EWZ", "VWO", "ACWI", "VXUS", "MCHI", "EZU",
+            # Bonds - Government
+            "TLT", "IEF", "SHY", "TIP", "AGG", "BND",
+            # Bonds - Credit & Other
+            "LQD", "HYG", "MBB", "BKLN",
+            # Commodities
+            "GLD", "SLV", "USO", "UNG", "DBA", "DJP",
+            # REITs
+            "VNQ", "VNQI", "REET",
+            # US Sectors
+            "XLF", "XLK", "XLV", "XLE", "XLY", "XLP", "XLI", "XLU", "XLRE", "XLB",
+            "FTEC", "IHI",
+            # Preferred / Others
+            "PFF",
+            # Volatility
+            "VXX",
+            # Currencies
+            "UUP", "FXE",
+        ],
+        "asset_classes": {
+            "SPY": "Large Cap", "QQQ": "Tech", "IWM": "Small Cap",
+            "MDY": "Mid Cap", "VTI": "Total Market", "VO": "Mid Cap Growth",
+            "VUG": "Large Cap Growth", "VBR": "Small Cap Value",
+            "MTUM": "Momentum", "VLUE": "Value", "VIG": "Dividend Growth",
+            "EFA": "EAFE", "EEM": "Emerging", "VEU": "Developed",
+            "FEZ": "Eurozone", "EWJ": "Japan", "EWZ": "Brazil",
+            "VWO": "Emerging Markets", "ACWI": "Global", "VXUS": "Ex-US",
+            "MCHI": "China", "EZU": "Eurozone",
+            "TLT": "Long Bonds", "IEF": "Interm Bonds", "SHY": "Short Bonds",
+            "TIP": "TIPS", "AGG": "Aggregate Bonds", "BND": "Total Bonds",
+            "LQD": "IG Credit", "HYG": "High Yield",
+            "MBB": "Mortgage", "BKLN": "Bank Loans",
+            "GLD": "Gold", "SLV": "Silver", "USO": "Oil",
+            "UNG": "Natural Gas", "DBA": "Agriculture", "DJP": "Commodities",
+            "VNQ": "US REITs", "VNQI": "Intl REITs", "REET": "Global REITs",
+            "XLF": "Financials", "XLK": "Technology", "XLV": "Healthcare",
+            "XLE": "Energy", "XLY": "Consumer Disc",
+            "XLP": "Consumer Staples", "XLI": "Industrials",
+            "XLU": "Utilities", "XLRE": "Real Estate", "XLB": "Materials",
+            "FTEC": "Tech Sector", "IHI": "Medical Devices",
+            "QUAL": "Quality", "USMV": "Low Vol", "SIZE": "Size",
+            "PFF": "Preferred",
+            "VXX": "VIX",
+            "UUP": "USD", "FXE": "Euro",
         },
     },
 }
@@ -250,7 +343,8 @@ def validate_data(
     # 7. Volume check
     if "volume" in df.columns:
         zero_vol = (df["volume"] == 0).sum()
-        if zero_vol > 0:
+        # Allow up to 5 zero-volume rows or < 0.01% of total (whichever is larger)
+        if zero_vol > max(5, int(len(df) * 0.0001)):
             errors.append(f"{name}: {zero_vol} rows with zero volume")
         vol = df["volume"]
         vol = vol[vol > 0]

@@ -91,7 +91,7 @@ class TestComplianceCheckerPreTrade:
         checker = ComplianceChecker()
         order = Order(
             id="test-002", symbol="AAPL", side=Side.SELL, quantity=Decimal("10"),
-            type=OrderType.MARKET,
+            type=OrderType.LIMIT, limit_price=Decimal("195.0"),
         )
         result = checker.check_pre_trade(order, sample_portfolio)
         # Short sale should trigger at least a warning (Reg SHO)

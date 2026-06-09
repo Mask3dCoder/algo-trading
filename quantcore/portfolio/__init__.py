@@ -34,11 +34,27 @@ from quantcore.portfolio.tax import (
     TaxLot,
     TaxLotTracker,
 )
+from quantcore.portfolio.aggregator import (
+    AggregatorConfig,
+    MultiStrategyAggregator,
+    SubStrategy,
+)
+from quantcore.portfolio.hrp import compute_hrp_weights
+from quantcore.portfolio.kelly_sizing import (
+    KellySizer,
+    KellyStats,
+    RollingKellySizer,
+    compute_kelly_from_returns,
+    compute_kelly_from_trades,
+)
 
 __all__ = [
     # sizing
     "kelly_criterion", "fractional_kelly", "volatility_target",
     "risk_parity_size", "atr_size", "cvar_size", "optimal_f",
+    # kelly sizing
+    "KellySizer", "KellyStats", "RollingKellySizer",
+    "compute_kelly_from_trades", "compute_kelly_from_returns",
     # optimization
     "OptimizationResult", "mean_variance", "compute_frontier",
     "black_litterman", "bl_optimize", "hrp", "nco", "risk_parity",
@@ -48,4 +64,8 @@ __all__ = [
     # tax
     "LotMethod", "TaxLot", "RealizedGain", "TaxLotTracker",
     "TAX_LONG_TERM_DAYS", "WASH_SALE_WINDOW",
+    # aggregator
+    "AggregatorConfig", "MultiStrategyAggregator", "SubStrategy",
+    # hrp
+    "compute_hrp_weights",
 ]

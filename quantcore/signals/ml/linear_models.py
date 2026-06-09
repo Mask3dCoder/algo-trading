@@ -129,6 +129,7 @@ class LassoSignal:
         self.max_features = max_features
         self.beta_: NDArray | None = None
         self.best_alpha_: float = 0.0
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(
         self,
@@ -138,6 +139,7 @@ class LassoSignal:
         """Fit LASSO with CV to select alpha."""
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline  # Store fitted pipeline for prediction
 
         splitter = TimeSeriesSplit(n_splits=self.cv_splits)
         folds = splitter.split(len(X))
@@ -205,8 +207,9 @@ class LassoSignal:
         if self.beta_ is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
 
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
         return X @ self.beta_[1:] + self.beta_[0]
 
 
@@ -224,10 +227,12 @@ class RidgeSignal:
         self.cv_splits = cv_splits
         self.beta_: NDArray | None = None
         self.best_alpha_: float = 0.0
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(self, features: NDArray, target: NDArray) -> LinearSignalResult:
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline
         splitter = TimeSeriesSplit(n_splits=self.cv_splits)
         folds = splitter.split(len(X))
 
@@ -275,8 +280,9 @@ class RidgeSignal:
     def predict(self, features: NDArray) -> NDArray:
         if self.beta_ is None:
             raise RuntimeError("Model not fitted.")
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
         return X @ self.beta_[1:] + self.beta_[0]
 
 
@@ -296,10 +302,12 @@ class ElasticNetSignal:
         self.cv_splits = cv_splits
         self.beta_: NDArray | None = None
         self.best_alpha_: float = 0.0
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(self, features: NDArray, target: NDArray) -> LinearSignalResult:
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline
         splitter = TimeSeriesSplit(n_splits=self.cv_splits)
         folds = splitter.split(len(X))
 
@@ -348,8 +356,9 @@ class ElasticNetSignal:
     def predict(self, features: NDArray) -> NDArray:
         if self.beta_ is None:
             raise RuntimeError("Model not fitted.")
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
         return X @ self.beta_[1:] + self.beta_[0]
 
 
@@ -361,11 +370,13 @@ class QuantileRegression:
         self.max_iter = max_iter
         self.tol = tol
         self.beta_: NDArray | None = None
+        self._pipeline: PreprocessingPipeline | None = None
 
     def fit(self, features: NDArray, target: NDArray) -> NDArray:
         """Fit quantile regression using iterative reweighted least squares."""
         pipeline = PreprocessingPipeline()
         X = pipeline.fit_transform(features)
+        self._pipeline = pipeline
         valid = ~(np.any(np.isnan(X), axis=1) | np.isnan(target))
         X_clean = X[valid]
         y_clean = target[valid]
@@ -401,6 +412,7 @@ class QuantileRegression:
     def predict(self, features: NDArray) -> NDArray:
         if self.beta_ is None:
             raise RuntimeError("Model not fitted.")
-        pipeline = PreprocessingPipeline()
-        X = pipeline.fit_transform(features)
+        if self._pipeline is None:
+            raise RuntimeError("Pipeline not fitted. Call fit() first.")
+        X = self._pipeline.transform(features)
         return X @ self.beta_[1:] + self.beta_[0]

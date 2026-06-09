@@ -105,19 +105,28 @@ class MarketImpactEngine:
         self._sigma: float | None = config.sigma
 
     def set_data(self, data: pd.DataFrame) -> None:
-        """Estimate ADV and sigma from historical data if not already configured.
+        """Estimate ADV and sigma from historical data using ONLY the initial window.
+
+        Uses the first 60 trading days to estimate ADV and sigma, avoiding
+        look-ahead bias.  These are static estimates used throughout the backtest.
+        For a production system, these should be updated with an expanding window
+        at each bar, but the static estimate is sufficient for impact modeling
+        and avoids the complexity of per-bar recalculation.
 
         data: DataFrame with columns [symbol, timestamp, open, high, low, close, volume].
         """
+        lookback = 60  # Use first 60 bars only (no future data)
+
         if self._adv is None and "volume" in data.columns:
-            # Use the primary symbol's volume
             sym = data["symbol"].iloc[0] if "symbol" in data.columns else None
             vol_series = (
                 data.loc[data["symbol"] == sym, "volume"]
                 if sym
                 else data["volume"]
             )
-            self._adv = float(np.mean(vol_series))
+            # Use only the first `lookback` bars
+            initial_vol = vol_series.iloc[:lookback]
+            self._adv = float(np.mean(initial_vol)) if len(initial_vol) > 0 else 1_000_000.0
 
         if self._sigma is None and "close" in data.columns:
             sym = data["symbol"].iloc[0] if "symbol" in data.columns else None
@@ -126,8 +135,10 @@ class MarketImpactEngine:
                 if sym
                 else data["close"].values.astype(float)
             )
-            if len(close_series) > 1:
-                returns = np.diff(close_series) / close_series[:-1]
+            # Use only the first `lookback` bars
+            initial_close = close_series[:lookback]
+            if len(initial_close) > 1:
+                returns = np.diff(initial_close) / initial_close[:-1]
                 self._sigma = float(np.std(returns, ddof=1))
 
     def check_volume_filter(

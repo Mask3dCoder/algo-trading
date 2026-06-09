@@ -52,16 +52,23 @@ class OHLCV(BaseModel):
 
     @model_validator(mode="after")
     def validate_bar(self) -> Self:
+        _TOL = Decimal("1e-10")
         if self.high < self.low:
             raise ValueError(f"high ({self.high}) must be >= low ({self.low})")
-        if self.high < self.open:
+        if self.high + _TOL < self.open:
             raise ValueError(f"high ({self.high}) must be >= open ({self.open})")
-        if self.high < self.close:
+        if self.high + _TOL < self.close:
             raise ValueError(f"high ({self.high}) must be >= close ({self.close})")
-        if self.low > self.open:
+        if self.low > self.open + _TOL:
             raise ValueError(f"low ({self.low}) must be <= open ({self.open})")
-        if self.low > self.close:
+        if self.low > self.close + _TOL:
             raise ValueError(f"low ({self.low}) must be <= close ({self.close})")
+        # Heal tiny ordering violations by rounding (float-to-Decimal artifacts)
+        if self.high < self.close:
+            try:
+                object.__setattr__(self, "high", self.close)
+            except AttributeError:
+                pass
         return self
 
     model_config = {"frozen": True}
@@ -99,7 +106,12 @@ class Quote(BaseModel):
 
 
 class Order(BaseModel):
-    """Order with full lifecycle tracking."""
+    """Order with full lifecycle tracking.
+
+    ``metadata`` is used to carry option-specific fields (strike, expiry,
+    option_type, action) through the execution stack without breaking the
+    equity-first interface.
+    """
     id: str
     symbol: str
     side: Side
@@ -113,6 +125,7 @@ class Order(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     filled_qty: Decimal = Field(default=Decimal("0"), ge=0)
     avg_fill_price: Decimal | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Fill(BaseModel):
@@ -123,7 +136,10 @@ class Fill(BaseModel):
     commission: Decimal = Field(ge=0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     exchange: str = ""
+    side: Side | None = None  # Required for correct position accounting
     slippage_bps: Decimal = Field(default=Decimal("0"), ge=0)
+    market_impact_cost: Decimal = Field(default=Decimal("0"), ge=0)
+    impact_bps: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 class Position(BaseModel):
@@ -149,6 +165,7 @@ class Signal(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    notional_size: float | None = None
 
 
 class PortfolioSnapshot(BaseModel):

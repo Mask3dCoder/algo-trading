@@ -1,0 +1,23 @@
+[strategy]
+name = "macro_vrp"
+type = "macro"
+max_position_notional = 5_000_000
+max_leverage = 1.0
+risk_budget_pct = 0.01
+
+[strategy.params]
+lookback = 21
+ewm_span = 5
+entry_threshold = 0.25
+vix_crisis_threshold = 35
+target_vol = 0.10
+kelly_fraction = 0.5
+max_position_pct = 0.25
+stop_loss_sigma_normal = 2.0
+stop_loss_sigma_crisis = 3.0
+profit_target_pct = 0.05
+max_holding_days = 30
+signal_exit_threshold = 0.0
+tail_hedge_pct = 0.02
+vol_lookback = 21
+rebalance_freq = 5

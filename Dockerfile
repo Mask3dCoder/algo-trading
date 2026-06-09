@@ -1,25 +1,42 @@
-# Multi-stage build for QuantCore
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim
 
-WORKDIR /build
-COPY pyproject.toml .
-COPY quantcore/ quantcore/
+LABEL maintainer="QuantCore Team"
+LABEL description="QuantCore algorithmic trading system"
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -e ".[all]"
-
-# Runtime stage
-FROM python:3.12-slim AS runtime
-
-RUN groupadd -r quantcore && useradd -r -g quantcore quantcore
-
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /build /app
+# System deps
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-USER quantcore
+
+# Install Python deps first (layer caching)
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir ".[dev,stats,data]" 2>/dev/null || \
+    pip install --no-cache-dir numpy scipy pandas polars pydantic dynaconf structlog \
+    exchange-calendars fastapi uvicorn schedule pyyaml alpaca-py requests psutil
+# pyarrow is required for parquet caching in live data feed
+RUN pip install --no-cache-dir pyarrow
+# yfinance is required for VIX data feed (options strategies)
+# python-dotenv is required for .env loading in broker
+RUN pip install --no-cache-dir yfinance python-dotenv
+
+# Copy source
+COPY quantcore/ quantcore/
+COPY config/ config/
+COPY scripts/ scripts/
+
+# Create reports directory (also mountable as volume)
+RUN mkdir -p /app/reports /app/data /app/logs
+
+# Environment defaults
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV QUANTCORE_LIVE_CONFIG=config/live.yaml
 
 EXPOSE 8000
 
-CMD ["uvicorn", "quantcore.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["python", "-m", "quantcore.live.production_runner"]

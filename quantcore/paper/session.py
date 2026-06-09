@@ -65,8 +65,11 @@ class SessionSnapshot:
 class SessionStore:
     """Persist paper trading session state for restart recovery."""
 
-    def __init__(self, state_dir: str | Path = DEFAULT_STATE_DIR) -> None:
-        self._dir = Path(state_dir)
+    def __init__(self, state_dir: str | Path = DEFAULT_STATE_DIR, session_id: str = "") -> None:
+        base = Path(state_dir)
+        if session_id:
+            base = base / session_id
+        self._dir = base
         self._dir.mkdir(parents=True, exist_ok=True)
         self._path = self._dir / STATE_FILE
 

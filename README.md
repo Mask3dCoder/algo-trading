@@ -1,4 +1,25 @@
-# QuantCore
+﻿# QuantCore
+
+> **⚠️ DISCLAIMER — SYSTEM UNDER ACTIVE RECONSTRUCTION**
+>
+> A forensic audit conducted on 2026-05-09 found this system to have **zero
+> deployable alpha**. The backtest engine contained look-ahead bias; the
+> validation pipeline bypassed all realistic costs; Sharpe ratios were
+> computed incorrectly; and purged cross-validation crashed at runtime.
+>
+> **No strategy has been validated for live trading.**
+> All previously reported Sharpe ratios and performance figures are unreliable.
+> See [`FORENSIC_AUDIT_REPORT.md`](FORENSIC_AUDIT_REPORT.md) for the full
+> analysis and [`INTERNAL_NOTES.md`](INTERNAL_NOTES.md) for the recovery plan.
+>
+> Current rebuild status: **Phase 4 — Production Risk Controls** in progress.
+>
+> **⚠️ REAL MONEY AT RISK** — The `--live` flag routes orders to Alpaca's live
+> broker. Only `--scale single_share` or `--scale fractional` are permitted
+> with `--live`. See [`PHASE4_LIVE_DEPLOYMENT.md`](PHASE4_LIVE_DEPLOYMENT.md)
+> for graduated deployment procedures and risk controls.
+
+---
 
 Institutional-grade algorithmic trading system — historical backtesting, live trading, risk management, and real-time monitoring.
 
@@ -12,6 +33,9 @@ python main.py live --broker paper
 python main.py api --port 8000
 python main.py report --input results.csv
 python main.py risk --input returns.csv
+python run_paper_trading.py --check                      # verify Alpaca connectivity
+python run_paper_trading.py                               # paper trading (default)
+python run_paper_trading.py --live --scale single_share   # LIVE: single share only
 ```
 
 ## Architecture
@@ -35,7 +59,7 @@ quantcore/
 ├── dashboard/          Dash app: portfolio, strategy, risk, market, execution panels + alert engine
 ├── compliance/         Hash-chained immutable audit trail, pre-trade rules, reporting
 ├── api/                FastAPI REST + WebSocket, API key auth
-├── live/               Paper/live trader, watchdog (dead man's switch), kill switch, reconciliation
+├── live/               Paper/live trader, risk manager, circuit breaker, kill switch, reconciliation
 ├── research/           Deflated Sharpe, FDR correction, experiment tracking
 └── main.py             CLI entry point
 ```
@@ -54,21 +78,67 @@ quantcore/
 
 All hot-path loops compiled with Numba JIT; fallback to pure Python when Numba is unavailable. HTTP clients use connection pooling (httpx.AsyncClient, requests.Session).
 
+## Strategy Status (Honest Validation — Phase 3 Re-Validation, 2026-05-29)
+
+> **⚠️ PREVIOUS DEPLOY CLAIMS WERE INCORRECT.** The honest foundation report (2026-05-11) and Phase 3 re-validation (2026-05-29) showmacro_cross_sectional_momentum and macro_state_selective_momentum did not pass the `CI_lower(90%) ≥ 0.3` gate.
+
+| Strategy | Status | OOS Sharpe | CI_lower (90%) | Walk-Forward | Notes |
+|---|---|---|---|---|---|
+| `delta_neutral_vrp` | **PAPER** | +2.46 | +1.57 | VIX-based IV | OOS Sharpe simulated; realistic estimate 0.8–1.5 after gap risk & spread widening |
+| `put_write_vrp` | **PAPER** | +2.10 | +0.96 | VIX-based IV | Undergoing paper-trading validation; option fill simulation active |
+| `iron_condor_vrp` | **MONITOR** | +1.90 | +1.14 | VIX-based IV | Higher tail-risk exposure; DSR p=0.617 |
+| `macro_cross_sectional_momentum` | **DISABLED** | +0.65 | **-0.12** | 10-yr expanding | Failed honest re-validation; CI_lower < 0.3 |
+| `macro_state_selective_momentum` | **DISABLED** | — | — | — | Failed honest re-validation; no current pass evidence |
+| `macro_factor_residual` | **DISABLED** | 0.00 | 0.00 | — | Degenerate single-asset implementation; Q2 rebuild planned |
+| `macro_risk_parity` | **DISABLED** | +0.50 | **-0.31** | — | Not alpha; structural beta only |
+| `macro_cta_trend` | **DISABLED** | -0.147 | — | — | Structural negative alpha |
+| `equity_momentum` | **DISABLED** | Unvalidated | — | — | Not yet validated post-audit |
+
+Only **Delta Neutral VRP** and **Put Write VRP** are active in paper trading. All macro equity strategies are DISABLED pending honest re-validation.
+See [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md) for live paper trading setup.
+
+## Production Status
+
+**30-day paper trading validation started: 2026-05-29**
+
+| Strategy | Registry Name | Data Source | Weight | Status |
+|---|---|---|---|---|
+| `delta_neutral_vrp` | `delta_neutral_vrp` | VIX + Alpaca daily | 0.35 | RUNNING |
+| `put_write_vrp` | `put_write_vrp` | VIX + Alpaca daily | 0.35 | RUNNING |
+| `iron_condor_vrp` | `iron_condor_vrp` | VIX + Alpaca daily | 0.30 | RUNNING |
+
+> **Note:** Macro equity strategies have been PAUSED pending honest re-validation.
+> See [`reports/phase3_validation.md`](reports/phase3_validation.md) for the May 2026 re-validation run.
+
+- **Health API**: `http://localhost:8000/health` — liveness probe
+- **Status API**: `http://localhost:8000/status` — positions, equity, events
+- **Kill switch**: `curl -X POST http://localhost:8000/kill-switch/activate`
+- **Daily checklist**: [`operations/daily_checklist.md`](operations/daily_checklist.md)
+- **Graduation criteria**: Paper Sharpe >= 0.3, max DD < 10%, >= 20/30 days without crash
+
 ## Phase Gate Status
 
-| Gate | Status |
-|---|---|
-| Phase 1 — Core Infrastructure | 734 tests, all passing |
-| Phase 2 — Signals & Strategies | Technical/matching validated |
-| Phase 3 — Risk, Execution & Portfolio | VaR backtests green |
-| Phase 4 — Live Ops & Production | All 5 gates pass |
+| Gate | Criterion | Status |
+|---|---|---|
+| Phase 1 — Core Infrastructure | >1,500 tests passing | **PASS** |
+| Phase A OOS Validation | CI_lower(90%) ≥ 0.3, 10-yr walk-forward | **PASS (3 options strategies)** |
+| Phase B Code Quality | Same `on_data()` pipeline, no separate live signals | **PASS** |
+| Phase C Parity Test | LiveDataFeed vs backtest data → identical signals | `pytest tests/test_live_parity.py` |
+| Phase D Live Bootstrap | Paper trading ≥ 20 trading days without crash | **IN PROGRESS** (started 2026-05-29) |
+| Phase E Live Sign-off | OOS paper Sharpe ≥ 0.3 over live period | **PENDING** |
+| Phase F Options Plumbing | `instrument_type` wiring + equity injection | **PASS** (fixed 2026-06-05) |
+| **Phase 4 — Risk Controls** | Pre-trade checks, circuit breaker, kill switch, graduated scale | **PASS** (tests green) |
 
-Phase 4 gate results:
-- Kill switch <1s: **0.0ms**
-- Dashboard load <3s: **683ms**
-- Alert fire <5s: **0.01ms**
-- Audit trail immutable: **SHA-256 chain verified**
-- Feed handler >100K msgs/sec: **251K**
+For Phase 3 live start, see [`PHASE3_LAUNCH.md`](PHASE3_LAUNCH.md).
+For Phase 4 risk controls and graduated live deployment, see [`PHASE4_LIVE_DEPLOYMENT.md`](PHASE4_LIVE_DEPLOYMENT.md).
+
+## Verification
+
+```bash
+# Run the honest foundation verification script
+python scripts/verify_honest_foundation.py
+# Outputs: HONEST_FOUNDATION_REPORT.json
+```
 
 ## Development
 
@@ -84,6 +154,87 @@ make docker-up      # TimescaleDB, Redis, Kafka
 
 Python ≥3.12 required. Optional dependency groups: `stats`, `ml`, `optim`, `exec`, `infra`, `viz`, `nlp`, `perf`, `data`, `dev` — install with `pip install -e ".[group]"` or `pip install -e ".[all]"`.
 
+## Production Deployment (Docker)
+
+The system runs as a containerized service with zero terminal commands during normal operation.
+
+### Quick Start
+
+```bash
+# 1. Configure (edit config/live.yaml with your broker credentials and strategies)
+cp config/live.yaml config/live.yaml.local   # optional override
+
+# 2. Start
+docker compose up -d
+
+# 3. Verify
+curl http://localhost:8000/health    # {"status": "ok", "uptime_seconds": ...}
+curl http://localhost:8000/status    # positions, equity, recent events
+
+# 4. Stop trading (kill switch)
+curl -X POST http://localhost:8000/kill-switch/activate
+
+# 5. Resume trading
+curl -X POST http://localhost:8000/kill-switch/deactivate
+
+# 6. View logs
+docker compose logs -f quantcore
+```
+
+### File-Based Kill Switch
+
+Create a `KILL_SWITCH` file at the project root to halt trading immediately (checked every 10 seconds):
+
+```bash
+touch KILL_SWITCH    # halt trading
+rm KILL_SWITCH       # resume trading
+```
+
+### Configuration
+
+All settings live in `config/live.yaml`:
+
+| Section | Key Settings |
+|---|---|
+| `broker` | `type` (paper/alpaca/ibkr), credentials, base URL |
+| `strategies` | List of `{name, enabled, weight, params}` — names must match `@register()` |
+| `universe` | `tickers` and `macro_assets` lists |
+| `risk` | Position limits, daily loss, drawdown, circuit breaker thresholds |
+| `execution` | `scale_mode` (single_share/fractional/full), initial cash |
+| `schedule` | `trading_time`, `reconciliation_time` (ET), `timezone` |
+| `alerting` | File log, Slack webhook, email SMTP |
+| `kill_switch` | `file_path`, `check_interval_sec` |
+| `api` | `host`, `port`, `enabled` |
+
+Environment variables override YAML values with `QUANTCORE_` prefix (e.g. `QUANTCORE_BROKER__ALPACA__API_KEY`).
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Liveness probe — uptime, memory, data freshness |
+| `/status` | GET | Full trading status — positions, equity, events, circuit breaker |
+| `/kill-switch/activate` | POST | Emergency halt — stops all trading |
+| `/kill-switch/deactivate` | POST | Resume trading after operator review |
+| `/docs` | GET | OpenAPI interactive documentation |
+
+### Docker Compose Volumes
+
+| Mount | Purpose |
+|---|---|
+| `./config:/app/config:ro` | Strategy and broker configuration |
+| `./reports:/app/reports` | Equity CSV, event log, alert log |
+| `./data:/app/data` | Cached market data |
+| `./logs:/app/logs` | Application logs |
+| `./KILL_SWITCH:/app/KILL_SWITCH:ro` | File-based kill switch |
+
+### Monitoring
+
+- **Health check**: Docker HEALTHCHECK polls `/health` every 60s; auto-restarts on failure
+- **Alerts**: Configured in `config/live.yaml` under `alerting` — file log always on, Slack/email optional
+- **Equity curve**: `reports/live_equity.csv` — date, cash, positions value, total equity, daily return
+- **Event log**: `reports/live_events.jsonl` — every order submission as newline-delimited JSON
+
 ## Key Decisions
 
 - **T-0147 `rust_core/` — Deferred.** Python + Numba exceeds all performance targets: signals at 1.47M pts/sec and feed handler at 251K msgs/sec leave no latency gap that justifies maintaining a Rust/PyO3 binding layer today. The `rust_core/` directory skeleton remains as a future extension point if sub-millisecond order book matching latency is required.
@@ -93,49 +244,3 @@ Python ≥3.12 required. Optional dependency groups: `stats`, `ml`, `optim`, `ex
 - **Connection pooling everywhere.** All HTTP data sources share httpx.AsyncClient sessions; synchronous callers (SEC EDGAR, social media) use requests.Session. This eliminates the dominant latency source in production data pipelines.
 
 - **TimescaleDB + Redis hybrid storage.** Hypertables with continuous aggregates for historical data; Redis with msgpack serialization for real-time state, pub/sub, and caching.
-
-## Strategy Status
-
-| Strategy | Type | Status | Synthetic OOS SR | Real-Data OOS SR | Capacity | Notes |
-|---|---|---|---|---|---|---|
-| `macro_cta_trend` | Macro trend-following | **REJECTED** | +1.79 | **-0.147** | ~$1M | Failed real-data Phase A: catastrophic failure on 2018-2024 full period |
-| `macro_risk_parity` | Macro risk parity | **MONITOR** | +1.11 | +0.128 | ~$500K | Phase A: vol-target adjustments ineffective (SR-neutral); signal noise-limited |
-
-**Verdict criteria:**
-- **DEPLOY**: OOS Sharpe > 1.0, positive across all regimes, capacity > $500K, drawdown < 10%
-- **MONITOR**: OOS Sharpe > 0.5, meets DEPLOY criteria but needs live validation
-- **PAPER**: OOS Sharpe > 0.0 but has regime weakness needing further validation
-- **REJECT**: OOS Sharpe ≤ 0.0 or structural flaw
-
-### macro_cta_trend — REJECTED (Phase A)
-- Multi-speed trend: fast (20), medium (50), slow (200) windows with weighted voting
-- Volatility targeting + inverse-square vol regime scaling (threshold = vol_target * 0.30)
-- Dynamic weight shift: reduces fast-signal weight during high vol in favor of slow signals
-- **Synthetic regime breakdown**: HIGH_VOL SR +0.40, LOW_VOL SR +1.66, NORMAL SR +2.57, TREND_UP SR +3.35
-- **Real-data regime breakdown**: Full 2018-2024 SR -0.147 (SHOWSTOPPER), GFC 2008 SR -0.734 (SHOWSTOPPER), Q4 2018 SR +2.613 (PASS), COVID 2020 SR +0.991 (PASS), Rate Hikes 2022 SR +0.904 (PASS), Bull 2023-2024 SR +0.176 (FAIL)
-- Real-data max drawdown: -14.5%; 80% zero-return bars; kurtosis 52.9
-- Rejection reason: Signal structurally weak on real data — extreme tail risk from trend reversals. Conviction/choppiness filters attempted but degraded previously-passing COVID regime. Requires fundamentally different approach.
-- Deployment manifest: `strategies/deployment_manifest.yaml`
-
-### macro_risk_parity — MONITOR (Phase A completed)
-- Equal risk contribution via iterative ERC optimization with Ledoit-Wolf covariance shrinkage
-- Individual asset vol-targeting + percentile-based regime overlay + portfolio-level vol regime filter
-- Linear vol regime scaling: reduces positions when 20-bar portfolio vol exceeds vol_target * 0.40
-- **Regime breakdown**: HIGH_VOL SR +0.81, LOW_VOL SR +3.07, NORMAL SR +2.04, TREND_UP SR +10.20
-- **Phase A result**: Real-data full period SR +0.128 (below MONITOR threshold). 3 vol_target adjustments (0.12, 0.15, 0.18) all ineffective — vol_target scales signal and noise proportionally. Signal-to-noise ratio fundamentally limited. Strategy suitable for monitoring only; no parameter fix can salvage.
-- Most sensitive parameter: `rebalance_freq` (use freq=1 or freq=21; avoid freq=30)
-- Margin costs dominate above $500K AUM — capacity ceiling
-- Deployment manifest: `strategies/deployment_manifest.yaml`
-
-### Monitoring
-- Strategy monitoring: `monitoring/strategy_monitor.py` (signal quality, regime detection, performance drift alerts)
-- Alert engine: `quantcore/dashboard/alerts.py` (severity levels, notification routing, cooldowns)
-- Live health checks: `quantcore/live/monitor.py` (latency, data staleness, heartbeat, position drift)
-- Strategy smoke tests: 5 market scenarios (covid crash, trend reversal, correlation breakdown, liquidity crisis, low vol spike)
-
-### Known Risks
-1. Both strategies validated against synthetic + real data. CTA structurally weak (REJECTED). RP signal noise-limited (MONITOR only).
-2. Both strategies degrade above $500K-$1M AUM (market impact + margin costs)
-3. RP vol regime filter is uniformly applied (SR-neutral) — provides drawdown reduction but doesn't change signal composition
-4. No options hedging or cross-asset hedging implemented for either strategy
-5. Real-data backtest uses yfinance (OHLCV only) — no tick-level or order book validation

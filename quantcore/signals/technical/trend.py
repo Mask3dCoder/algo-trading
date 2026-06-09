@@ -355,18 +355,26 @@ def linear_regression_signal(series: NDArray, period: int = 20) -> tuple[NDArray
             if ss_yy > 0:
                 r_sq[i] = (ss_xy ** 2) / (ss_xx * ss_yy)
 
-    # Z-score normalize slope
-    valid = ~np.isnan(slope)
-    if np.any(valid):
-        mean_s = np.nanmean(slope)
-        std_s = np.nanstd(slope)
+    # Z-score normalize slope using CAUSAL rolling window (no look-ahead)
+    slope_z = np.full(n, np.nan, dtype=float)
+    zscore_window = 252  # 1 year rolling window for normalization
+    min_zscore_periods = 63  # minimum observations before generating signal
+
+    for i in range(period - 1, n):
+        if np.isnan(slope[i]):
+            continue
+        # Use only data up to time i (causal)
+        start = max(period - 1, i - zscore_window + 1)
+        window = slope[start:i + 1]
+        valid_window = window[~np.isnan(window)]
+        if len(valid_window) < min_zscore_periods:
+            continue
+        mean_s = np.mean(valid_window)
+        std_s = np.std(valid_window, ddof=1)
         if std_s > 0:
-            slope_z = np.where(valid, (slope - mean_s) / std_s, np.nan)
-            slope_z = np.clip(slope_z, -3.0, 3.0) / 3.0  # Normalize to [-1, 1]
+            slope_z[i] = np.clip((slope[i] - mean_s) / std_s, -3.0, 3.0) / 3.0
         else:
-            slope_z = np.zeros_like(slope)
-    else:
-        slope_z = slope
+            slope_z[i] = 0.0
 
     return slope_z, r_sq
 
