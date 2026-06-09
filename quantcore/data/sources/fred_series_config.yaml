@@ -44,6 +44,13 @@ series:
     description: >
       Effective federal funds rate. Direct measure of current monetary policy stance.
 
+  - id: FEDFUNDS
+    name: "Federal Funds Effective Rate"
+    frequency: daily
+    category: yields
+    description: >
+      Federal funds rate series explicitly required for the Phase 2 macro data pipeline.
+
   - id: T10Y2Y
     name: "10-Year minus 2-Year Treasury Spread"
     frequency: daily

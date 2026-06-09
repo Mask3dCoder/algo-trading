@@ -7,7 +7,10 @@ from datetime import datetime
 from enum import Enum
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+
+from quantcore.data.point_in_time import feature_frame_from_records
 
 
 class UOAType(str, Enum):
@@ -36,6 +39,7 @@ class UOAConfig:
 class UOATrade:
     """A single unusual options trade."""
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    valid_from: datetime = field(default_factory=datetime.utcnow)
     symbol: str = ""
     option_type: str = ""
     strike: float = 0.0
@@ -48,6 +52,130 @@ class UOATrade:
     exchange: str = ""
     conditions: list[str] = field(default_factory=list)
     uoa_score: float = 0.0
+
+
+@dataclass
+class OptionsFlowConfig:
+    """Configuration for OPRA options-flow feature generation."""
+
+    min_large_order_notional: float = 50_000.0
+    default_avg_daily_volume: float = 1.0
+    source: str = "alpaca_options"
+
+
+class OptionsFlowAnalyzer:
+    """Compute minimum OPRA flow features from trade-stream records.
+
+    Required feature set:
+    - unusual_volume_ratio: contract volume / 30-day average volume
+    - put_call_ratio_by_expiry: put volume / call volume by expiration
+    - large_order_flag: any single trade > configured notional threshold
+    - skew: OTM put IV minus OTM call IV
+    - term_structure: front-month IV minus back-month IV
+
+    Every returned row follows the unified feature schema and uses
+    ``valid_from = trade_timestamp``.
+    """
+
+    def __init__(self, config: OptionsFlowConfig | None = None) -> None:
+        self.config = config or OptionsFlowConfig()
+
+    def compute_feature_frame(
+        self,
+        trades: list[dict],
+        historical_avg_volume: dict[str, float] | None = None,
+        as_of: str | pd.Timestamp | None = None,
+    ) -> pd.DataFrame:
+        """Return OPRA flow features in the canonical feature-frame schema."""
+
+        if not trades:
+            return pd.DataFrame()
+
+        historical_avg_volume = historical_avg_volume or {}
+        df = pd.DataFrame(trades)
+        if df.empty:
+            return pd.DataFrame()
+
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df["valid_from"] = df["timestamp"]
+        df["as_of"] = pd.to_datetime(as_of or df["timestamp"].dt.normalize(), utc=True).dt.normalize()
+        df["underlying"] = df.get("underlying", df.get("symbol", "")).astype(str).str.upper()
+        df["option_type"] = df["option_type"].astype(str).str.lower()
+        df["expiration"] = pd.to_datetime(df["expiration"], errors="coerce")
+        df["iv"] = pd.to_numeric(df.get("iv", 0.0), errors="coerce").fillna(0.0)
+        df["volume"] = pd.to_numeric(df.get("volume", df.get("quantity", 0)), errors="coerce").fillna(0.0)
+        df["price"] = pd.to_numeric(df.get("price", 0.0), errors="coerce").fillna(0.0)
+        df["strike"] = pd.to_numeric(df.get("strike", 0.0), errors="coerce").fillna(0.0)
+        df["spot"] = pd.to_numeric(df.get("spot", 0.0), errors="coerce").fillna(0.0)
+        df["notional"] = df["price"] * df["volume"] * 100.0
+
+        records: list[dict] = []
+        for underlying, group in df.groupby("underlying", sort=True):
+            symbol = str(underlying).upper()
+            as_of_ts = group["as_of"].min()
+            valid_from = group["valid_from"].max()
+            total_volume = float(group["volume"].sum())
+            avg_volume = float(historical_avg_volume.get(symbol, self.config.default_avg_daily_volume))
+            unusual_ratio = total_volume / avg_volume if avg_volume > 0 else 0.0
+
+            put_call = self._put_call_ratio_by_expiry(group)
+            large_order = bool((group["notional"] > self.config.min_large_order_notional).any())
+            skew = self._otm_iv_skew(group)
+            term_structure = self._term_structure(group)
+
+            signal_values = {
+                "unusual_volume_ratio": unusual_ratio,
+                "put_call_ratio_by_expiry": put_call,
+                "large_order_flag": float(large_order),
+                "skew": skew,
+                "term_structure": term_structure,
+            }
+            for feature_name, value in signal_values.items():
+                records.append({
+                    "source": self.config.source,
+                    "symbol": symbol,
+                    "as_of": as_of_ts,
+                    "valid_from": valid_from,
+                    "feature_name": feature_name,
+                    "value": float(value),
+                })
+
+        return feature_frame_from_records(records)
+
+    @staticmethod
+    def _put_call_ratio_by_expiry(group: pd.DataFrame) -> float:
+        ratios: list[float] = []
+        for _, expiry_group in group.groupby("expiration", dropna=True):
+            puts = float(expiry_group.loc[expiry_group["option_type"].eq("put"), "volume"].sum())
+            calls = float(expiry_group.loc[expiry_group["option_type"].eq("call"), "volume"].sum())
+            ratios.append(puts / calls if calls > 0 else (float("inf") if puts > 0 else 1.0))
+        return float(np.nanmean(ratios)) if ratios else 1.0
+
+    @staticmethod
+    def _otm_iv_skew(group: pd.DataFrame) -> float:
+        spot = float(group["spot"].replace(0, np.nan).median())
+        if not np.isfinite(spot) or spot <= 0:
+            return 0.0
+
+        put_otm = group[(group["option_type"].eq("put")) & (group["strike"] < spot)]["iv"]
+        call_otm = group[(group["option_type"].eq("call")) & (group["strike"] > spot)]["iv"]
+        put_iv = float(put_otm.mean()) if not put_otm.empty else 0.0
+        call_iv = float(call_otm.mean()) if not call_otm.empty else 0.0
+        return put_iv - call_iv
+
+    @staticmethod
+    def _term_structure(group: pd.DataFrame) -> float:
+        valid = group.dropna(subset=["expiration", "iv"]).copy()
+        if valid.empty:
+            return 0.0
+        as_of_naive = pd.Timestamp(valid["as_of"].iloc[0]).tz_localize(None)
+        valid["dte"] = (valid["expiration"].dt.tz_localize(None) - as_of_naive).dt.days
+        valid = valid.loc[valid["dte"] > 0].sort_values("dte")
+        if valid.empty:
+            return 0.0
+        front = float(valid.iloc[0]["iv"])
+        back = float(valid.iloc[-1]["iv"])
+        return front - back
 
 
 class UOADetector:
@@ -108,8 +236,10 @@ class UOADetector:
             symbol = str(t.get("symbol", ""))
             qty = int(t.get("quantity", 0))
             price = float(t.get("price", 0))
+            timestamp = t.get("timestamp", datetime.utcnow())
             uoa = UOATrade(
-                timestamp=t.get("timestamp", datetime.utcnow()),
+                timestamp=timestamp,
+                valid_from=t.get("valid_from", timestamp),
                 symbol=symbol,
                 option_type=str(t.get("option_type", "")),
                 strike=float(t.get("strike", 0)),

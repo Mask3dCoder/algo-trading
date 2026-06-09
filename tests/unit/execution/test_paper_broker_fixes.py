@@ -10,10 +10,12 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-import pytest
-
 from quantcore.execution.brokers.base import BrokerOrder
 from quantcore.execution.brokers.paper import PaperBroker, PaperConfig
+
+
+def _run(coro):
+    return asyncio.run(coro)
 
 
 # ---------------------------------------------------------------------------
@@ -24,7 +26,7 @@ class TestPaperBrokerFillPrice:
     def test_fill_at_limit_price(self):
         """Limit orders should fill at limit price (with slippage)."""
         broker = PaperBroker(PaperConfig(latency_ms=0))
-        asyncio.get_event_loop().run_until_complete(broker.connect())
+        _run(broker.connect())
 
         order = BrokerOrder(
             symbol="AAPL",
@@ -33,10 +35,8 @@ class TestPaperBrokerFillPrice:
             quantity=Decimal("100"),
             limit_price=Decimal("500.00"),
         )
-        broker_id = asyncio.get_event_loop().run_until_complete(
-            broker.submit_order(order)
-        )
-        fills = asyncio.get_event_loop().run_until_complete(broker.get_orders("filled"))
+        _run(broker.submit_order(order))
+        fills = _run(broker.get_orders("filled"))
         assert len(fills) == 1
         fill_price = float(fills[0].avg_fill_price)
         # Should be near $500 + 1bps slippage, NOT near $100
@@ -45,7 +45,7 @@ class TestPaperBrokerFillPrice:
     def test_fill_at_market_price_when_no_limit(self):
         """Market orders should fill at market_price, not $100."""
         broker = PaperBroker(PaperConfig(latency_ms=0))
-        asyncio.get_event_loop().run_until_complete(broker.connect())
+        _run(broker.connect())
 
         order = BrokerOrder(
             symbol="AAPL",
@@ -54,10 +54,8 @@ class TestPaperBrokerFillPrice:
             quantity=Decimal("100"),
             market_price=Decimal("750.00"),
         )
-        broker_id = asyncio.get_event_loop().run_until_complete(
-            broker.submit_order(order)
-        )
-        fills = asyncio.get_event_loop().run_until_complete(broker.get_orders("filled"))
+        _run(broker.submit_order(order))
+        fills = _run(broker.get_orders("filled"))
         assert len(fills) == 1
         fill_price = float(fills[0].avg_fill_price)
         # Should be near $750, NOT $100
@@ -66,7 +64,7 @@ class TestPaperBrokerFillPrice:
     def test_fill_fallback_to_100_without_any_price(self):
         """Legacy: without any price, should still fill (at $100 fallback)."""
         broker = PaperBroker(PaperConfig(latency_ms=0))
-        asyncio.get_event_loop().run_until_complete(broker.connect())
+        _run(broker.connect())
 
         order = BrokerOrder(
             symbol="AAPL",
@@ -75,10 +73,8 @@ class TestPaperBrokerFillPrice:
             quantity=Decimal("100"),
             # No limit_price, no market_price
         )
-        broker_id = asyncio.get_event_loop().run_until_complete(
-            broker.submit_order(order)
-        )
-        fills = asyncio.get_event_loop().run_until_complete(broker.get_orders("filled"))
+        _run(broker.submit_order(order))
+        fills = _run(broker.get_orders("filled"))
         assert len(fills) == 1
         fill_price = float(fills[0].avg_fill_price)
         # Fallback to $100
@@ -87,23 +83,23 @@ class TestPaperBrokerFillPrice:
     def test_sell_order_uses_market_price(self):
         """Sell orders should also use market_price."""
         broker = PaperBroker(PaperConfig(latency_ms=0))
-        asyncio.get_event_loop().run_until_complete(broker.connect())
+        _run(broker.connect())
 
         # First buy to have a position
         buy = BrokerOrder(
             symbol="AAPL", side="buy", order_type="market",
             quantity=Decimal("100"), market_price=Decimal("500.00"),
         )
-        asyncio.get_event_loop().run_until_complete(broker.submit_order(buy))
+        _run(broker.submit_order(buy))
 
         # Then sell
         sell = BrokerOrder(
             symbol="AAPL", side="sell", order_type="market",
             quantity=Decimal("100"), market_price=Decimal("500.00"),
         )
-        asyncio.get_event_loop().run_until_complete(broker.submit_order(sell))
+        _run(broker.submit_order(sell))
 
-        fills = asyncio.get_event_loop().run_until_complete(broker.get_orders("filled"))
+        fills = _run(broker.get_orders("filled"))
         assert len(fills) == 2
         sell_price = float(fills[1].avg_fill_price)
         # Sell should be near $500 - 1bps

@@ -23,6 +23,8 @@ from quantcore.alt_data.options_flow.put_call import (
     pcr_term_structure,
 )
 from quantcore.alt_data.options_flow.unusual_activity import (
+    OptionsFlowAnalyzer,
+    OptionsFlowConfig,
     UOAConfig,
     UOADetector,
     UOATrade,
@@ -38,6 +40,8 @@ __all__ = [
     "MaxPainCalculator",
     "MaxPainConfig",
     "MaxPainResult",
+    "OptionsFlowAnalyzer",
+    "OptionsFlowConfig",
     "PCRConfig",
     "PCRSnapshot",
     "PutCallAnalyzer",

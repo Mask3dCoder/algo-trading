@@ -17,7 +17,6 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 log = logging.getLogger(__name__)
@@ -170,7 +169,7 @@ class OptionsDataLoader:
         try:
             request = OptionChainRequest(
                 underlying_symbol=underlying,
-                feed="indicative",  # Free tier
+                feed="opra",  # Algo Trader Plus / SIP options feed
             )
             response = client.get_option_chain(request)
 
@@ -250,6 +249,63 @@ class OptionsDataLoader:
                 time.sleep(5)
                 return self._fetch_chain_snapshot(underlying, trade_date)
             log.error("Failed to fetch chain for %s on %s: %s", underlying, trade_date, e)
+            return pd.DataFrame()
+
+    def fetch_trades(
+        self,
+        underlying: str,
+        start: str,
+        end: str,
+    ) -> pd.DataFrame:
+        """Fetch OPRA option trade prints from Alpaca.
+
+        ``timestamp`` is used as ``valid_from`` because an options print is only
+        knowable at the exact trade time.
+        """
+
+        from alpaca.data.requests import OptionTradesRequest
+
+        client = self._get_client()
+        self._rate_limit()
+        try:
+            request = OptionTradesRequest(
+                symbol_or_symbols=underlying,
+                start=start,
+                end=end,
+                feed="opra",
+            )
+            response = client.get_option_trades(request)
+            rows: list[dict] = []
+            for option_symbol, trades in response.items():
+                for trade in trades:
+                    timestamp = pd.Timestamp(getattr(trade, "timestamp", None) or getattr(trade, "timestamp", pd.NaT))
+                    rows.append({
+                        "option_symbol": option_symbol,
+                        "underlying": underlying,
+                        "symbol": option_symbol,
+                        "timestamp": timestamp,
+                        "valid_from": timestamp,
+                        "as_of": timestamp.normalize(),
+                        "price": float(getattr(trade, "price", 0.0) or 0.0),
+                        "size": int(getattr(trade, "size", 0) or 0),
+                        "quantity": int(getattr(trade, "size", 0) or 0),
+                        "exchange": getattr(trade, "exchange", ""),
+                        "conditions": list(getattr(trade, "conditions", []) or []),
+                    })
+            if not rows:
+                return pd.DataFrame()
+            df = pd.DataFrame(rows)
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            df["valid_from"] = df["timestamp"]
+            df["as_of"] = df["timestamp"].dt.normalize()
+            return df.sort_values("timestamp").reset_index(drop=True)
+        except Exception as e:
+            error_str = str(e).lower()
+            if "rate" in error_str or "limit" in error_str:
+                log.warning("Rate limited on %s option trades, sleeping 5s", underlying)
+                time.sleep(5)
+                return self.fetch_trades(underlying, start, end)
+            log.error("Failed to fetch option trades for %s: %s", underlying, e)
             return pd.DataFrame()
 
     # ── Public query API ────────────────────────────────────────────────

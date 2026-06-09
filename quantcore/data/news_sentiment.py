@@ -17,8 +17,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import time
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -69,7 +67,8 @@ class AlpacaNewsFetcher:
     ) -> pd.DataFrame:
         """Fetch news headlines for tickers in [start, end].
 
-        Returns DataFrame with columns: timestamp, ticker, headline, source.
+        Returns the canonical raw-news feature frame with ``timestamp`` as
+        ``valid_from`` and publication date as ``as_of``.
         """
         if not self.available:
             raise RuntimeError("Alpaca API keys not configured")
@@ -91,20 +90,34 @@ class AlpacaNewsFetcher:
                     limit=limit,
                 )
                 for item in news_items:
+                    created_at = pd.Timestamp(getattr(item, "created_at", pd.NaT))
+                    headline = str(getattr(item, "headline", "") or getattr(item, "summary", "") or "")
+                    body = str(getattr(item, "summary", "") or getattr(item, "content", "") or "")
+                    symbols = list(getattr(item, "symbols", None) or [])
+                    if not symbols:
+                        symbols = [ticker]
                     all_rows.append({
-                        "timestamp": pd.Timestamp(item.created_at),
+                        "timestamp": created_at,
+                        "valid_from": created_at,
+                        "as_of": created_at.normalize(),
                         "ticker": ticker,
-                        "headline": item.headline or item.summary or "",
-                        "source": item.source or "unknown",
+                        "symbol": ticker,
+                        "symbols": symbols,
+                        "headline": headline,
+                        "body": body,
+                        "source": getattr(item, "source", None) or "alpaca_news",
                     })
             except Exception as e:
                 log.warning("Failed to fetch news for %s: %s", ticker, e)
 
         if not all_rows:
-            return pd.DataFrame(columns=["timestamp", "ticker", "headline", "source"])
+            return pd.DataFrame(columns=["timestamp", "valid_from", "as_of", "ticker", "symbol", "symbols", "headline", "body", "source"])
 
         df = pd.DataFrame(all_rows)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+        df["valid_from"] = df["timestamp"]
+        df["as_of"] = df["timestamp"].dt.normalize()
+        df["symbol"] = df["symbol"].astype(str).str.upper()
         return df.sort_values("timestamp").reset_index(drop=True)
 
 
@@ -206,13 +219,18 @@ def _generate_synthetic_headlines(
 
                 rows.append({
                     "timestamp": ts,
+                    "valid_from": ts,
+                    "as_of": ts.normalize(),
                     "ticker": ticker,
+                    "symbol": ticker,
+                    "symbols": [ticker],
                     "headline": headline,
+                    "body": headline,
                     "source": "synthetic",
                 })
 
     if not rows:
-        return pd.DataFrame(columns=["timestamp", "ticker", "headline", "source"])
+        return pd.DataFrame(columns=["timestamp", "valid_from", "as_of", "ticker", "symbol", "symbols", "headline", "body", "source"])
 
     return pd.DataFrame(rows).sort_values("timestamp").reset_index(drop=True)
 
@@ -229,7 +247,8 @@ def aggregate_daily_sentiment(
     """Score headlines and aggregate to daily ticker-level sentiment.
 
     Uses exponential decay weighting: more recent headlines within the day
-    get higher weight. Half-life controls the decay rate.
+    get higher weight. Half-life controls the decay rate. Returned rows also
+    include the unified feature schema columns required by the data pipeline.
 
     Args:
         headlines: DataFrame with columns: timestamp, ticker, headline.
@@ -237,20 +256,31 @@ def aggregate_daily_sentiment(
         half_life_hours: Half-life for exponential decay weighting.
 
     Returns:
-        DataFrame with columns: date, ticker, sentiment_score, headline_count.
+        DataFrame with date, ticker, sentiment_score, headline_count plus
+        source/symbol/as_of/valid_from/feature_name/value columns.
     """
     if headlines.empty:
-        return pd.DataFrame(columns=["date", "ticker", "sentiment_score", "headline_count"])
+        return pd.DataFrame(columns=["date", "ticker", "sentiment_score", "headline_count", "source", "symbol", "as_of", "valid_from", "feature_name", "value"])
 
     if scorer is None:
         scorer = VaderScorer()
 
     df = headlines.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-    df["date"] = df["timestamp"].dt.date
+    df["valid_from"] = pd.to_datetime(df.get("valid_from", df["timestamp"]), utc=True)
+    df["as_of"] = pd.to_datetime(df.get("as_of", df["timestamp"].dt.normalize()), utc=True).dt.normalize()
+    df["date"] = df["as_of"].dt.date
+    if "symbol" not in df.columns:
+        df["symbol"] = df["ticker"].astype(str).str.upper()
+    else:
+        df["symbol"] = df["symbol"].astype(str).str.upper()
+    if "body" not in df.columns:
+        df["body"] = df["headline"].astype(str)
+    if "source" not in df.columns:
+        df["source"] = "alpaca_news"
 
     # Score each headline
-    df["compound"] = df["headline"].apply(scorer.score)
+    df["compound"] = df["headline"].astype(str).apply(scorer.score)
 
     # Compute intra-day exponential decay weights
     # Reference point: end of day (midnight of next day)
@@ -275,11 +305,20 @@ def aggregate_daily_sentiment(
         else:
             weighted_score = float(np.mean(scores))
 
+        as_of = pd.Timestamp(date).tz_localize("UTC") if pd.Timestamp(date).tzinfo is None else pd.Timestamp(date)
+        valid_from = group["valid_from"].min()
+        source = str(group["source"].iloc[0]) if "source" in group.columns else "alpaca_news"
         results.append({
             "date": pd.Timestamp(date),
             "ticker": ticker,
             "sentiment_score": weighted_score,
             "headline_count": len(group),
+            "source": source,
+            "symbol": str(group["symbol"].iloc[0]).upper(),
+            "as_of": as_of,
+            "valid_from": valid_from,
+            "feature_name": "news_sentiment",
+            "value": weighted_score,
         })
 
     return pd.DataFrame(results).sort_values(["date", "ticker"]).reset_index(drop=True)
@@ -398,7 +437,17 @@ class NewsSentimentLoader:
         if headlines.empty:
             return headlines
 
-        headlines["compound"] = headlines["headline"].apply(self._scorer.score)
+        headlines["compound"] = headlines["headline"].astype(str).apply(self._scorer.score)
+        if "valid_from" not in headlines.columns:
+            headlines["valid_from"] = pd.to_datetime(headlines["timestamp"], utc=True)
+        if "as_of" not in headlines.columns:
+            headlines["as_of"] = pd.to_datetime(headlines["timestamp"], utc=True).dt.normalize()
+        if "symbol" not in headlines.columns:
+            headlines["symbol"] = headlines["ticker"].astype(str).str.upper()
+        if "source" not in headlines.columns:
+            headlines["source"] = "alpaca_news"
+        headlines["feature_name"] = "news_sentiment"
+        headlines["value"] = headlines["compound"]
         return headlines
 
     def clear_cache(self) -> int:

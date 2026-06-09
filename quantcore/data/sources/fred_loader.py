@@ -28,9 +28,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import yaml
+
+from quantcore.data.point_in_time import feature_frame_from_records
 
 _log = logging.getLogger(__name__)
 
@@ -212,6 +213,65 @@ class FREDDataLoader:
 
         return s.pct_change(periods=12).dropna()
 
+    def get_feature_frame(
+        self,
+        series_id: str,
+        start: str = "2000-01-01",
+        end: str | None = None,
+        use_first_release: bool = False,
+    ) -> pd.DataFrame:
+        """Return FRED observations in the unified feature schema.
+
+        The returned frame has ``source``, ``symbol``, ``as_of``, ``valid_from``,
+        ``feature_name`` and ``value`` columns. For ordinary market-observable
+        daily series, ``valid_from`` equals ``as_of``. For ALFRED first-release
+        observations, ``valid_from`` is the realtime start when the value was
+        first publishable.
+        """
+
+        if use_first_release:
+            return self._first_release_feature_frame(series_id, start, end)
+
+        s = self.get_series(series_id, start, end)
+        if s.empty:
+            return pd.DataFrame()
+
+        df = s.rename(series_id).reset_index()
+        df = df.rename(columns={"index": "as_of", series_id: "value"})
+        df["source"] = "fred"
+        df["symbol"] = series_id
+        df["valid_from"] = df["as_of"]
+        df["feature_name"] = series_id
+        return feature_frame_from_records(df)
+
+    def build_macro_feature_frame(
+        self,
+        start: str = "2000-01-01",
+        end: str | None = None,
+        categories: list[str] | None = None,
+        use_first_release: bool = True,
+    ) -> pd.DataFrame:
+        """Return all configured FRED series as one long point-in-time table."""
+
+        frames: list[pd.DataFrame] = []
+        for entry in self._series_config.values():
+            cat = entry.get("category", "")
+            if categories and cat not in categories:
+                continue
+
+            sid = entry["id"]
+            name = entry.get("name", sid)
+            try:
+                use_alfred = use_first_release and sid in _REVISED_SERIES
+                frames.append(self.get_feature_frame(sid, start, end, use_alfred))
+            except Exception as e:
+                _log.warning("failed to load feature frame for %s (%s): %s", sid, name, e)
+                continue
+
+        if not frames:
+            return pd.DataFrame()
+        return pd.concat(frames, ignore_index=True)
+
     def build_macro_dataframe(
         self,
         start: str = "2000-01-01",
@@ -314,12 +374,62 @@ class FREDDataLoader:
         if self._fred is None:
             try:
                 from fredapi import Fred
-            except ImportError:
+            except ImportError as err:
                 raise ImportError(
                     "fredapi is required.  Install with: pip install fredapi"
-                )
+                ) from err
             self._fred = Fred(api_key=self._api_key)
         return self._fred
+
+    def _first_release_feature_frame(
+        self,
+        series_id: str,
+        start: str = "2000-01-01",
+        end: str | None = None,
+    ) -> pd.DataFrame:
+        """Return ALFRED first-release observations in feature-frame form."""
+
+        fred = self._get_fred()
+        df = fred.get_series_first_release(series_id)
+        if not isinstance(df, pd.DataFrame):
+            s = pd.to_numeric(df, errors="coerce").dropna().sort_index()
+            s.name = series_id
+            frame = s.reset_index().rename(columns={"index": "as_of", series_id: "value"})
+            frame["valid_from"] = frame["as_of"]
+            frame["source"] = "alfred_first_release"
+            frame["symbol"] = series_id
+            frame["feature_name"] = series_id
+            return feature_frame_from_records(frame)
+
+        if df.empty:
+            return pd.DataFrame()
+
+        if "date" in df.columns:
+            as_of_col = "date"
+        elif "observation_date" in df.columns:
+            as_of_col = "observation_date"
+        else:
+            raise ValueError("ALFRED response missing observation date column")
+
+        valid_from_col = "realtime_start" if "realtime_start" in df.columns else as_of_col
+        value_col = "value" if "value" in df.columns else df.columns[0]
+
+        frame = df[[as_of_col, valid_from_col, value_col]].copy()
+        frame = frame.rename(columns={as_of_col: "as_of", valid_from_col: "valid_from", value_col: "value"})
+        frame["source"] = "alfred_first_release"
+        frame["symbol"] = series_id
+        frame["feature_name"] = series_id
+        frame["as_of"] = pd.to_datetime(frame["as_of"], utc=True)
+        frame["valid_from"] = pd.to_datetime(frame["valid_from"], utc=True)
+        frame["value"] = pd.to_numeric(frame["value"], errors="coerce")
+        frame = frame.dropna(subset=["as_of", "valid_from", "value"])
+
+        if start:
+            frame = frame.loc[frame["as_of"] >= pd.Timestamp(start, tz="UTC")]
+        if end:
+            frame = frame.loc[frame["as_of"] <= pd.Timestamp(end, tz="UTC")]
+
+        return feature_frame_from_records(frame)
 
     def _fetch_series(
         self,

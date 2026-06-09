@@ -13,7 +13,6 @@ import pytest
 from quantcore.backtest.walk_forward import rolling_walk_forward
 from quantcore.risk.metrics import sharpe_ratio
 
-
 # ---------------------------------------------------------------------------
 # Strategy configs by type
 # ---------------------------------------------------------------------------
@@ -91,7 +90,7 @@ _STRATEGY_CONFIGS.update(_INTRADAY_PARAMS)
 
 
 def _strategy_type(name: str) -> str:
-    if name.startswith("equity_") or name.startswith("intraday_"):
+    if name.startswith(("equity_", "intraday_")):
         return "equity"
     if name.startswith("options_"):
         return "options"
@@ -155,40 +154,6 @@ def strategy_data() -> dict[str, np.ndarray]:
 # ---------------------------------------------------------------------------
 
 
-def _compute_strategy_returns(
-    data: dict[str, np.ndarray],
-    start: int,
-    end: int,
-) -> np.ndarray:
-    """Compute simple signal-based returns, not a full portfolio simulation.
-
-    For each bar where the strategy emits non-flat signals, we compute:
-        return_i = mean(direction * strength * asset_return across all signaled assets)
-
-    This gives a zero-cost, equal-vol approximation of strategy performance.
-    """
-    # Slice the close prices
-    close_slice = data["close"][start:end]
-    n = close_slice.shape[0]
-    if n < 2:
-        return np.array([], dtype=float)
-
-    # Compute per-asset returns
-    asset_returns = (close_slice[1:] - close_slice[:-1]) / close_slice[:-1]
-
-    # Truncated slice for signal computation (last bar gives no forward return)
-    signal_data = {k: (v[start : end - 1] if isinstance(v, np.ndarray) and v.ndim > 0 else v)
-                   for k, v in data.items()}
-    signal_data["close"] = close_slice[:-1]
-
-    from quantcore.strategies.base import StrategyConfig, StrategyType
-    signal_returns = np.zeros(n - 1)
-
-    # We'll import the right class below — use the abstract Strategy for now
-    # and let the caller handle class selection
-    return asset_returns, signal_data
-
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -196,26 +161,27 @@ def _compute_strategy_returns(
 # Import all strategy modules to trigger @register decorators
 @pytest.fixture(autouse=True, scope="module")
 def _ensure_imported() -> None:
-    import quantcore.strategies.equity.mean_reversion  # noqa: F401
-    import quantcore.strategies.equity.momentum  # noqa: F401
-    import quantcore.strategies.equity.stat_arb  # noqa: F401
-    import quantcore.strategies.equity.trend_following  # noqa: F401
-    import quantcore.strategies.equity.intraday_breakout  # noqa: F401
-    import quantcore.strategies.equity.intraday_mean_reversion  # noqa: F401
-    import quantcore.strategies.equity.intraday_momentum  # noqa: F401
-    import quantcore.strategies.equity.intraday_trend  # noqa: F401
-    import quantcore.strategies.macro.carry  # noqa: F401
-    import quantcore.strategies.macro.cta_trend  # noqa: F401
-    import quantcore.strategies.macro.risk_parity  # noqa: F401
-    import quantcore.strategies.macro.fred_regime_strategy  # noqa: F401
-    import quantcore.strategies.macro.factor_residual_v3  # noqa: F401
-    import quantcore.strategies.options.delta_neutral  # noqa: F401
-    import quantcore.strategies.options.earnings_vol  # noqa: F401
-    import quantcore.strategies.options.iron_condor  # noqa: F401
+    import quantcore.alpha.sentiment_momentum
+    import quantcore.alpha.stat_arb_mean_reversion
+    import quantcore.strategies.equity.intraday_breakout
+    import quantcore.strategies.equity.intraday_mean_reversion
+    import quantcore.strategies.equity.intraday_momentum
+    import quantcore.strategies.equity.intraday_trend
+    import quantcore.strategies.equity.mean_reversion
+    import quantcore.strategies.equity.momentum
+    import quantcore.strategies.equity.stat_arb
+    import quantcore.strategies.equity.trend_following
+    import quantcore.strategies.macro.carry
+    import quantcore.strategies.macro.cta_trend
+    import quantcore.strategies.macro.factor_residual_v3
+    import quantcore.strategies.macro.fred_regime_strategy
+    import quantcore.strategies.macro.risk_parity
+    import quantcore.strategies.macro.simple_test_strategy
+    import quantcore.strategies.options.delta_neutral
+    import quantcore.strategies.options.earnings_vol
+    import quantcore.strategies.options.iron_condor
+    import quantcore.strategies.options.put_write
     import quantcore.strategies.options.tail_hedge  # noqa: F401
-    import quantcore.strategies.options.put_write  # noqa: F401
-    import quantcore.alpha.stat_arb_mean_reversion  # noqa: F401
-    import quantcore.alpha.sentiment_momentum  # noqa: F401
 
 
 @pytest.fixture(scope="module")
@@ -238,8 +204,8 @@ class TestAllStrategiesWalkForward:
         self, strategy_name: str, strategy_data: dict[str, np.ndarray],
     ) -> None:
         """Walk-forward must complete without error for every strategy."""
-        from quantcore.strategies.registry import create
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.registry import create
 
         stype = _strategy_type(strategy_name)
         params = _STRATEGY_CONFIGS[strategy_name]
@@ -306,8 +272,8 @@ class TestAllStrategiesWalkForward:
         self, strategy_data: dict[str, np.ndarray],
     ) -> None:
         """OOS Sharpe should not be extremely negative for any strategy."""
-        from quantcore.strategies.registry import create, list_strategies
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.registry import create, list_strategies
 
         names = list_strategies()
         data = dict(strategy_data)
@@ -387,8 +353,8 @@ class TestIntradayStrategiesWalkForward:
         self, strategy_name: str, intraday_data: dict[str, np.ndarray],
     ) -> None:
         """Intraday strategies should complete walk-forward without error."""
-        from quantcore.strategies.registry import create
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.registry import create
 
         cfg = StrategyConfig(
             name=strategy_name,
