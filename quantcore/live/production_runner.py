@@ -44,7 +44,7 @@ import yaml
 # ---------------------------------------------------------------------------
 # Strategy imports — trigger @register decorators
 # ---------------------------------------------------------------------------
-# ruff: noqa: E402, F401
+# ruff: noqa: I001, F401
 import quantcore.strategies.equity.cross_sectional_momentum
 import quantcore.strategies.equity.earnings_momentum
 import quantcore.strategies.equity.intraday_breakout
@@ -81,6 +81,12 @@ import quantcore.strategies.options.iron_condor
 import quantcore.strategies.options.put_write
 import quantcore.strategies.options.tail_hedge
 
+# Package imports ensure the registry includes all registered strategies,
+# including strategies not explicitly listed above.
+import quantcore.strategies.equity
+import quantcore.strategies.macro
+import quantcore.strategies.options
+
 from quantcore.core.health_state import (
     record_data_point,
     record_order_submitted,
@@ -96,10 +102,11 @@ try:
     from quantcore.live.live_risk_engine import LiveRiskEngine
 except ImportError:
     LiveRiskEngine = None
-    _log.warning("LiveRiskEngine not available — advanced risk checks disabled")
+    logging.getLogger(__name__).warning("LiveRiskEngine not available — advanced risk checks disabled")
 from quantcore.monitoring.alerting import Alerter, AlertingConfig
 from quantcore.strategies.base import StrategyConfig, TradeSignal
 from quantcore.strategies.registry import create as create_strategy, list_strategies
+from quantcore.strategies.status import get_strategy_phase, validate_runtime_config
 
 log = logging.getLogger(__name__)
 
@@ -359,11 +366,11 @@ class ProductionRunner:
                 # Expose to the API server (runs in the same process)
                 from quantcore.api.routes.risk import register_live_risk_engine
                 register_live_risk_engine(self.live_risk_engine)
-                _log.info("LiveRiskEngine active: regime=%s cond_corr=%.3f",
+                log.info("LiveRiskEngine active: regime=%s cond_corr=%.3f",
                           self.live_risk_engine.correlation_regime,
                           self.live_risk_engine.conditional_correlation)
             except Exception as exc:
-                _log.warning("LiveRiskEngine init failed: %s — continuing without it", exc)
+                log.warning("LiveRiskEngine init failed: %s — continuing without it", exc)
                 self.live_risk_engine = None
 
         # Broker
@@ -395,6 +402,17 @@ class ProductionRunner:
         # VIX data cache (keyed by date string, avoids repeated Yahoo Finance hits)
         self._vix_cache: dict[str, float] = {}
 
+    def _runtime_allowed_statuses(self) -> set[str]:
+        """Return runtime statuses allowed for this config.
+
+        ``config/live.yaml`` is the production/live allocation file, so it may
+        load only ``LIVE`` strategies. A paper-validation config is identified by
+        a ``validation`` section and may load only ``PAPER`` strategies.
+        """
+        if "validation" in self.config:
+            return {"PAPER"}
+        return {"LIVE"}
+
     def _init_strategies(self) -> None:
         """Create strategy instances from registry based on config.
 
@@ -403,6 +421,7 @@ class ProductionRunner:
         """
         available = set(list_strategies())
         initial_cash = float(self.config.get("execution", {}).get("initial_cash", 100_000.0))
+        allowed_statuses = self._runtime_allowed_statuses()
 
         for strat_cfg in self.config.get("strategies", []):
             name = strat_cfg["name"]
@@ -411,6 +430,16 @@ class ProductionRunner:
                 continue
             if name not in available:
                 log.warning("Strategy %s not in registry — skipping. Available: %s", name, sorted(available))
+                continue
+
+            skipped = validate_runtime_config([name], allowed=allowed_statuses)
+            if skipped:
+                phase = get_strategy_phase(name)
+                log.warning(
+                    "Strategy %s phase=%s is not allowed by strategy_status.yaml — skipping",
+                    name,
+                    phase,
+                )
                 continue
 
             weight = strat_cfg.get("weight", 1.0)
@@ -892,7 +921,7 @@ class ProductionRunner:
                     f"Equity: ${equity:,.2f} | Daily P&L: ${self.risk_manager.current_daily_pnl:,.2f}",
                     severity="critical",
                 )
-                self._log_equity(trade_date)
+                self.log_equity(trade_date)
                 return
 
             # 4. Run each strategy with per-strategy isolation
@@ -937,7 +966,7 @@ class ProductionRunner:
 
             if not all_signals:
                 log.info("No signals on %s — holding", trade_date)
-                self._log_equity(trade_date)
+                self.log_equity(trade_date)
                 return
 
             # 5. Submit orders (weighted, with per-strategy tracking)
@@ -957,7 +986,7 @@ class ProductionRunner:
                     strat_state.n_trades += 1
 
             log.info("ORDERS submitted %d/%d on %s", orders_submitted, len(all_signals), trade_date)
-            self._log_equity(trade_date)
+            self.log_equity(trade_date)
 
         except Exception as exc:
             log.exception("Trading tick failed for %s: %s", trade_date, exc)
@@ -1072,9 +1101,6 @@ class ProductionRunner:
                     return None
 
             # Pass correlation regime to circuit breaker so it knows to tighten limits
-            cb_regime = getattr(self.live_risk_engine, 'correlation_regime', 'NORMAL') if self.live_risk_engine else 'NORMAL'
-            cb_cond_corr = getattr(self.live_risk_engine, 'conditional_correlation', 0.0) if self.live_risk_engine else 0.0
-
             order_id = self.broker.submit_order(
                 order,
                 fill_metadata={
@@ -1132,8 +1158,6 @@ class ProductionRunner:
         """Submit an option order using signal metadata rather than equity pricing."""
         try:
             symbol = str(sig.symbol).strip().upper()
-            direction = sig.direction
-            strength = float(sig.strength)
 
             contracts = int(meta.get("contracts", 1))
             strike = float(meta.get("strike", 0))
@@ -1146,9 +1170,6 @@ class ProductionRunner:
 
             # Determine order side: selling a put = SELL (credit received)
             side = Side.SELL if is_sell else Side.BUY
-
-            # Option notional used for risk checks
-            notional = float(sig.size) if sig.size else contracts * strike * 100
 
             # Build an Equity order (the broker handles option fills via metadata)
             order = Order(
@@ -1353,7 +1374,7 @@ class ProductionRunner:
         except OSError as exc:
             log.warning("Could not append to event log: %s", exc)
 
-    def _log_equity(self, trade_date: date) -> None:
+    def log_equity(self, trade_date: date) -> None:
         """Log portfolio-level and per-strategy equity curves."""
         try:
             acct = self.broker.get_account()
@@ -1403,7 +1424,6 @@ class ProductionRunner:
                         sdf = pd.DataFrame(columns=["date", "equity", "daily_pnl", "weight", "status"])
 
                     prev_eq = float(sdf["equity"].iloc[-1]) if not sdf.empty else strat_equity
-                    strat_ret = (strat_equity / prev_eq - 1) if prev_eq > 0 else 0.0
 
                     new_strat_row = pd.DataFrame([{
                         "date": str(trade_date),
@@ -1432,7 +1452,7 @@ class ProductionRunner:
     def _shutdown(self) -> None:
         log.info("Production runner shutting down...")
         try:
-            self._log_equity(date.today())
+            self.log_equity(date.today())
         except Exception as exc:
             log.warning("Could not log equity during shutdown: %s", exc)
         self._alert("Production runner shutting down", severity="info")
