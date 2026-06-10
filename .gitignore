@@ -54,6 +54,7 @@ rust_core/target/
 .swarm/
 .claude-flow/
 graphify-out/
+quantcore/data/live_cache/
 *.db
 ruvector.db
 

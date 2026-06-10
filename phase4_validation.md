@@ -67,7 +67,8 @@ Rationale:
 
 Paper period:
 
-- Start: 2026-06-09
+- Planned start: 2026-06-09
+- Actual container launch: 2026-06-10
 - End: 2026-07-21
 - Duration: 6 weeks
 - Config: `config/paper.yaml`
@@ -110,7 +111,7 @@ Runtime files to inspect:
 - `reports/paper/paper_attribution_YYYY-MM-DD.csv` — timestamped archive copy.
 - `reports/paper_monitoring_log.csv` — daily monitor summary appended by `scripts/monitor_paper_trading.py --paper`.
 
-Bootstrap note: 2026-06-10 — paper bootstrap wiring and monitoring hardening were implemented. Container startup must be completed only after Docker is available and `config_preflight.py --config config/paper.yaml` passes; do not mark the paper run as started until the runtime files above are created and updated.
+Bootstrap note: 2026-06-10 — paper bootstrap wiring and monitoring hardening were implemented. Docker daemon was started, `config_preflight.py --config config/paper.yaml` passed, the paper containers were launched, and runtime files were confirmed; the paper run is marked as started.
 
 Weekly:
 
