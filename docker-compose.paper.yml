@@ -1,0 +1,4 @@
+services:
+  quantcore:
+    environment:
+      - QUANTCORE_LIVE_CONFIG=config/paper.yaml

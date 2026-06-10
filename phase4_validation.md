@@ -84,6 +84,34 @@ Daily:
 5. Optionally run `python scripts/correlation_monitor.py --paper` to check rolling strategy-return correlation alarms.
 6. If a strategy breaches its drawdown limit, halt it and document the event. Do not tune parameters.
 
+Paper bootstrap and monitoring commands:
+
+```bash
+# Validate the paper config before launch.
+python scripts/config_preflight.py --config config/paper.yaml
+
+# Start the paper-validation runner without changing config/live.yaml.
+docker compose -f docker-compose.yml -f docker-compose.paper.yml up -d
+
+# Confirm the runtime files exist and are updated after startup.
+ls -l reports/paper_events.jsonl reports/paper_equity.csv reports/paper_attribution.csv
+ls -l reports/paper/paper_attribution_YYYY-MM-DD.csv
+
+# Daily monitoring after market close.
+python scripts/strategy_risk_dashboard.py --paper
+python scripts/correlation_monitor.py --paper
+```
+
+Runtime files to inspect:
+
+- `reports/paper_events.jsonl` — order submit/fill/close events from the paper runner.
+- `reports/paper_equity.csv` — portfolio-level paper equity curve.
+- `reports/paper_attribution.csv` — current daily strategy attribution export used by the correlation monitor.
+- `reports/paper/paper_attribution_YYYY-MM-DD.csv` — timestamped archive copy.
+- `reports/paper_monitoring_log.csv` — daily monitor summary appended by `scripts/monitor_paper_trading.py --paper`.
+
+Bootstrap note: 2026-06-10 — paper bootstrap wiring and monitoring hardening were implemented. Container startup must be completed only after Docker is available and `config_preflight.py --config config/paper.yaml` passes; do not mark the paper run as started until the runtime files above are created and updated.
+
 Weekly:
 
 1. Append a short note to the log below.
@@ -100,6 +128,40 @@ Weekly paper-validation log:
 | 2026-07-05 | TBD | TBD | TBD |  |  |
 | 2026-07-12 | TBD | TBD | TBD |  |  |
 | 2026-07-21 | TBD | TBD | TBD |  | Final 6-week review |
+
+Weekly paper-validation log template:
+
+```markdown
+### Week ending YYYY-MM-DD
+
+Date range: Mon YYYY-MM-DD to Sun YYYY-MM-DD
+
+Strategy performance:
+
+| Strategy | Cumulative return | Sharpe | Max drawdown | Status |
+|---|---:|---:|---:|---|
+| equity_stat_arb | TBD | TBD | TBD | running / halted / review |
+| macro_carry | TBD | TBD | TBD | running / halted / review |
+| options_tail_hedge | TBD | TBD | TBD | running / halted / review |
+
+Kill-switch events:
+
+- None / strategy_name on YYYY-MM-DD — brief factual note.
+
+Attribution CSV archive paths:
+
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+- reports/paper/paper_attribution_YYYY-MM-DD.csv
+
+Anomalies / notes:
+
+- Factual operational notes only. Do not tune parameters or reinterpret marginal results after seeing paper P&L.
+```
 
 ## Paper live-graduation criteria
 
@@ -210,6 +272,10 @@ If any current paper strategy breaches its kill-switch, keep the next batch bloc
 - `CANDIDATE`: registered/walk-forward-tested, deferred for later validation
 - `INACTIVE`: registered/importable but not selected for immediate validation
 - `DATA_BLOCKED`: H001 OPRA research pipeline only, not a registered strategy
+
+## Security housekeeping
+
+`.env` contains broker and alerting credentials and must never be committed, copied into logs, or embedded in documentation. If any credential is exposed outside the local environment, rotate it immediately and update the local `.env` copy only.
 
 ## Operating rules
 

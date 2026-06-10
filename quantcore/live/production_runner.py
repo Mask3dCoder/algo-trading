@@ -1408,6 +1408,7 @@ class ProductionRunner:
             df.to_csv(equity_file, index=False)
 
             # Per-strategy equity curves
+            strat_prefix = self.equity_path.stem
             total_weight = sum(s.weight for s in self.strategy_states if s.is_active)
             if total_weight > 0:
                 for s in self.strategy_states:
@@ -1417,7 +1418,7 @@ class ProductionRunner:
                     strat_equity = total * s.weight / total_weight
                     s.update_equity(strat_equity)
 
-                    strat_file = self.equity_path.parent / f"live_equity_{s.name}.csv"
+                    strat_file = self.equity_path.parent / f"{strat_prefix}_{s.name}.csv"
                     if strat_file.exists():
                         sdf = pd.read_csv(strat_file, parse_dates=["date"])
                     else:

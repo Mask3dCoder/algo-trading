@@ -6,14 +6,19 @@ Run after each market close (or schedule via cron / Task Scheduler)::
     python scripts/monitor_paper_trading.py
 
 Reads:
-    - config/live.yaml                    strategy & broker config
-    - reports/live_equity.csv             portfolio equity curve
-    - reports/live_equity_{strategy}.csv  per-strategy equity curves
-    - reports/live_events.jsonl           trade / fill event log
+    - config/live.yaml                    strategy & broker config (default)
+    - config/paper.yaml                   strategy & broker config (--paper)
+    - reports/live_equity.csv             portfolio equity curve (live default)
+    - reports/paper_equity.csv            portfolio equity curve (--paper)
+    - reports/live_events.jsonl           trade / fill event log (live default)
+    - reports/paper_events.jsonl          trade / fill event log (--paper)
     - reports/{strategy}_backtest.json    backtest targets (optional)
 
 Writes:
-    - reports/monitoring_log.csv          appended each run
+    - reports/monitoring_log.csv          appended each live run (default)
+    - reports/paper_monitoring_log.csv    appended each paper run (--paper)
+    - reports/strategy_attribution.csv    attribution snapshot (live default)
+    - reports/paper_attribution.csv       attribution snapshot (--paper)
 
 Alerts:
     - Telegram (via TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID env vars)
@@ -26,10 +31,12 @@ Exit codes:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -40,11 +47,56 @@ import yaml
 # Paths (relative to project root)
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config" / "live.yaml"
-EQUITY_PATH = PROJECT_ROOT / "reports" / "live_equity.csv"
-EVENTS_PATH = PROJECT_ROOT / "reports" / "live_events.jsonl"
-MONITOR_LOG = PROJECT_ROOT / "reports" / "monitoring_log.csv"
-REPORTS_DIR = PROJECT_ROOT / "reports"
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "live.yaml"
+PAPER_CONFIG_PATH = PROJECT_ROOT / "config" / "paper.yaml"
+LIVE_REPORTS_DIR = PROJECT_ROOT / "reports"
+PAPER_REPORTS_DIR = PROJECT_ROOT / "reports"
+
+
+@dataclass(frozen=True)
+class MonitorPaths:
+    """Resolved config and report paths for live or paper monitoring."""
+
+    config_path: Path
+    reports_dir: Path
+    equity_path: Path
+    events_path: Path
+    monitor_log: Path
+    attribution_output: Path
+
+
+def resolve_paths(config_arg: str | None = None, paper: bool = False) -> MonitorPaths:
+    """Resolve paths for the requested monitoring mode."""
+    if config_arg:
+        config_path = Path(config_arg)
+        if not config_path.is_absolute():
+            config_path = PROJECT_ROOT / config_path
+    elif paper:
+        config_path = PAPER_CONFIG_PATH
+    else:
+        config_path = DEFAULT_CONFIG_PATH
+
+    is_paper = paper or config_path.name == "paper.yaml"
+    reports_dir = PAPER_REPORTS_DIR if is_paper else LIVE_REPORTS_DIR
+
+    if is_paper:
+        return MonitorPaths(
+            config_path=config_path,
+            reports_dir=reports_dir,
+            equity_path=reports_dir / "paper_equity.csv",
+            events_path=reports_dir / "paper_events.jsonl",
+            monitor_log=reports_dir / "paper_monitoring_log.csv",
+            attribution_output=reports_dir / "paper_attribution.csv",
+        )
+
+    return MonitorPaths(
+        config_path=config_path,
+        reports_dir=reports_dir,
+        equity_path=reports_dir / "live_equity.csv",
+        events_path=reports_dir / "live_events.jsonl",
+        monitor_log=reports_dir / "monitoring_log.csv",
+        attribution_output=reports_dir / "strategy_attribution.csv",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -61,17 +113,17 @@ def _fmt_pnl(pnl: float) -> str:
 # Config loading
 # ---------------------------------------------------------------------------
 
-def load_config() -> list[dict]:
-    """Load enabled strategies from ``config/live.yaml``.
+def load_config(path: Path) -> list[dict]:
+    """Load enabled strategies from a config file.
 
     Returns a list of strategy dicts (``name``, ``weight``, etc.).
     """
-    if not CONFIG_PATH.exists():
-        print(f"  WARNING: {CONFIG_PATH} not found — no strategy config loaded")
+    if not path.exists():
+        print(f"  WARNING: {path} not found — no strategy config loaded")
         return []
 
-    with open(CONFIG_PATH, encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
 
     strategies = cfg.get("strategies", {})
     # ``strategies`` can be a list or a dict in YAML; normalise to list
@@ -96,11 +148,11 @@ def load_equity(path: Path) -> pd.DataFrame:
     ``len(df) == 0``.
     """
     if not path.exists():
-        return pd.DataFrame()
+        return pd.DataFrame(), 0
 
     df = pd.read_csv(path)
     if df.empty:
-        return df
+        return df, 0
 
     # Consistent date parsing — the CSV may have mixed formats
     # (e.g. "2026-05-29 00:00:00" and "2026-05-29" in the same column).
@@ -116,12 +168,12 @@ def load_equity(path: Path) -> pd.DataFrame:
     return df, n_trading_days
 
 
-def load_events() -> list[dict]:
+def load_events(path: Path) -> list[dict]:
     """Load trade events from the JSONL event log."""
-    if not EVENTS_PATH.exists():
+    if not path.exists():
         return []
     events: list[dict] = []
-    with open(EVENTS_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -145,7 +197,7 @@ def load_backtest_targets(strategy_name: str) -> dict | None:
     ``profit_factor``, … or ``None`` if no file is found or the file is
     older than 30 days.
     """
-    today = datetime.now(tz=timezone.utc)
+    today = datetime.now(tz=UTC)
 
     # --- Candidate filenames ---
     candidates: list[str] = [f"{strategy_name}_backtest.json"]
@@ -157,12 +209,12 @@ def load_backtest_targets(strategy_name: str) -> dict | None:
     candidates.extend(_ALIASES.get(strategy_name, []))
 
     for stem in candidates:
-        path = REPORTS_DIR / stem
+        path = PROJECT_ROOT / "reports" / stem
         if not path.exists():
             continue
 
         # Check freshness
-        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
         age_days = (today - mtime).days
         if age_days > 30:
             print(
@@ -196,6 +248,7 @@ def load_backtest_targets(strategy_name: str) -> dict | None:
 def compute_strategy_metrics(
     strategy_name: str,
     events: list[dict],
+    equity_path: Path,
 ) -> dict:
     """Compute summary metrics for a single strategy from its event log.
 
@@ -207,7 +260,7 @@ def compute_strategy_metrics(
     n_fills = len([e for e in strat_events if e.get("event") in ("fill", "close")])
 
     # Read per-strategy equity CSV for latest P&L
-    strat_equity_path = REPORTS_DIR / f"live_equity_{strategy_name}.csv"
+    strat_equity_path = equity_path.parent / f"{equity_path.stem}_{strategy_name}.csv"
     last_pnl = 0.0
     last_equity = 0.0
     status = "unknown"
@@ -245,6 +298,7 @@ def compute_metrics(df: pd.DataFrame) -> dict:
     if df.empty or len(df) < 1:
         return {
             "n_days": 0,
+            "n_unique_days": 0,
             "current_equity": 0.0,
             "daily_pnl": 0.0,
             "cumulative_return_pct": nan,
@@ -360,7 +414,7 @@ def check_fill_events(events: list[dict]) -> dict:
         }
 
     # Count fills whose timestamp is within the last 3 calendar days
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     recent = [
         e
         for e in fills
@@ -569,9 +623,10 @@ def append_monitor_log(
     metrics: dict,
     fill_info: dict,
     strategy_metrics: list[dict],
+    monitor_log: Path,
 ) -> None:
     """Append a row to the monitoring log CSV."""
-    MONITOR_LOG.parent.mkdir(parents=True, exist_ok=True)
+    monitor_log.parent.mkdir(parents=True, exist_ok=True)
 
     row = {
         "timestamp": datetime.now().isoformat(),
@@ -603,9 +658,61 @@ def append_monitor_log(
         "recent_fills": fill_info["recent_fills"],
     }
 
-    write_header = not MONITOR_LOG.exists()
+    write_header = not monitor_log.exists()
     df_log = pd.DataFrame([row])
-    df_log.to_csv(MONITOR_LOG, mode="a", header=write_header, index=False)
+    df_log.to_csv(monitor_log, mode="a", header=write_header, index=False)
+
+
+def write_attribution_snapshot(
+    strategy_metrics: list[dict],
+    metrics: dict,
+    attribution_output: Path,
+) -> None:
+    """Write a same-day attribution snapshot for correlation monitoring."""
+    attribution_output.parent.mkdir(parents=True, exist_ok=True)
+    columns = [
+        "date",
+        "strategy",
+        "ret",
+        "pnl",
+        "allocation_weight",
+        "status",
+    ]
+    rows: list[dict] = []
+    if metrics.get("n_days", 0) > 0 and strategy_metrics:
+        daily_return = metrics["daily_pnl"] / metrics["current_equity"] if metrics.get("current_equity", 0) else 0.0
+        for item in strategy_metrics:
+            weight = float(item.get("allocation_weight", 0.0) or 0.0)
+            rows.append(
+                {
+                    "date": datetime.now().date().isoformat(),
+                    "strategy": item["name"],
+                    "ret": round(daily_return, 8),
+                    "pnl": round(float(item.get("metrics", {}).get("last_pnl", 0.0)), 4),
+                    "allocation_weight": round(weight, 8),
+                    "status": item.get("metrics", {}).get("status", "unknown"),
+                }
+            )
+    pd.DataFrame(rows, columns=columns).to_csv(attribution_output, index=False)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Daily monitoring for QuantCore paper/live trading")
+    parser.add_argument("--paper", action="store_true", help="Use config/paper.yaml and reports/paper_* paths")
+    parser.add_argument("--config", type=Path, help="Config path override; defaults to config/live.yaml")
+    parser.add_argument("--events", type=Path, help="Event log JSONL path override")
+    parser.add_argument("--equity", type=Path, help="Portfolio equity CSV path override")
+    parser.add_argument("--monitor-log", type=Path, help="Monitoring log CSV path override")
+    parser.add_argument(
+        "--attribution-output",
+        type=Path,
+        help="Strategy attribution CSV path override",
+    )
+    return parser.parse_args(argv)
 
 
 # ---------------------------------------------------------------------------
@@ -613,17 +720,27 @@ def append_monitor_log(
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    args = parse_args()
+    paths = resolve_paths(str(args.config) if args.config else None, paper=args.paper)
+    if args.events:
+        paths = MonitorPaths(**{**paths.__dict__, "events_path": args.events})
+    if args.equity:
+        paths = MonitorPaths(**{**paths.__dict__, "equity_path": args.equity})
+    if args.monitor_log:
+        paths = MonitorPaths(**{**paths.__dict__, "monitor_log": args.monitor_log})
+    if args.attribution_output:
+        paths = MonitorPaths(**{**paths.__dict__, "attribution_output": args.attribution_output})
+
     # ---- 1. Load config ----
-    strategies = load_config()
+    strategies = load_config(paths.config_path)
     if not strategies:
-        print("WARNING: No enabled strategies found in config/live.yaml")
-    active_names = [s["name"] for s in strategies]
+        print(f"WARNING: No enabled strategies found in {paths.config_path}")
 
     # ---- 2. Load portfolio equity ----
-    equity_df, n_trading_days = load_equity(EQUITY_PATH)
+    equity_df, n_trading_days = load_equity(paths.equity_path)
 
     # ---- 3. Load events ----
-    events = load_events()
+    events = load_events(paths.events_path)
 
     # ---- 4. Compute portfolio metrics ----
     metrics = compute_metrics(equity_df)
@@ -635,9 +752,15 @@ def main() -> int:
     strategy_metrics_list: list[dict] = []
     for s in strategies:
         name = s["name"]
-        m = compute_strategy_metrics(name, events)
+        allocation_weight = float(s.get("allocation_weight", s.get("weight", 0.0)) or 0.0)
+        m = compute_strategy_metrics(name, events, paths.equity_path)
         bt = load_backtest_targets(name)
-        strategy_metrics_list.append({"name": name, "metrics": m, "backtest": bt})
+        strategy_metrics_list.append({
+            "name": name,
+            "metrics": m,
+            "backtest": bt,
+            "allocation_weight": allocation_weight,
+        })
         print(format_strategy_line(name, m, bt))
 
     print()  # blank line
@@ -669,8 +792,9 @@ def main() -> int:
     if fill_info["warning"]:
         print(f"  {fill_info['message']}")
 
-    # ---- 9. Log to CSV ----
-    append_monitor_log(status, metrics, fill_info, strategy_metrics_list)
+    # ---- 9. Log to CSV and attribution snapshot ----
+    append_monitor_log(status, metrics, fill_info, strategy_metrics_list, paths.monitor_log)
+    write_attribution_snapshot(strategy_metrics_list, metrics, paths.attribution_output)
 
     # ---- 10. Alert if not OK ----
     if status not in ("OK", "INSUFFICIENT_DATA"):
