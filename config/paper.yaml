@@ -1,0 +1,195 @@
+# QuantCore Phase 4 Paper Validation Configuration
+# Updated: 2026-06-09
+#
+# Purpose:
+#   Parallel paper validation for non-live strategies selected from the
+#   registered/walk-forward-tested candidate pool. This config is intentionally
+#   separate from config/live.yaml and must not alter live allocations.
+#
+# Discipline:
+#   - No threshold or parameter tuning during the paper-validation window.
+#   - Paper trading is the out-of-sample validation period.
+#   - Any strategy breaching its drawdown limit is halted for review, not tuned.
+#   - H001 OPRA flow remains DATA_BLOCKED until a reliable OPRA source exists.
+
+broker:
+  type: paper
+  alpaca:
+    api_key: ''
+    secret_key: ''
+    base_url: https://paper-api.alpaca.markets
+
+validation:
+  start_date: 2026-06-09
+  end_date: 2026-07-21
+  duration_weeks: 6
+  purpose: Phase 4 production risk-control validation
+  tuning_allowed: false
+
+execution:
+  scale_mode: single_share
+  initial_cash: 10000.0
+  slippage_bps: 5
+  commission_per_share: 0.005
+
+# Allocation weights sum to 1.0 within the separate paper account.
+# risk_budget_weight is the fraction of total production risk budget reserved
+# for this paper strategy; it is documentation/gating metadata, not live weight.
+strategies:
+  - name: equity_stat_arb
+    enabled: true
+    paper: true
+    allocation_weight: 0.333333
+    risk_budget_weight: 0.015
+    data_source: alpaca_daily
+    strategy_type: EQUITY
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.20
+    params:
+      lookback: 252
+      half_life_max: 20
+      entry_z: 2.0
+      exit_z: 0.5
+      kelly_fraction: 0.5
+      max_pairs: 10
+      rescan_freq: 63
+
+  - name: macro_carry
+    enabled: true
+    paper: true
+    allocation_weight: 0.333334
+    risk_budget_weight: 0.015
+    data_source: alpaca_daily
+    strategy_type: MACRO
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.20
+    params:
+      n_long: 3
+      n_short: 3
+      vol_target: 0.10
+      vol_lookback: 60
+      carry_smoothing: 21
+      rebalance_freq: 21
+      carry_adjustment: true
+
+  - name: options_tail_hedge
+    enabled: true
+    paper: true
+    allocation_weight: 0.333333
+    risk_budget_weight: 0.015
+    data_source: yfinance_vix
+    strategy_type: OPTIONS
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.20
+    params:
+      otm_pct: 10
+      dte_entry: 90
+      dte_roll: 30
+      notional_budget_pct: 1
+      skew_entry_threshold: 1.5
+      vol_entry_threshold: 25
+      correlation_threshold: 0.7
+
+universe:
+  tickers:
+    - SPY
+    - QQQ
+    - IWM
+    - GLD
+    - TLT
+    - DBC
+    - AAPL
+    - MSFT
+    - AMZN
+    - NVDA
+    - GOOGL
+    - META
+    - TSLA
+    - BRK.B
+    - UNH
+    - JNJ
+    - V
+    - XOM
+    - JPM
+    - PG
+    - MA
+    - HD
+    - CVX
+    - MRK
+    - LLY
+    - ABBV
+    - PFE
+    - KO
+    - AVGO
+    - PEP
+    - COST
+    - TMO
+    - MCD
+    - WMT
+    - CSCO
+    - ACN
+    - ABT
+    - DHR
+    - LIN
+    - TXN
+    - UPS
+    - RTX
+    - QCOM
+    - PM
+    - HON
+    - LOW
+    - AMGN
+    - INTU
+    - BA
+    - GE
+    - CAT
+    - SBUX
+    - ISRG
+    - AMD
+    - PLD
+  macro_assets:
+    - SPY
+    - QQQ
+    - IWM
+    - GLD
+    - TLT
+    - DBC
+
+risk:
+  max_position_per_ticker_pct: 0.02
+  max_gross_exposure_pct: 0.50
+  max_daily_loss_pct: 0.01
+  max_drawdown_pct: 0.20
+  max_single_order_pct: 0.02
+  max_leverage: 0.50
+  circuit_breaker:
+    daily_loss_pct: 0.01
+    critical_drawdown_pct: 0.20
+    consecutive_rejections: 5
+
+schedule:
+  trading_time: '16:15'
+  reconciliation_time: '16:30'
+  timezone: US/Eastern
+
+monitoring:
+  health_check_interval_sec: 60
+  log_file: reports/paper_events.jsonl
+  equity_file: reports/paper_equity.csv
+
+alerting:
+  enabled: true
+  file_path: reports/paper_alerts.log
+  telegram:
+    enabled: false
+  slack:
+    enabled: false
+  email:
+    enabled: false
+
+kill_switch:
+  file_path: PAPER_KILL_SWITCH
+  check_interval_sec: 10

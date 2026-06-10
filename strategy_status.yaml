@@ -1,0 +1,513 @@
+schema_version: 1
+updated_at: '2026-06-09'
+phase: Phase 4 - Production Risk Controls
+runtime_policy:
+  allowed_live_config_statuses:
+  - LIVE
+  allowed_paper_config_statuses:
+  - PAPER
+  inactive_strategies_must_not_trade: true
+  h001_opra_flow: DATA_BLOCKED - no OPRA source available; no event study or ingestion
+    until data access is restored.
+strategies:
+  equity_cross_sectional_momentum:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_earnings_momentum:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_full_universe_xs_momentum:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_idiosyncratic_momentum:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_low_volatility:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_mean_reversion:
+    phase: CANDIDATE
+    family: equity
+    config_file: config/strategies/equity_mean_reversion.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  equity_momentum:
+    phase: CANDIDATE
+    family: equity
+    config_file: config/strategies/equity_momentum.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  equity_multi_factor:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_multifactor_composite:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_quality_factor:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_quality_rmw_cma:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_short_term_reversal:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_stat_arb:
+    phase: PAPER
+    family: equity
+    config_file: config/strategies/equity_stat_arb.toml
+    live_weight: null
+    paper_allocation_weight: 0.3333333333333333
+    paper_risk_budget_weight: 0.015
+    paper_start_date: '2026-06-09'
+    paper_end_date: '2026-07-21'
+    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
+      allowed.
+  equity_stat_arb_mr:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_trend_following:
+    phase: CANDIDATE
+    family: equity
+    config_file: config/strategies/equity_trend_following.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  equity_tsmom:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_value_factor:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_value_hml:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_volatility_breakout:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  equity_volume_profile:
+    phase: INACTIVE
+    family: equity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  intraday_breakout:
+    phase: INACTIVE
+    family: intraday
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  intraday_mean_reversion:
+    phase: INACTIVE
+    family: intraday
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  intraday_momentum:
+    phase: INACTIVE
+    family: intraday
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  intraday_trend:
+    phase: INACTIVE
+    family: intraday
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_carry:
+    phase: PAPER
+    family: macro
+    config_file: config/strategies/macro_carry.toml
+    live_weight: null
+    paper_allocation_weight: 0.3333333333333333
+    paper_risk_budget_weight: 0.015
+    paper_start_date: '2026-06-09'
+    paper_end_date: '2026-07-21'
+    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
+      allowed.
+  macro_carry_trend_filter:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_cross_sectional_factor_neutral:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_cross_sectional_momentum:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_cta_trend:
+    phase: CANDIDATE
+    family: macro
+    config_file: config/strategies/macro_cta_trend.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  macro_factor_residual:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_factor_residual_qp:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_factor_residual_strict:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_factor_residual_v3:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_fred_regime:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_regime_adaptive_momentum:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_risk_parity:
+    phase: CANDIDATE
+    family: macro
+    config_file: config/strategies/macro_risk_parity.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  macro_state_selective_momentum:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_true_carry:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  macro_vrp:
+    phase: CANDIDATE
+    family: macro
+    config_file: config/strategies/macro_vrp.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  opening_gap_fade:
+    phase: LIVE
+    family: equity
+    config_file: null
+    live_weight: 0.1
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Enabled in config/live.yaml; live/paper production allocation included.
+  options_delta_neutral:
+    phase: LIVE
+    family: options
+    config_file: config/strategies/options_delta_neutral.toml
+    live_weight: 0.317
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Enabled in config/live.yaml; live/paper production allocation included.
+  options_earnings_vol:
+    phase: CANDIDATE
+    family: options
+    config_file: config/strategies/options_earnings_vol.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered and walk-forward tested; deferred pending paper batch results
+      and risk review.
+  options_iron_condor:
+    phase: LIVE
+    family: options
+    config_file: config/strategies/options_iron_condor.toml
+    live_weight: 0.061
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Enabled in config/live.yaml; live/paper production allocation included.
+  options_put_write:
+    phase: LIVE
+    family: options
+    config_file: null
+    live_weight: 0.522
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Enabled in config/live.yaml; live/paper production allocation included.
+  options_tail_hedge:
+    phase: PAPER
+    family: options
+    config_file: config/strategies/options_tail_hedge.toml
+    live_weight: null
+    paper_allocation_weight: 0.3333333333333333
+    paper_risk_budget_weight: 0.015
+    paper_start_date: '2026-06-09'
+    paper_end_date: '2026-07-21'
+    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
+      allowed.
+  sentiment_momentum:
+    phase: INACTIVE
+    family: alpha
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  simple_buy_hold:
+    phase: INACTIVE
+    family: sanity
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+  vix_call_ladder:
+    phase: INACTIVE
+    family: macro
+    config_file: null
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Registered/importable but not selected for immediate Phase 4 validation.
+blocked_research:
+  h001_opra_flow:
+    phase: DATA_BLOCKED
+    reason: Alpaca OPRA agreement unsigned, Polygon API key invalid, IBKR gateway
+      unreachable.
+    allowed_actions:
+    - documentation
+    blocked_actions:
+    - ingestion
+    - event_study
+    - strategy_creation_under_quantcore
