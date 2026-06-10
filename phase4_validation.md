@@ -1,0 +1,129 @@
+# Phase 4 Validation Rollout Plan
+
+Date: 2026-06-09  
+System phase: Phase 4 — Production Risk Controls
+
+## Executive summary
+
+The system currently has **48 registered/importable strategies**. Strategy tests pass with **1667 passed, 13 skipped** and **185 strategy-related tests passed**. All **48 strategies** are covered by the walk-forward matrix after adding `vix_call_ladder`.
+
+Only four strategies are live/paper-production enabled in `config/live.yaml`, and their weights remain unchanged and sum to **1.0**:
+
+| Strategy | Live/paper status | Weight |
+|---|---:|---:|
+| `options_delta_neutral` | KEEP | 0.317 |
+| `options_put_write` | MONITOR | 0.522 |
+| `options_iron_condor` | MONITOR | 0.061 |
+| `opening_gap_fade` | KEEP | 0.100 |
+
+This Phase 4 change adds a **separate paper-validation config** for three non-live strategies. It does **not** alter `config/live.yaml` or live allocations.
+
+## H001 OPRA flow deferral
+
+`research/h001_opra_flow/report.md` records the H001 event-study pipeline as **DATA_BLOCKED**.
+
+Blocked sources:
+
+- Alpaca OPRA agreement not signed.
+- Polygon API key invalid.
+- IBKR gateway unreachable.
+
+No H001 ingestion, event-study execution, or new H001 strategy code under `quantcore/` is allowed until a reliable OPRA data source is available.
+
+## Candidate pool with existing config files
+
+The following registered, walk-forward-tested strategies have config files and are not currently enabled in `config/live.yaml`:
+
+| Strategy | Family | Expected return/risk profile | Rough correlation view |
+|---|---|---|---|
+| `equity_stat_arb` | Equity | Market-neutral pair/stat-arb returns; lower beta than directional equity strategies | Low correlation to short-vol options and intraday gap fade |
+| `equity_momentum` | Equity | Directional cross-sectional momentum | Moderate equity-market exposure; can correlate with broad risk-on regimes |
+| `equity_mean_reversion` | Equity | Short-horizon reversal/mean-reversion | Potentially diversifying vs momentum, but more path-dependent |
+| `equity_trend_following` | Equity | Directional trend exposure | Can correlate with equity momentum in persistent trends |
+| `macro_carry` | Macro | Carry premia across macro assets | Diversifying vs options VRP; different driver than equity factors |
+| `macro_cta_trend` | Macro | Trend following across macro assets | Historically useful crisis diversifier, but real-data diagnostics require caution |
+| `macro_risk_parity` | Macro | Risk-contribution allocation | Diversifying in calm regimes; lower expected alpha as standalone strategy |
+| `macro_vrp` | Macro/options | Volatility risk premium signal | Overlaps with current short-vol live strategies |
+| `options_earnings_vol` | Options | Earnings-vol event exposure | Options/event-driven; requires careful event calendar controls |
+| `options_tail_hedge` | Options | Long-vol tail hedge | Expected negative/low correlation to current short-vol VRP mix |
+
+## Selected paper-validation batch
+
+Selected batch for the initial 6-week paper window:
+
+| Strategy | Allocation in paper config | Risk-budget reservation | Rationale |
+|---|---:|---:|---|
+| `equity_stat_arb` | 33.3333% | 1.5% | Existing config; market-neutral equity/stat-arb profile; diversifies away from short-vol options |
+| `macro_carry` | 33.3334% | 1.5% | Existing config; macro carry driver; diversifies away from equity/intraday/options VRP |
+| `options_tail_hedge` | 33.3333% | 1.5% | Existing config; long-vol hedge profile; expected low/negative correlation to current short-vol live strategies |
+
+Rationale:
+
+- All three have existing config files.
+- All three are registered and walk-forward tested.
+- None are currently enabled in `config/live.yaml`.
+- The batch adds equity/stat-arb, macro carry, and long-vol hedge exposure rather than increasing concentration in the current short-vol VRP mix.
+- `macro_cta_trend` remains deferred for a later review because prior deployment notes flag real-data concerns despite walk-forward coverage.
+
+Paper period:
+
+- Start: 2026-06-09
+- End: 2026-07-21
+- Duration: 6 weeks
+- Config: `config/paper.yaml`
+- Mode: separate paper account, `single_share` scale mode, $10,000 paper capital
+
+## Risk controls added
+
+1. **Per-strategy drawdown kill-switch**
+   - New module: `quantcore/risk/strategy_kill_switch.py`
+   - Default halt threshold: **-20% from peak equity**
+   - Once halted, a strategy remains halted until explicit reset.
+   - No parameter tuning is allowed after a breach.
+
+2. **Runtime status gating**
+   - New file: `strategy_status.yaml`
+   - New helper: `quantcore/strategies/status.py`
+   - `quantcore/live/production_runner.py` now checks `strategy_status.yaml` and skips strategies whose phase is not runtime-allowed.
+   - Live config should load `LIVE` strategies only.
+   - Paper config should load `PAPER` strategies only.
+
+3. **Console risk dashboard / P&L attribution**
+   - New script: `scripts/strategy_risk_dashboard.py`
+   - Reads existing event and equity logs.
+   - Reports:
+     - open positions by strategy
+     - inferred allocation weights
+     - daily return
+     - cumulative return
+     - Sharpe
+     - max drawdown
+     - 20% kill-switch breaches
+
+4. **Paper config**
+   - New file: `config/paper.yaml`
+   - Separate from `config/live.yaml`
+   - Paper allocation weights sum to 1.0 within the paper account.
+   - `risk_budget_weight` documents each strategy's reserved share of total production risk budget and does not alter live weights.
+
+## `vix_call_ladder` walk-forward status
+
+`vix_call_ladder` has been added to the walk-forward test matrix. The targeted walk-forward test passes after fixing scalar extraction for synthetic multi-asset arrays. It remains `INACTIVE` in `strategy_status.yaml` and is not part of the Phase 4 paper-validation batch.
+
+## Strategy status mapping
+
+`strategy_status.yaml` maps all 48 registered strategies to a phase:
+
+- `LIVE`: currently enabled in `config/live.yaml`
+- `PAPER`: selected for the 6-week Phase 4 paper window
+- `CANDIDATE`: registered/walk-forward-tested, deferred for later validation
+- `INACTIVE`: registered/importable but not selected for immediate validation
+- `DATA_BLOCKED`: H001 OPRA research pipeline only, not a registered strategy
+
+## Operating rules
+
+- No strategy threshold or parameter tuning during paper trading.
+- Paper trading is the out-of-sample validation period.
+- If any paper strategy breaches its drawdown limit, halt it and review; do not tune.
+- `config/live.yaml` live weights remain unchanged and must continue to sum to 1.0.
+- H001 remains blocked until a reliable OPRA source is available.
