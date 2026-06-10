@@ -245,6 +245,7 @@ class TestAllStrategiesRegistered:
     @pytest.fixture(autouse=True)
     def _ensure_imported(self):
         # Import all strategy modules to trigger @register decorators
+        import quantcore.strategies.equity.atlas_ramfa
         import quantcore.strategies.equity.mean_reversion
         import quantcore.strategies.equity.momentum
         import quantcore.strategies.equity.stat_arb
@@ -260,7 +261,7 @@ class TestAllStrategiesRegistered:
     def test_all_strategies_in_registry(self):
         from quantcore.strategies.registry import _registry
         expected = [
-            "equity_momentum", "equity_stat_arb", "equity_mean_reversion",
+            "atlas_ramfa", "equity_momentum", "equity_stat_arb", "equity_mean_reversion",
             "equity_trend_following", "options_delta_neutral",
             "options_iron_condor", "options_earnings_vol",
             "options_tail_hedge", "macro_risk_parity",

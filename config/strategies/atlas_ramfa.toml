@@ -1,0 +1,58 @@
+# Atlas RAMFA: Regime-Adaptive Multi-Factor Alpha
+# Phase: research implementation; not approved for paper/live trading until validation gates pass.
+
+[strategy]
+name = "atlas_ramfa"
+status = "RESEARCH"
+strategy_type = "EQUITY"
+max_position_notional = 1000000.0
+max_leverage = 1.5
+risk_budget_pct = 0.02
+
+[params]
+momentum_weight = 0.20
+tsmom_weight = 0.15
+quality_weight = 0.15
+value_weight = 0.15
+lowvol_weight = 0.10
+reversal_weight = 0.10
+liquidity_weight = 0.05
+vol_carry_weight = 0.10
+ic_weighting = false
+ic_window = 63
+ic_blend = 0.35
+lookback_days = 252
+skip_days = 21
+vol_lookback = 63
+rebalance_freq = 5
+long_threshold = 0.65
+short_threshold = 0.65
+n_long = 20
+n_short = 20
+min_liquidity_score = 75.0
+max_gross_exposure = 1.5
+min_net_exposure = -0.25
+max_net_exposure = 0.50
+single_name_max_pct = 0.02
+stop_loss_mult = 2.5
+take_profit_mult = 2.0
+time_stop_days = 45
+exit_threshold = 0.20
+use_regime_filter = true
+min_regime_score = 55.0
+regime_exposure_multiplier = true
+max_regime_multiplier = 1.0
+min_regime_multiplier = 0.15
+
+[risk]
+max_daily_loss_pct = 0.015
+max_drawdown_pct = 0.08
+max_single_name_pct = 0.02
+max_gross_exposure_pct = 150.0
+max_net_exposure_pct = 50.0
+
+[validation]
+required_train_years = 10
+required_oos_sharpe_ci_low = 0.3
+required_max_drawdown_pct = 10.0
+paper_trading_days_required = 60

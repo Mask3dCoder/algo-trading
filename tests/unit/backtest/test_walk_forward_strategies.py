@@ -38,6 +38,7 @@ _EQUITY_PARAMS: dict[str, dict] = {
     "equity_multifactor_composite": {},
     "equity_quality_rmw_cma": {},
     "equity_value_hml": {},
+    "atlas_ramfa": {"rebalance_freq": 1, "n_long": 2, "n_short": 2, "min_liquidity_score": 0.0},
     "sentiment_momentum": {"sentiment_lookback": 5, "rebalance_freq": 1, "tercile_pct": 0.33},
 }
 
@@ -172,6 +173,7 @@ def strategy_data() -> dict[str, np.ndarray]:
 def _ensure_imported() -> None:
     import quantcore.alpha.sentiment_momentum
     import quantcore.alpha.stat_arb_mean_reversion
+    import quantcore.strategies.equity.atlas_ramfa
     import quantcore.strategies.equity.intraday_breakout
     import quantcore.strategies.equity.intraday_mean_reversion
     import quantcore.strategies.equity.intraday_momentum

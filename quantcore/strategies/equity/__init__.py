@@ -1,8 +1,11 @@
 """Equity strategies: momentum, stat-arb, mean-reversion, trend, factor, vol, volume."""
 
+from quantcore.strategies.equity.atlas_ramfa import AtlasRamfaStrategy
 from quantcore.strategies.equity.cross_sectional_momentum import CrossSectionalMomentumStrategy
 from quantcore.strategies.equity.earnings_momentum import EarningsMomentumStrategy
-from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+    FullUniverseCrossSectionalMomentum,
+)
 from quantcore.strategies.equity.idiosyncratic_momentum import IdiosyncraticMomentumStrategy
 from quantcore.strategies.equity.low_volatility import LowVolatilityStrategy
 from quantcore.strategies.equity.mean_reversion import MeanReversionStrategy
@@ -22,6 +25,7 @@ from quantcore.strategies.equity.volatility_breakout import VolatilityBreakoutSt
 from quantcore.strategies.equity.volume_profile import VolumeProfileStrategy
 
 __all__ = [
+    "AtlasRamfaStrategy",
     "CrossSectionalMomentumStrategy",
     "EarningsMomentumStrategy",
     "FullUniverseCrossSectionalMomentum",

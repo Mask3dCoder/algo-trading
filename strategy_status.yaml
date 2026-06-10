@@ -214,6 +214,18 @@ strategies:
     paper_start_date: null
     paper_end_date: null
     notes: Registered/importable but not selected for immediate Phase 4 validation.
+  atlas_ramfa:
+    phase: RESEARCH
+    family: equity
+    config_file: config/strategies/atlas_ramfa.toml
+    live_weight: null
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: New institutional multi-factor alpha implementation; requires point-in-time
+      validation, walk-forward testing, transaction-cost calibration, and paper trading
+      before any allocation.
   intraday_breakout:
     phase: INACTIVE
     family: intraday
