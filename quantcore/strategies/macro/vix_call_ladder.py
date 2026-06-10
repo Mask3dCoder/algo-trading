@@ -19,8 +19,7 @@ Backtest logic (standalone and portfolio-integrated):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -92,11 +91,11 @@ class VIXCallLadderStrategy(Strategy):
             if iv.ndim == 0:
                 iv_val = iv.item()
             else:
-                iv_val = iv[-1]
-            if isinstance(iv_val, np.ndarray):
-                iv_val = iv_val.item()
-            vix_val = float(iv_val) * 100 if float(iv_val) < 2 else float(iv_val)
-            return vix_val, float(iv_val)
+                flat = np.asarray(iv).reshape(-1)
+                iv_val = flat[-1]
+            vix_dec = float(iv_val)
+            vix_val = vix_dec * 100 if vix_dec < 2 else vix_dec
+            return vix_val, vix_dec
 
         return 20.0, 0.20
 
@@ -160,7 +159,13 @@ class VIXCallLadderStrategy(Strategy):
         # Get current equity for cost cap
         equity_arr = data.get("equity")
         if equity_arr is not None:
-            equity = float(equity_arr[-1]) if equity_arr.size > 0 else 1_000_000.0
+            equity_arr = np.asarray(equity_arr)
+            if equity_arr.ndim == 0:
+                equity = float(equity_arr)
+            elif equity_arr.size > 0:
+                equity = float(equity_arr[-1])
+            else:
+                equity = 1_000_000.0
         else:
             equity = 1_000_000.0
 

@@ -70,6 +70,15 @@ _MACRO_PARAMS: dict[str, dict] = {
     "macro_true_carry": {"rebalance_freq": 1, "slow_window": 100},
     "macro_vrp": {"rebalance_freq": 1},
     "macro_fred_regime": {"rebalance_freq": 1},
+    "vix_call_ladder": {
+        "vix_strike_mult": 1.10,
+        "dte": 30,
+        "roll_dte": 5,
+        "max_cost_ann_pct": 0.015,
+        "target_cover_pct": 0.50,
+        "vix_entry_threshold": 25.0,
+        "contract_multiplier": 1000,
+    },
     "simple_buy_hold": {},  # No params — buy-and-hold sanity check
     # NOTE: "macro_fred_regime" is registered via quantcore.strategies.macro.fred_regime_strategy
 }
@@ -94,7 +103,7 @@ def _strategy_type(name: str) -> str:
         return "equity"
     if name.startswith("options_"):
         return "options"
-    if name.startswith("macro_"):
+    if name.startswith("macro_") or name == "vix_call_ladder":
         return "macro"
     return "equity"
 
@@ -177,6 +186,7 @@ def _ensure_imported() -> None:
     import quantcore.strategies.macro.fred_regime_strategy
     import quantcore.strategies.macro.risk_parity
     import quantcore.strategies.macro.simple_test_strategy
+    import quantcore.strategies.macro.vix_call_ladder
     import quantcore.strategies.options.delta_neutral
     import quantcore.strategies.options.earnings_vol
     import quantcore.strategies.options.iron_condor
