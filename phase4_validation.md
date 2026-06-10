@@ -5,7 +5,7 @@ System phase: Phase 4 — Production Risk Controls
 
 ## Executive summary
 
-The system currently has **48 registered/importable strategies**. Strategy tests pass with **1667 passed, 13 skipped** and **185 strategy-related tests passed**. All **48 strategies** are covered by the walk-forward matrix after adding `vix_call_ladder`.
+The system currently has **48 registered/importable strategies**. Strategy tests pass with **1671 passed, 13 skipped** and **185 strategy-related tests passed**. All **48 strategies** are covered by the walk-forward matrix after adding `vix_call_ladder`.
 
 Only four strategies are live/paper-production enabled in `config/live.yaml`, and their weights remain unchanged and sum to **1.0**:
 
@@ -80,24 +80,26 @@ Daily:
 1. Run `python scripts/strategy_risk_dashboard.py --paper`.
 2. Confirm the kill-switch status is clean.
 3. Review open positions, inferred weights, daily return, cumulative return, Sharpe, and max drawdown.
-4. If a strategy breaches its drawdown limit, halt it and document the event. Do not tune parameters.
+4. Check the timestamped paper attribution archive in `reports/paper/` and the paper kill-switch log at `reports/paper_kill_switch_events.jsonl` if any alert appears.
+5. Optionally run `python scripts/correlation_monitor.py --paper` to check rolling strategy-return correlation alarms.
+6. If a strategy breaches its drawdown limit, halt it and document the event. Do not tune parameters.
 
 Weekly:
 
 1. Append a short note to the log below.
-2. Include Sharpe, max drawdown, turnover/data-quality observations, and any notable behavior.
+2. Include Sharpe, max drawdown, turnover/data-quality observations, attribution CSV paths, and any notable behavior.
 3. Keep the note factual; do not reinterpret marginal results after seeing the paper P&L.
 
 Weekly paper-validation log:
 
-| Week ending | Sharpe | Max drawdown | Kill-switch status | Notes |
-|---|---:|---:|---|---|
-| 2026-06-14 | TBD | TBD | TBD | Initial monitoring week |
-| 2026-06-21 | TBD | TBD | TBD |  |
-| 2026-06-28 | TBD | TBD | TBD |  |
-| 2026-07-05 | TBD | TBD | TBD |  |
-| 2026-07-12 | TBD | TBD | TBD |  |
-| 2026-07-21 | TBD | TBD | TBD | Final 6-week review |
+| Week ending | Sharpe | Max drawdown | Kill-switch status | Attribution paths | Notes |
+|---|---:|---:|---|---|---|
+| 2026-06-14 | TBD | TBD | TBD | `reports/paper/paper_attribution_YYYY-MM-DD.csv` | Initial monitoring week |
+| 2026-06-21 | TBD | TBD | TBD |  |  |
+| 2026-06-28 | TBD | TBD | TBD |  |  |
+| 2026-07-05 | TBD | TBD | TBD |  |  |
+| 2026-07-12 | TBD | TBD | TBD |  |  |
+| 2026-07-21 | TBD | TBD | TBD |  | Final 6-week review |
 
 ## Paper live-graduation criteria
 
@@ -172,6 +174,8 @@ If any current paper strategy breaches its kill-switch, keep the next batch bloc
    - New script: `scripts/strategy_risk_dashboard.py`
    - Reads existing event and equity logs.
    - Exports daily attribution to CSV by default (`reports/strategy_attribution.csv`, or `reports/paper_attribution.csv` with `--paper`).
+   - Also writes timestamped attribution archives under `reports/live/` or `reports/paper/`.
+   - Appends structured kill-switch breach records to `reports/kill_switch_events.jsonl` or `reports/paper_kill_switch_events.jsonl`.
    - Reports:
      - open positions by strategy
      - inferred allocation weights
@@ -181,7 +185,13 @@ If any current paper strategy breaches its kill-switch, keep the next batch bloc
      - max drawdown
      - 20% kill-switch breaches
 
-4. **Paper config**
+4. **Rolling correlation monitor**
+   - New script: `scripts/correlation_monitor.py`
+   - Reads attribution CSV exports and computes rolling pairwise strategy-return correlations.
+   - Prints an alert when any pair exceeds the configured threshold, defaulting to 0.8 over 20 days.
+   - This is an observability alarm only; it does not change allocations or strategy behavior.
+
+5. **Paper config**
    - New file: `config/paper.yaml`
    - Separate from `config/live.yaml`
    - Paper allocation weights sum to 1.0 within the paper account.

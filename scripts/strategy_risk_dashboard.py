@@ -15,6 +15,7 @@ fetch market data, run event studies, or inspect future validation windows.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,10 @@ DEFAULT_PAPER_EVENTS = Path("reports/paper_events.jsonl")
 DEFAULT_PAPER_EQUITY = Path("reports/paper_equity.csv")
 DEFAULT_ATTRIBUTION = Path("reports/strategy_attribution.csv")
 DEFAULT_PAPER_ATTRIBUTION = Path("reports/paper_attribution.csv")
+DEFAULT_KILL_SWITCH_LOG = Path("reports/kill_switch_events.jsonl")
+DEFAULT_PAPER_KILL_SWITCH_LOG = Path("reports/paper_kill_switch_events.jsonl")
+DEFAULT_LIVE_ATTRIBUTION_ARCHIVE_DIR = Path("reports/live")
+DEFAULT_PAPER_ATTRIBUTION_ARCHIVE_DIR = Path("reports/paper")
 MAX_DRAWDOWN_PCT = -0.20
 
 
@@ -153,6 +158,73 @@ def write_attribution_csv(attribution: pd.DataFrame, path: str | Path) -> None:
     attribution.to_csv(output_path, index=False)
 
 
+def _archive_date() -> str:
+    return dt.date.today().isoformat()
+
+
+def archive_attribution_csv(
+    attribution: pd.DataFrame,
+    base_path: str | Path,
+    archive_dir: str | Path,
+) -> Path:
+    """Write a timestamped attribution copy without replacing the default export."""
+    base = Path(base_path)
+    archive_path = Path(archive_dir) / f"{base.stem}_{_archive_date()}{base.suffix}"
+    write_attribution_csv(attribution, archive_path)
+    return archive_path
+
+
+def _read_existing_kill_switch_log(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    keys: set[str] = set()
+    with path.open(encoding="utf-8") as f:
+        for line in f:
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            strategy = str(record.get("strategy", ""))
+            as_of = str(record.get("as_of", ""))
+            if strategy and as_of:
+                keys.add(f"{strategy}|{as_of}")
+    return keys
+
+
+def append_kill_switch_events(metrics: pd.DataFrame, path: str | Path) -> int:
+    """Append structured kill-switch breach events, avoiding duplicate daily entries."""
+    if metrics.empty:
+        return 0
+    breaches = metrics[metrics["kill_switch"]].copy()
+    if breaches.empty:
+        return 0
+
+    log_path = Path(path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = _read_existing_kill_switch_log(log_path)
+    appended = 0
+    as_of = _archive_date()
+
+    with log_path.open("a", encoding="utf-8") as f:
+        for _, row in breaches.iterrows():
+            key = f"{row['strategy']}|{as_of}"
+            if key in existing:
+                continue
+            event = {
+                "event": "kill_switch_breach",
+                "source": "strategy_risk_dashboard",
+                "as_of": as_of,
+                "strategy": str(row["strategy"]),
+                "max_drawdown": float(row["max_drawdown"]),
+                "reason": "max_drawdown <= -20% threshold",
+                "kill_switch": True,
+            }
+            f.write(json.dumps(event, sort_keys=True) + "\n")
+            existing.add(key)
+            appended += 1
+    return appended
+
+
 def strategy_metrics(events: pd.DataFrame, equity: pd.DataFrame) -> pd.DataFrame:
     attribution = strategy_daily_attribution(events, equity)
     if attribution.empty:
@@ -199,6 +271,8 @@ def print_report(
     events_path: Path,
     equity_path: Path,
     attribution_output: Path | None = None,
+    attribution_archive_dir: Path | None = None,
+    kill_switch_log: Path | None = None,
 ) -> None:
     events = load_events(events_path)
     equity = load_equity(equity_path)
@@ -206,14 +280,25 @@ def print_report(
     positions = open_positions(events)
     attribution = strategy_daily_attribution(events, equity)
     metrics = strategy_metrics(events, equity)
+    attribution_archive_output = None
     if attribution_output is not None:
         write_attribution_csv(attribution, attribution_output)
+        if attribution_archive_dir is not None:
+            attribution_archive_output = archive_attribution_csv(attribution, attribution_output, attribution_archive_dir)
 
     print(f"Strategy risk dashboard — events={events_path}, equity={equity_path}")
     print(f"Events loaded: {len(events):,}; equity rows: {len(equity):,}")
     print(f"Inferred allocation weights: {weights or 'n/a'}")
     if attribution_output is not None:
         print(f"Attribution export: {attribution_output} ({len(attribution):,} rows)")
+    if (
+        attribution_archive_output is not None
+        and Path(attribution_archive_output).resolve() != Path(attribution_output).resolve()
+    ):
+        print(f"Attribution archive: {attribution_archive_output} ({len(attribution):,} rows)")
+    if kill_switch_log is not None:
+        appended = append_kill_switch_events(metrics, kill_switch_log)
+        print(f"Kill-switch log: {kill_switch_log} ({appended} new events)")
     print()
 
     print("Open positions by strategy:")
@@ -257,9 +342,11 @@ def main() -> None:
     events_path = DEFAULT_PAPER_EVENTS if args.paper else args.events
     equity_path = DEFAULT_PAPER_EQUITY if args.paper else args.equity
     attribution_output = args.attribution_output
+    kill_switch_log = DEFAULT_PAPER_KILL_SWITCH_LOG if args.paper else DEFAULT_KILL_SWITCH_LOG
     if attribution_output is None:
         attribution_output = DEFAULT_PAPER_ATTRIBUTION if args.paper else DEFAULT_ATTRIBUTION
-    print_report(events_path, equity_path, attribution_output)
+    archive_dir = DEFAULT_PAPER_ATTRIBUTION_ARCHIVE_DIR if args.paper else DEFAULT_LIVE_ATTRIBUTION_ARCHIVE_DIR
+    print_report(events_path, equity_path, attribution_output, archive_dir, kill_switch_log)
 
 
 if __name__ == "__main__":
