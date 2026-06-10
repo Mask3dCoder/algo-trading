@@ -6,6 +6,7 @@ Reads the existing production/paper event and equity logs and prints:
   - daily return and cumulative return
   - Sharpe and max drawdown per strategy
   - strategies breaching the 20% Phase 4 drawdown kill-switch
+  - optional daily P&L attribution CSV export
 
 The script intentionally uses only logged/current-day information. It does not
 fetch market data, run event studies, or inspect future validation windows.
@@ -25,6 +26,8 @@ DEFAULT_EVENTS = Path("reports/live_events.jsonl")
 DEFAULT_EQUITY = Path("reports/live_equity.csv")
 DEFAULT_PAPER_EVENTS = Path("reports/paper_events.jsonl")
 DEFAULT_PAPER_EQUITY = Path("reports/paper_equity.csv")
+DEFAULT_ATTRIBUTION = Path("reports/strategy_attribution.csv")
+DEFAULT_PAPER_ATTRIBUTION = Path("reports/paper_attribution.csv")
 MAX_DRAWDOWN_PCT = -0.20
 
 
@@ -143,6 +146,13 @@ def strategy_daily_attribution(
     return pd.DataFrame(rows)
 
 
+def write_attribution_csv(attribution: pd.DataFrame, path: str | Path) -> None:
+    """Persist dashboard attribution rows for later review."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    attribution.to_csv(output_path, index=False)
+
+
 def strategy_metrics(events: pd.DataFrame, equity: pd.DataFrame) -> pd.DataFrame:
     attribution = strategy_daily_attribution(events, equity)
     if attribution.empty:
@@ -185,16 +195,25 @@ def strategy_metrics(events: pd.DataFrame, equity: pd.DataFrame) -> pd.DataFrame
     return pd.DataFrame(rows).sort_values("strategy")
 
 
-def print_report(events_path: Path, equity_path: Path) -> None:
+def print_report(
+    events_path: Path,
+    equity_path: Path,
+    attribution_output: Path | None = None,
+) -> None:
     events = load_events(events_path)
     equity = load_equity(equity_path)
     weights = infer_strategy_weights(events)
     positions = open_positions(events)
+    attribution = strategy_daily_attribution(events, equity)
     metrics = strategy_metrics(events, equity)
+    if attribution_output is not None:
+        write_attribution_csv(attribution, attribution_output)
 
     print(f"Strategy risk dashboard — events={events_path}, equity={equity_path}")
     print(f"Events loaded: {len(events):,}; equity rows: {len(equity):,}")
     print(f"Inferred allocation weights: {weights or 'n/a'}")
+    if attribution_output is not None:
+        print(f"Attribution export: {attribution_output} ({len(attribution):,} rows)")
     print()
 
     print("Open positions by strategy:")
@@ -224,6 +243,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--events", type=Path, default=DEFAULT_EVENTS)
     parser.add_argument("--equity", type=Path, default=DEFAULT_EQUITY)
     parser.add_argument("--paper", action="store_true", help="Use paper default log paths")
+    parser.add_argument(
+        "--attribution-output",
+        type=Path,
+        default=None,
+        help="CSV path for daily strategy attribution export",
+    )
     return parser.parse_args()
 
 
@@ -231,7 +256,10 @@ def main() -> None:
     args = parse_args()
     events_path = DEFAULT_PAPER_EVENTS if args.paper else args.events
     equity_path = DEFAULT_PAPER_EQUITY if args.paper else args.equity
-    print_report(events_path, equity_path)
+    attribution_output = args.attribution_output
+    if attribution_output is None:
+        attribution_output = DEFAULT_PAPER_ATTRIBUTION if args.paper else DEFAULT_ATTRIBUTION
+    print_report(events_path, equity_path, attribution_output)
 
 
 if __name__ == "__main__":

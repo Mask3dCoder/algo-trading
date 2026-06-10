@@ -40,6 +40,26 @@ def test_strategy_daily_attribution_uses_inferred_weights(tmp_path: Path) -> Non
     assert attribution.loc[attribution["strategy"] == "macro_carry", "allocation_weight"].iloc[0] == 0.75
 
 
+def test_strategy_attribution_export_writes_csv(tmp_path: Path) -> None:
+    attribution = pd.DataFrame(
+        [
+            {
+                "date": "2026-06-09",
+                "strategy": "equity_stat_arb",
+                "ret": 0.01,
+                "pnl": 10.0,
+                "allocation_weight": 0.5,
+            }
+        ]
+    )
+    output_path = tmp_path / "attribution.csv"
+
+    module.write_attribution_csv(attribution, output_path)
+
+    exported = pd.read_csv(output_path)
+    assert exported.equals(attribution)
+
+
 def test_strategy_metrics_detects_kill_switch_breach() -> None:
     metrics = module.strategy_metrics(
         events=pd.DataFrame(

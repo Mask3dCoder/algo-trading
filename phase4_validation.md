@@ -73,6 +73,86 @@ Paper period:
 - Config: `config/paper.yaml`
 - Mode: separate paper account, `single_share` scale mode, $10,000 paper capital
 
+## Monitoring cadence
+
+Daily:
+
+1. Run `python scripts/strategy_risk_dashboard.py --paper`.
+2. Confirm the kill-switch status is clean.
+3. Review open positions, inferred weights, daily return, cumulative return, Sharpe, and max drawdown.
+4. If a strategy breaches its drawdown limit, halt it and document the event. Do not tune parameters.
+
+Weekly:
+
+1. Append a short note to the log below.
+2. Include Sharpe, max drawdown, turnover/data-quality observations, and any notable behavior.
+3. Keep the note factual; do not reinterpret marginal results after seeing the paper P&L.
+
+Weekly paper-validation log:
+
+| Week ending | Sharpe | Max drawdown | Kill-switch status | Notes |
+|---|---:|---:|---|---|
+| 2026-06-14 | TBD | TBD | TBD | Initial monitoring week |
+| 2026-06-21 | TBD | TBD | TBD |  |
+| 2026-06-28 | TBD | TBD | TBD |  |
+| 2026-07-05 | TBD | TBD | TBD |  |
+| 2026-07-12 | TBD | TBD | TBD |  |
+| 2026-07-21 | TBD | TBD | TBD | Final 6-week review |
+
+## Paper live-graduation criteria
+
+A paper strategy may be considered for live graduation only after all criteria below are satisfied. These criteria are fixed before observing paper results.
+
+Minimum observation:
+
+- At least 4 weeks of paper trading; 6 weeks is preferred.
+- No parameter, threshold, or signal-code changes during the paper window.
+- No validation/test-window peeking; the paper window is the out-of-sample period.
+
+Performance and risk:
+
+- Annualized Sharpe > 0.5, or clearly positive versus the assigned benchmark if Sharpe is not meaningful.
+- Max drawdown < 15%.
+- No -20% kill-switch breach.
+- No unexplained P&L attribution gaps or missing event/equity logs.
+
+Operational quality:
+
+- No data-feed failures that corrupt signals.
+- No execution failures that materially distort fills or costs.
+- Average daily turnover remains within the strategy's documented expectation.
+- Open positions reconcile to expected symbols/notionals.
+- Any alert is reviewed and documented before graduation.
+
+Live rollout rule:
+
+- Even if all three paper strategies pass, graduate them one at a time.
+- Start with a small live weight, re-balance the existing `config/live.yaml` weights so the total remains exactly 1.0, and monitor interaction with the current live mix before scaling.
+
+## Next paper-validation pool
+
+Do not add the next batch until the current 4–6 week paper window is complete. The next pool should stay serial and uncontaminated.
+
+Candidate strategies with existing config files and walk-forward coverage:
+
+| Strategy | Phase | Diversification rationale | Watch item |
+|---|---|---|---|
+| `equity_mean_reversion` | CANDIDATE | Short-horizon reversal can diversify away from momentum and short-vol VRP | Path dependency and crowded reversal regimes |
+| `macro_risk_parity` | CANDIDATE | Risk-contribution allocation may diversify across macro regimes | Lower standalone alpha; needs real macro data checks |
+| `options_earnings_vol` | CANDIDATE | Event-driven options exposure can diversify away from VRP carry | Calendar/event controls must be strict |
+| `macro_cta_trend` | CANDIDATE | Crisis-diversifier profile; different driver from current VRP mix | Prior deployment notes flag real-data concerns |
+| `equity_trend_following` | CANDIDATE | Directional trend exposure; simple and interpretable | Can correlate with equity momentum in persistent trends |
+| `macro_vrp` | CANDIDATE | Existing macro/options config | Overlaps with current short-vol live strategies |
+| `equity_momentum` | CANDIDATE | Existing config and walk-forward coverage | Can correlate with broad risk-on regimes |
+
+Provisional next batch after the current paper window:
+
+1. `equity_mean_reversion` — diversifies away from momentum/VRP.
+2. `macro_risk_parity` — adds macro risk-budgeting behavior.
+3. `options_earnings_vol` — adds event-driven options behavior with strict calendar controls.
+
+If any current paper strategy breaches its kill-switch, keep the next batch blocked until the breach is reviewed and the paper-validation governance rule is reaffirmed.
+
 ## Risk controls added
 
 1. **Per-strategy drawdown kill-switch**
@@ -91,6 +171,7 @@ Paper period:
 3. **Console risk dashboard / P&L attribution**
    - New script: `scripts/strategy_risk_dashboard.py`
    - Reads existing event and equity logs.
+   - Exports daily attribution to CSV by default (`reports/strategy_attribution.csv`, or `reports/paper_attribution.csv` with `--paper`).
    - Reports:
      - open positions by strategy
      - inferred allocation weights
