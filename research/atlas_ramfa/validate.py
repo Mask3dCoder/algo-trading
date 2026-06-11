@@ -20,11 +20,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from quantcore.backtest.walk_forward import rolling_walk_forward
-from quantcore.risk.metrics import sharpe_ratio
-from quantcore.strategies.base import StrategyConfig, StrategyType
-from quantcore.strategies.equity.atlas_ramfa import AtlasRamfaStrategy
-
 
 def _synthetic_data(n_bars: int, n_assets: int, seed: int) -> dict[str, Any]:
     rng = np.random.default_rng(seed)
@@ -110,7 +105,10 @@ def _params() -> dict[str, float | int | str | bool]:
     }
 
 
-def _strategy(portfolio_value: float) -> AtlasRamfaStrategy:
+def _strategy(portfolio_value: float) -> Any:
+    from quantcore.strategies.base import StrategyConfig, StrategyType
+    from quantcore.strategies.equity.atlas_ramfa import AtlasRamfaStrategy
+
     cfg = StrategyConfig(
         name="atlas_ramfa_research_validation",
         strategy_type=StrategyType.EQUITY,
@@ -134,6 +132,8 @@ def _weights(signals: list[Any], portfolio_value: float) -> dict[str, float]:
 
 
 def _metrics(returns: NDArray[np.float64], equity: NDArray[np.float64]) -> dict[str, Any]:
+    from quantcore.risk.metrics import sharpe_ratio
+
     returns = np.asarray(returns, dtype=float)
     equity = np.asarray(equity, dtype=float)
     if len(returns) == 0:
@@ -152,7 +152,7 @@ def _metrics(returns: NDArray[np.float64], equity: NDArray[np.float64]) -> dict[
     peak = np.maximum.accumulate(equity)
     drawdown = (peak - equity) / np.where(peak > 0, peak, 1.0)
     return {
-        "n_periods": int(len(returns)),
+        "n_periods": len(returns),
         "total_return": total_return,
         "annual_return": float(annual_return),
         "volatility": volatility,
@@ -246,6 +246,8 @@ def _run_walk_forward(
     test_size: int,
     embargo_pct: float,
 ) -> list[dict[str, Any]]:
+    from quantcore.backtest.walk_forward import rolling_walk_forward
+
     n_bars = int(np.asarray(data["close"]).shape[0])
     folds = rolling_walk_forward(
         n_bars, train_size=train_size, test_size=test_size, embargo_pct=embargo_pct
@@ -348,6 +350,8 @@ def _transaction_cost_sensitivity(
     test_size: int,
     embargo_pct: float,
 ) -> list[dict[str, Any]]:
+    from quantcore.risk.metrics import sharpe_ratio
+
     scenarios = [0.0, 5.0, 10.0, 20.0, 40.0]
     rows: list[dict[str, Any]] = []
     for cost_bps in scenarios:
@@ -380,6 +384,8 @@ def _transaction_cost_sensitivity(
 
 
 def _run_validation(args: argparse.Namespace) -> dict[str, Any]:
+    from quantcore.risk.metrics import sharpe_ratio
+
     data = _synthetic_data(args.n_bars, args.n_assets, args.seed)
     portfolio_value = args.portfolio_value
     pit = _run_backtest(
@@ -436,7 +442,7 @@ def _run_validation(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "strategy": "atlas_ramfa",
         "status": "RESEARCH",
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),  # noqa: UP017
         "point_in_time_backtest": {
             "uses_expanding_slices": True,
             "lagged_execution": True,

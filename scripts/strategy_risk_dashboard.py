@@ -327,7 +327,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Phase 4 strategy risk dashboard")
     parser.add_argument("--events", type=Path, default=DEFAULT_EVENTS)
     parser.add_argument("--equity", type=Path, default=DEFAULT_EQUITY)
-    parser.add_argument("--paper", action="store_true", help="Use paper default log paths")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--paper", action="store_true", help="Use paper default log paths")
+    mode.add_argument("--live", action="store_true", help="Use live default log paths")
     parser.add_argument(
         "--attribution-output",
         type=Path,
