@@ -22,7 +22,7 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install -e ".[dev,stats,viz]"
+        run: pip install -e ".[dev,stats,viz,data]"
 
       - name: Lint (ruff)
         run: ruff check quantcore/ tests/ --exit-zero
@@ -40,6 +40,9 @@ jobs:
           --cov=quantcore
           --cov-report=xml
           --cov-report=term-missing
+
+      - name: Runtime evidence gate
+        run: python scripts/validate_all_strategies.py --quick --enforce-runtime-gate
 
       - name: Test summary
         if: always()

@@ -1,5 +1,5 @@
 schema_version: 1
-updated_at: '2026-06-09'
+updated_at: '2026-06-12'
 phase: Phase 4 - Production Risk Controls
 runtime_policy:
   allowed_live_config_statuses:
@@ -267,16 +267,17 @@ strategies:
     paper_end_date: null
     notes: Registered/importable but not selected for immediate Phase 4 validation.
   macro_carry:
-    phase: PAPER
+    phase: CANDIDATE
     family: macro
     config_file: config/strategies/macro_carry.toml
     live_weight: null
-    paper_allocation_weight: 0.3333333333333333
-    paper_risk_budget_weight: 0.015
-    paper_start_date: '2026-06-09'
-    paper_end_date: '2026-07-21'
-    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
-      allowed.
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
+    paper_start_date: null
+    paper_end_date: null
+    notes: Downgraded on 2026-06-12 after quick validation showed OOS Sharpe -1.82
+      and CI lower -3.05. Not eligible for paper/live graduation; explicit
+      runtime-evidence waiver may allow temporary risk-control observation only.
   macro_carry_trend_filter:
     phase: INACTIVE
     family: macro

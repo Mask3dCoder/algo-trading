@@ -38,6 +38,7 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -51,6 +52,7 @@ DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "live.yaml"
 PAPER_CONFIG_PATH = PROJECT_ROOT / "config" / "paper.yaml"
 LIVE_REPORTS_DIR = PROJECT_ROOT / "reports"
 PAPER_REPORTS_DIR = PROJECT_ROOT / "reports"
+LIVE_FILL_WINDOW_DAYS = 5
 
 
 @dataclass(frozen=True)
@@ -183,6 +185,55 @@ def load_events(path: Path) -> list[dict]:
             except json.JSONDecodeError:
                 continue
     return events
+
+
+def _event_timestamp(event: dict) -> Any:
+    """Parse an event timestamp, returning NaT when unavailable or invalid."""
+    raw_ts = event.get("timestamp")
+    if raw_ts is None:
+        return pd.NaT
+    try:
+        return pd.to_datetime(raw_ts, utc=True, errors="coerce")
+    except (TypeError, ValueError):
+        return pd.NaT
+
+
+def check_live_strategy_fill_activity(
+    strategies: list[dict],
+    events: list[dict],
+    window_days: int = LIVE_FILL_WINDOW_DAYS,
+) -> list[str]:
+    """Return alerts for LIVE strategies with zero fills in the rolling window."""
+    if not strategies:
+        return []
+
+    cutoff = datetime.now(tz=UTC) - pd.Timedelta(days=window_days)
+    fill_events = [
+        event
+        for event in events
+        if event.get("event") in {"fill", "close"} and event.get("strategy")
+    ]
+    alerts: list[str] = []
+
+    for strategy in strategies:
+        name = str(strategy.get("name", "")).strip()
+        if not name:
+            continue
+        recent_fills = [
+            event
+            for event in fill_events
+            if event.get("strategy") == name and _event_timestamp(event) >= cutoff
+        ]
+        if not recent_fills:
+            alerts.append(f"{name}: zero fills in rolling {window_days}-day window")
+
+    return alerts
+
+
+def _combine_status(current: str, candidate: str) -> str:
+    """Return the more severe status."""
+    severity = {"OK": 0, "INSUFFICIENT_DATA": 1, "WARNING": 2, "CRITICAL": 3}
+    return candidate if severity.get(candidate, 0) > severity.get(current, 0) else current
 
 
 def load_backtest_targets(strategy_name: str) -> dict | None:
@@ -747,6 +798,7 @@ def main() -> int:
 
     # ---- 5. Check fill events ----
     fill_info = check_fill_events(events)
+    fill_alerts = [] if args.paper else check_live_strategy_fill_activity(strategies, events)
 
     # ---- 6. Per-strategy status ----
     strategy_metrics_list: list[dict] = []
@@ -781,6 +833,9 @@ def main() -> int:
         if strategies:
             bt_portfolio = load_backtest_targets(strategies[0]["name"])
         status, reasons = evaluate_status(metrics, bt_portfolio)
+        if fill_alerts:
+            status = _combine_status(status, "WARNING")
+            reasons.extend(fill_alerts)
         print(format_status_line(status, metrics))
         for r in reasons:
             print(f"  {r}")
@@ -791,6 +846,8 @@ def main() -> int:
     print(f"  Fills: {fill_info['recent_fills']} recent / {fill_info['total_fills']} total")
     if fill_info["warning"]:
         print(f"  {fill_info['message']}")
+    for alert in fill_alerts:
+        print(f"  FILL ALERT: {alert}")
 
     # ---- 9. Log to CSV and attribution snapshot ----
     append_monitor_log(status, metrics, fill_info, strategy_metrics_list, paths.monitor_log)

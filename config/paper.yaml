@@ -1,5 +1,5 @@
 # QuantCore Phase 4 Paper Validation Configuration
-# Updated: 2026-06-09
+# Updated: 2026-06-12
 #
 # Purpose:
 #   Parallel paper validation for non-live strategies selected from the
@@ -39,7 +39,7 @@ strategies:
   - name: equity_stat_arb
     enabled: true
     paper: true
-    allocation_weight: 0.333333
+    allocation_weight: 0.500000
     risk_budget_weight: 0.015
     data_source: alpaca_daily
     strategy_type: EQUITY
@@ -55,29 +55,10 @@ strategies:
       max_pairs: 10
       rescan_freq: 63
 
-  - name: macro_carry
-    enabled: true
-    paper: true
-    allocation_weight: 0.333334
-    risk_budget_weight: 0.015
-    data_source: alpaca_daily
-    strategy_type: MACRO
-    circuit_breaker:
-      max_daily_loss_pct: 0.01
-      max_drawdown_pct: 0.20
-    params:
-      n_long: 3
-      n_short: 3
-      vol_target: 0.10
-      vol_lookback: 60
-      carry_smoothing: 21
-      rebalance_freq: 21
-      carry_adjustment: true
-
   - name: options_tail_hedge
     enabled: true
     paper: true
-    allocation_weight: 0.333333
+    allocation_weight: 0.500000
     risk_budget_weight: 0.015
     data_source: yfinance_vix
     strategy_type: OPTIONS

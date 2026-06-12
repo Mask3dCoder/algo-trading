@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.monitor_paper_trading import (  # noqa: E402
+    check_live_strategy_fill_activity,
     load_config,
     parse_args,
     resolve_paths,
@@ -39,7 +41,6 @@ def test_load_config_reads_paper_strategies() -> None:
 
     assert [strategy["name"] for strategy in strategies] == [
         "equity_stat_arb",
-        "macro_carry",
         "options_tail_hedge",
     ]
 
@@ -73,3 +74,22 @@ def test_write_attribution_snapshot_empty_when_no_equity(tmp_path: Path) -> None
     assert output.read_text(encoding="utf-8").splitlines() == [
         "date,strategy,ret,pnl,allocation_weight,status"
     ]
+
+
+def test_check_live_strategy_fill_activity_alerts_zero_fills() -> None:
+    now = datetime.now(tz=UTC).isoformat()
+    strategies = [{"name": "opening_gap_fade", "allocation_weight": 0.1}]
+    events = [
+        {
+            "event": "fill",
+            "strategy": "opening_gap_fade",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+    ]
+
+    alerts = check_live_strategy_fill_activity(strategies, events, window_days=5)
+
+    assert alerts == ["opening_gap_fade: zero fills in rolling 5-day window"]
+
+    recent_events = [*events, {"event": "fill", "strategy": "opening_gap_fade", "timestamp": now}]
+    assert check_live_strategy_fill_activity(strategies, recent_events, window_days=5) == []

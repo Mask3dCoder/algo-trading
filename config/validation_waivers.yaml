@@ -1,0 +1,23 @@
+# Explicit exceptions to the runtime evidence gate.
+#
+# The gate blocks PAPER/LIVE strategies unless their walk-forward validation has:
+#   - finite OOS Sharpe
+#   - at least one trade
+#   - 90% bootstrap CI lower bound > 0
+#
+# Waivers must be time-boxed, owner-documented, and reviewed before expiry.
+# They do not make a strategy eligible for live graduation; they only allow the
+# system to keep running while the issue is investigated.
+schema_version: 1
+updated_at: '2026-06-12'
+waivers:
+  macro_carry:
+    gate: runtime_evidence_gate
+    reason: >-
+      Quick validation shows weak OOS evidence (reported OOS Sharpe -1.82 and CI
+      lower -3.05). macro_carry is not on a graduation track; this waiver only
+      allows continued paper risk-control observation while the signal and data
+      pipeline are reviewed.
+    owner: QuantCore Team
+    expires_on: '2026-07-21'
+    review_before_expiry: true

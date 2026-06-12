@@ -16,7 +16,7 @@ Only four strategies are live/paper-production enabled in `config/live.yaml`, an
 | `options_iron_condor` | MONITOR | 0.061 |
 | `opening_gap_fade` | KEEP | 0.100 |
 
-This Phase 4 change adds a **separate paper-validation config** for three non-live strategies. It does **not** alter `config/live.yaml` or live allocations.
+This Phase 4 change adds a **separate paper-validation config** for two non-live strategies. It does **not** alter `config/live.yaml` or live allocations.
 
 ## H001 OPRA flow deferral
 
@@ -40,7 +40,7 @@ The following registered, walk-forward-tested strategies have config files and a
 | `equity_momentum` | Equity | Directional cross-sectional momentum | Moderate equity-market exposure; can correlate with broad risk-on regimes |
 | `equity_mean_reversion` | Equity | Short-horizon reversal/mean-reversion | Potentially diversifying vs momentum, but more path-dependent |
 | `equity_trend_following` | Equity | Directional trend exposure | Can correlate with equity momentum in persistent trends |
-| `macro_carry` | Macro | Carry premia across macro assets | Diversifying vs options VRP; different driver than equity factors |
+| `macro_carry` | Macro | Carry premia across macro assets | Downgraded from PAPER to CANDIDATE on 2026-06-12 after weak OOS evidence |
 | `macro_cta_trend` | Macro | Trend following across macro assets | Historically useful crisis diversifier, but real-data diagnostics require caution |
 | `macro_risk_parity` | Macro | Risk-contribution allocation | Diversifying in calm regimes; lower expected alpha as standalone strategy |
 | `macro_vrp` | Macro/options | Volatility risk premium signal | Overlaps with current short-vol live strategies |
@@ -53,16 +53,16 @@ Selected batch for the initial 6-week paper window:
 
 | Strategy | Allocation in paper config | Risk-budget reservation | Rationale |
 |---|---:|---:|---|
-| `equity_stat_arb` | 33.3333% | 1.5% | Existing config; market-neutral equity/stat-arb profile; diversifies away from short-vol options |
-| `macro_carry` | 33.3334% | 1.5% | Existing config; macro carry driver; diversifies away from equity/intraday/options VRP |
-| `options_tail_hedge` | 33.3333% | 1.5% | Existing config; long-vol hedge profile; expected low/negative correlation to current short-vol live strategies |
+| `equity_stat_arb` | 50.0000% | 1.5% | Existing config; market-neutral equity/stat-arb profile; diversifies away from short-vol options |
+| `options_tail_hedge` | 50.0000% | 1.5% | Existing config; long-vol hedge profile; expected low/negative correlation to current short-vol live strategies |
 
 Rationale:
 
-- All three have existing config files.
-- All three are registered and walk-forward tested.
-- None are currently enabled in `config/live.yaml`.
-- The batch adds equity/stat-arb, macro carry, and long-vol hedge exposure rather than increasing concentration in the current short-vol VRP mix.
+- Both have existing config files.
+- Both are registered and walk-forward tested.
+- Neither is currently enabled in `config/live.yaml`.
+- The batch adds equity/stat-arb and long-vol hedge exposure rather than increasing concentration in the current short-vol VRP mix.
+- `macro_carry` was downgraded from `PAPER` to `CANDIDATE` on 2026-06-12 after quick validation showed OOS Sharpe `-1.82` and CI lower `-3.05`; it is not on a graduation track.
 - `macro_cta_trend` remains deferred for a later review because prior deployment notes flag real-data concerns despite walk-forward coverage.
 
 Paper period:
@@ -142,7 +142,6 @@ Strategy performance:
 | Strategy | Cumulative return | Sharpe | Max drawdown | Status |
 |---|---:|---:|---:|---|
 | equity_stat_arb | TBD | TBD | TBD | running / halted / review |
-| macro_carry | TBD | TBD | TBD | running / halted / review |
 | options_tail_hedge | TBD | TBD | TBD | running / halted / review |
 
 Kill-switch events:
@@ -177,6 +176,7 @@ Minimum observation:
 Performance and risk:
 
 - Annualized Sharpe > 0.5, or clearly positive versus the assigned benchmark if Sharpe is not meaningful.
+- Walk-forward/OOS Sharpe 90% bootstrap CI lower bound must be > 0 for any strategy being proposed as `PAPER` or `LIVE`, unless a time-boxed waiver is documented in `config/validation_waivers.yaml`.
 - Max drawdown < 15%.
 - No -20% kill-switch breach.
 - No unexplained P&L attribution gaps or missing event/equity logs.
@@ -186,12 +186,13 @@ Operational quality:
 - No data-feed failures that corrupt signals.
 - No execution failures that materially distort fills or costs.
 - Average daily turnover remains within the strategy's documented expectation.
+- Any `LIVE` strategy with zero fills in the rolling 5-day monitoring window must raise an alert and be reviewed before graduation.
 - Open positions reconcile to expected symbols/notionals.
 - Any alert is reviewed and documented before graduation.
 
 Live rollout rule:
 
-- Even if all three paper strategies pass, graduate them one at a time.
+- Even if all paper strategies pass, graduate them one at a time.
 - Start with a small live weight, re-balance the existing `config/live.yaml` weights so the total remains exactly 1.0, and monitor interaction with the current live mix before scaling.
 
 ## Next paper-validation pool
@@ -233,7 +234,13 @@ If any current paper strategy breaches its kill-switch, keep the next batch bloc
    - Live config should load `LIVE` strategies only.
    - Paper config should load `PAPER` strategies only.
 
-3. **Console risk dashboard / P&L attribution**
+3. **Runtime evidence gate**
+   - New guard in `scripts/validate_all_strategies.py`
+   - CI can run `python scripts/validate_all_strategies.py --quick --enforce-runtime-gate`.
+   - PAPER/LIVE strategies fail the gate when OOS Sharpe is NaN, trades are zero, or the 90% bootstrap CI lower bound is <= 0.
+   - Exceptions require a documented, time-boxed waiver in `config/validation_waivers.yaml`.
+
+4. **Console risk dashboard / P&L attribution**
    - New script: `scripts/strategy_risk_dashboard.py`
    - Reads existing event and equity logs.
    - Exports daily attribution to CSV by default (`reports/strategy_attribution.csv`, or `reports/paper_attribution.csv` with `--paper`).
@@ -248,13 +255,18 @@ If any current paper strategy breaches its kill-switch, keep the next batch bloc
      - max drawdown
      - 20% kill-switch breaches
 
-4. **Rolling correlation monitor**
+5. **Rolling correlation monitor**
    - New script: `scripts/correlation_monitor.py`
    - Reads attribution CSV exports and computes rolling pairwise strategy-return correlations.
    - Prints an alert when any pair exceeds the configured threshold, defaulting to 0.8 over 20 days.
    - This is an observability alarm only; it does not change allocations or strategy behavior.
 
-5. **Paper config**
+7. **Rolling fill-activity guard**
+   - Daily monitoring now checks whether any enabled `LIVE` strategy has zero fills in the rolling 5-day window.
+   - The alert is printed by the monitoring script and included in Telegram alerts when configured.
+   - This is a red flag for a live strategy, especially for `opening_gap_fade` while its intraday data pipeline is being verified.
+
+8. **Paper config**
    - New file: `config/paper.yaml`
    - Separate from `config/live.yaml`
    - Paper allocation weights sum to 1.0 within the paper account.

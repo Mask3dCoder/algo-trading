@@ -19,6 +19,7 @@ Outputs:
 Usage:
     python scripts/validate_all_strategies.py
     python scripts/validate_all_strategies.py --quick    # fewer bootstraps
+    python scripts/validate_all_strategies.py --quick --enforce-runtime-gate  # CI gate
 """
 
 from __future__ import annotations
@@ -28,16 +29,23 @@ import sys
 import time
 import traceback
 import warnings
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import numpy as np
-import pandas as pd
+DEFAULT_STATUS_PATH = REPO_ROOT / "strategy_status.yaml"
+DEFAULT_WAIVERS_PATH = REPO_ROOT / "config" / "validation_waivers.yaml"
+RUNTIME_EVIDENCE_GATE = "runtime_evidence_gate"
+RUNTIME_PHASES = {"PAPER", "LIVE"}
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -702,6 +710,125 @@ def _triage(result: StrategyResult) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Runtime evidence gate
+# ---------------------------------------------------------------------------
+
+
+def _load_yaml_mapping(path: Path) -> dict[str, Any]:
+    """Load a YAML mapping, returning an empty dict when the file is absent."""
+    if not path.exists():
+        return {}
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML root must be a mapping: {path}")
+    return data
+
+
+def _load_strategy_phases(status_path: Path = DEFAULT_STATUS_PATH) -> dict[str, str]:
+    """Load strategy phases from strategy_status.yaml."""
+    status_data = _load_yaml_mapping(status_path)
+    strategies = status_data.get("strategies", {})
+    if not isinstance(strategies, dict):
+        return {}
+    phases: dict[str, str] = {}
+    for name, record in strategies.items():
+        if isinstance(record, dict) and record.get("phase") is not None:
+            phases[str(name)] = str(record["phase"])
+    return phases
+
+
+def _load_waivers(waivers_path: Path = DEFAULT_WAIVERS_PATH) -> dict[str, dict[str, Any]]:
+    """Load validation waivers keyed by strategy id."""
+    waiver_data = _load_yaml_mapping(waivers_path)
+    waivers = waiver_data.get("waivers", {})
+    if not isinstance(waivers, dict):
+        return {}
+    return {str(name): waiver for name, waiver in waivers.items() if isinstance(waiver, dict)}
+
+
+def _waiver_is_active(waiver: dict[str, Any]) -> bool:
+    """Return whether a waiver is still within its documented validity window."""
+    expires_on = waiver.get("expires_on") or waiver.get("allowed_until")
+    if expires_on is None:
+        return True
+    try:
+        expiry = datetime.fromisoformat(str(expires_on)).date()
+    except ValueError:
+        return True
+    return expiry >= datetime.now().date()
+
+
+def _waiver_covers_gate(waiver: dict[str, Any], gate: str) -> bool:
+    """Return whether a waiver covers a specific validation gate."""
+    gates = waiver.get("gates") or waiver.get("scope") or waiver.get("gate") or []
+    if isinstance(gates, str):
+        gates = [gates]
+    if not isinstance(gates, list):
+        return False
+    normalized = {str(item).lower() for item in gates}
+    return gate.lower() in normalized or "all" in normalized
+
+
+def _runtime_evidence_failures(result: StrategyResult) -> list[str]:
+    """Return evidence failures for a PAPER/LIVE strategy."""
+    failures: list[str] = []
+    if result.status != "ok":
+        failures.append(f"validation status is {result.status}")
+        if result.error:
+            failures.append(f"error: {result.error}")
+        return failures
+    if not np.isfinite(result.oos_sharpe):
+        failures.append("OOS Sharpe is NaN or non-finite")
+    if result.n_trades <= 0:
+        failures.append("zero trades")
+    if not np.isfinite(result.ci_lower_90):
+        failures.append("CI lower bound is NaN or non-finite")
+    elif result.ci_lower_90 <= 0:
+        failures.append(f"CI lower bound {result.ci_lower_90:.4f} <= 0")
+    return failures
+
+
+def runtime_evidence_gate_failures(
+    results: list[StrategyResult],
+    status_path: Path = DEFAULT_STATUS_PATH,
+    waivers_path: Path = DEFAULT_WAIVERS_PATH,
+) -> list[str]:
+    """Fail PAPER/LIVE strategies that lack positive OOS Sharpe evidence.
+
+    Waivers are intentionally explicit and documented in config/validation_waivers.yaml.
+    """
+    phases = _load_strategy_phases(status_path)
+    waivers = _load_waivers(waivers_path)
+    failures: list[str] = []
+    for result in results:
+        phase = phases.get(result.strategy_id)
+        if phase not in RUNTIME_PHASES:
+            continue
+        evidence_failures = _runtime_evidence_failures(result)
+        if not evidence_failures:
+            continue
+        waiver = waivers.get(result.strategy_id, {})
+        if _waiver_is_active(waiver) and _waiver_covers_gate(waiver, RUNTIME_EVIDENCE_GATE):
+            continue
+        failures.append(
+            f"{result.strategy_id} ({phase}): "
+            + "; ".join(evidence_failures)
+            + ". Add a documented waiver in config/validation_waivers.yaml only while under review."
+        )
+    return failures
+
+
+def print_runtime_evidence_warnings(results: list[StrategyResult]) -> None:
+    """Print non-blocking warnings for PAPER/LIVE evidence failures."""
+    failures = runtime_evidence_gate_failures(results)
+    if not failures:
+        return
+    print("\nRuntime evidence warnings:")
+    for failure in failures:
+        print(f"  WARNING: {failure}")
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
 
@@ -912,6 +1039,7 @@ def _save_scoreboard_md(results: list[StrategyResult], path: Path) -> None:
         "- Costs: 5 bps half-spread + commission per turnover",
         "- Bootstrap: 2000 replications, block length = 63 days",
         "- DSR: conservatively assumes N_strategies + 10 prior trials",
+        "- Runtime gate: PAPER/LIVE strategies require finite OOS Sharpe, >0 trades, and CI lower > 0 unless waived",
         "- Options strategies excluded (require options chain data)",
     ])
 
@@ -982,6 +1110,23 @@ def main() -> None:
     parser.add_argument("--quick", action="store_true", help="Fewer bootstraps (200 vs 2000)")
     parser.add_argument("--start", default="2018-01-01", help="Start date")
     parser.add_argument("--end", default="2024-12-31", help="End date")
+    parser.add_argument(
+        "--enforce-runtime-gate",
+        action="store_true",
+        help="Fail when any PAPER/LIVE strategy has NaN Sharpe, zero trades, or CI lower <= 0 unless waived.",
+    )
+    parser.add_argument(
+        "--status-path",
+        type=Path,
+        default=DEFAULT_STATUS_PATH,
+        help="strategy_status.yaml path",
+    )
+    parser.add_argument(
+        "--waivers-path",
+        type=Path,
+        default=DEFAULT_WAIVERS_PATH,
+        help="Validation waiver YAML path",
+    )
     args = parser.parse_args()
 
     import logging
@@ -996,6 +1141,19 @@ def main() -> None:
     _save_scoreboard_json(results, reports_dir / "strategy_scoreboard.json")
     _save_scoreboard_md(results, reports_dir / "strategy_scoreboard.md")
     _save_triage_md(results, reports_dir / "strategy_triage.md")
+
+    failures = runtime_evidence_gate_failures(
+        results,
+        status_path=args.status_path,
+        waivers_path=args.waivers_path,
+    )
+    if failures:
+        print("\nRuntime evidence warnings:")
+        for failure in failures:
+            print(f"  WARNING: {failure}")
+        if args.enforce_runtime_gate:
+            print("\nRuntime evidence gate FAILED; refusing to pass CI.")
+            sys.exit(1)
 
     # Summary
     n_keep = sum(1 for r in results if r.triage == "KEEP")
