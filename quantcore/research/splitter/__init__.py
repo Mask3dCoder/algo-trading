@@ -1,0 +1,1 @@
+"""Research governance: hypothesis registry, trials ledger, and data isolation."""
