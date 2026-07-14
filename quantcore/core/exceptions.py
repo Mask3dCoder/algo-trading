@@ -27,6 +27,10 @@ class DataQualityError(DataError):
     """Data quality check failed."""
 
 
+class DataQualityViolation(DataQualityError):
+    """Market data failed a hard numerical sanity check."""
+
+
 class ExecutionError(QuantCoreError):
     """Order execution or broker communication error."""
 
