@@ -137,6 +137,12 @@ def cmd_live(args: argparse.Namespace) -> int:
         rebalance=RebalanceConfig(trigger=RebalanceTrigger.SCHEDULE) if args.rebalance else None,
     )
 
+    if args.broker != "paper" and not getattr(args, "override_live_safety", False):
+        print("\n[CRITICAL SAFETY LOCK] Live trading is currently DISABLED due to forensic audit.")
+        print("To run in production mode, you must explicitly pass --override-live-safety")
+        print("Continuing in paper trading mode instead...\n")
+        args.broker = "paper"
+
     runner = LiveRunner(config=config)
 
     def on_state_change(old, new):
@@ -310,6 +316,7 @@ def main() -> int:
     # ----- live -----
     live = sub.add_parser("live", help="Start live trading")
     live.add_argument("--broker", default="paper", choices=("paper", "alpaca", "ibkr"), help="Broker (default: paper)")
+    live.add_argument("--override-live-safety", action="store_true", help="DANGER: Override the safety lock and allow live trading")
     live.add_argument("--heartbeat", type=float, default=1.0, help="Heartbeat interval in seconds")
     live.add_argument("--max-daily-loss", type=float, default=0.03, help="Max daily loss fraction (default: 0.03)")
     live.add_argument("--max-position-pct", type=float, default=0.10, help="Max position size fraction")
