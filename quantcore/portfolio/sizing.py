@@ -266,3 +266,134 @@ def optimal_f(
             best_f = f
 
     return best_f
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Vol-Targeting for Options (Audit Mandate 2026-07-12, Phase 6)
+# ---------------------------------------------------------------------------
+
+
+def compute_ewma_vol(returns: NDArray[np.floating], span: int = 20) -> float:
+    """Annualized EWMA volatility of a daily return series.
+
+    Uses a RiskMetrics-style exponentially-weighted variance with decay
+    ``lambda = (span - 1) / (span + 1)`` (pandas ``ewm(span=...)`` convention),
+    then annualizes by sqrt(252).
+
+    Returns ``nan`` when there are too few observations to estimate vol.
+    """
+    r = np.asarray(returns, dtype=float)
+    r = r[np.isfinite(r)]
+    if r.size < 2:
+        return float("nan")
+    lam = (span - 1.0) / (span + 1.0)
+    weights = lam ** np.arange(r.size - 1, -1, -1)
+    weights /= weights.sum()
+    mean = float(np.dot(weights, r))
+    var = float(np.dot(weights, (r - mean) ** 2))
+    if var <= 0:
+        return float("nan")
+    return float(np.sqrt(var) * np.sqrt(252.0))
+
+
+def calculate_contract_size(
+    capital: float,
+    returns: NDArray[np.floating],
+    current_underlying_price: float,
+    *,
+    target_annual_vol: float = 0.12,
+    vix_close: float | None = None,
+    risk_per_trade_pct: float = 0.02,
+    span: int = 20,
+    max_contracts: int = 50,
+) -> int:
+    """Volatility-aware option contract sizing.
+
+    Sizing scales INVERSELY with recent realized volatility so that dollar risk
+    stays near ``target_annual_vol``.  A VIX term-structure adjustment shrinks
+    size further when the VIX prints above realized (stress / backwardation).
+
+        scaling_factor = target_annual_vol / realized_vol
+        base_notional  = capital * risk_per_trade_pct
+        contracts      = int(base_notional * scaling_factor / (price * 100))
+
+    Args:
+        capital: Deployable capital.
+        returns: Daily returns of the underlying (for EWMA realized vol).
+        current_underlying_price: Spot price of the underlying (e.g. SPY).
+        target_annual_vol: Target annualized volatility (default 12%).
+        vix_close: Latest VIX close (as a fraction, e.g. 0.18 for 18). If given
+            as points (>1.5) it is auto-scaled to a fraction.
+        risk_per_trade_pct: Base notional as a fraction of capital (default 2%).
+        span: EWMA span for realized vol (default 20 trading days).
+        max_contracts: Hard cap on contracts (sanity clamp).
+
+    Returns:
+        Number of contracts (minimum 1).
+    """
+    if capital <= 0 or current_underlying_price <= 0:
+        return 1
+
+    realized_vol = compute_ewma_vol(returns, span=span)
+    if not np.isfinite(realized_vol) or realized_vol <= 1e-6:
+        realized_vol = target_annual_vol  # neutral fallback -> scaling ~1x
+
+    scaling_factor = target_annual_vol / realized_vol
+
+    # VIX term-structure haircut: if forward-looking VIX exceeds trailing
+    # realized vol, the market is pricing stress -> reduce size proportionally.
+    if vix_close is not None and vix_close > 0:
+        vix_frac = vix_close / 100.0 if vix_close > 1.5 else float(vix_close)
+        if vix_frac > realized_vol > 0:
+            scaling_factor *= realized_vol / vix_frac
+
+    scaling_factor = float(np.clip(scaling_factor, 0.1, 3.0))
+
+    base_notional = capital * risk_per_trade_pct
+    contracts = int(base_notional * scaling_factor / (current_underlying_price * 100.0))
+    return max(1, min(contracts, max_contracts))
+
+
+# ---------------------------------------------------------------------------
+# Equity Market-Neutral Sizing (Phase 8)
+# ---------------------------------------------------------------------------
+
+def calculate_equity_size(
+    capital: float,
+    target_vol: float = 0.12,
+    realized_vol: float = 0.15,
+    n_stocks: int = 50,
+) -> float:
+    """Volatility-scaled equal-notional sizing for an equity long/short sleeve.
+
+    Per-name notional = (capital * 0.02) / n_stocks, scaled by the ratio
+    ``target_vol / realized_vol`` (inverse to realized risk) and floored/capped so
+    the combined gross notional can never exceed the deployable capital.
+
+    NOTE: The equity_factor_neutral strategy runs its first backtest with plain
+    equal-weighted notional (gross = ``gross_target * capital``) and a hard 2%
+    per-name cap. This helper is the optional vol-targeting overlay; wire it in
+    once the base walk-forward is green.
+
+    Args:
+        capital: Deployable capital.
+        target_vol: Target annualized volatility of the sleeve (default 12%).
+        realized_vol: Recent realized annualized vol of the sleeve/spread.
+        n_stocks: Total names on BOTH sides (longs + shorts).
+
+    Returns:
+        Notional dollars per stock (>= 0).
+    """
+    if capital <= 0 or n_stocks <= 0:
+        return 0.0
+
+    base = (capital * 0.02) / n_stocks
+    if realized_vol and realized_vol > 0:
+        vol_scale = target_vol / float(realized_vol)
+    else:
+        vol_scale = 1.0
+    vol_scale = float(np.clip(vol_scale, 0.1, 3.0))
+
+    notional = base * vol_scale
+    # Hard cap: one side's notional must not exceed 95% of capital / n_stocks.
+    return min(notional, capital * 0.95 / n_stocks)
