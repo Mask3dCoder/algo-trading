@@ -59,7 +59,9 @@ class DeltaNeutralStrategy(Strategy):
         iv_min, iv_max = np.min(valid), np.max(valid)
         if iv_max - iv_min < 1e-10:
             return 55.0  # flat IV → still likely VRP present
-        return float((iv_history[-1] - iv_min) / (iv_max - iv_min) * 100)
+        # Use the most recent *valid* IV (iv_history[-1] may be NaN after filtering)
+        last_iv = float(valid[-1])
+        return float((last_iv - iv_min) / (iv_max - iv_min) * 100)
 
     def _compute_greeks(
         self,

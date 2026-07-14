@@ -92,7 +92,7 @@ def generate_synthetic_iv(
         VIX-dependent VRP scaling.  If False, use the flat premium model.
     """
     if use_enhanced:
-        from quantcore.data.vol_surface import VolatilitySurface, generate_enhanced_synthetic_iv
+        from quantcore.data.vol_surface import generate_enhanced_synthetic_iv
         return generate_enhanced_synthetic_iv(
             close, lookback=lookback, vix_series=vix_series, use_skew=True,
         )
@@ -150,6 +150,7 @@ class CondorTrade:
     closed: bool = False
     close_date: date | None = None
     close_reason: str = ""
+    daily_mtm_history: dict[date, float] = field(default_factory=dict, repr=False)
     # Contract identifiers for real-data mode
     sp_contract: dict | None = field(default=None, repr=False)
     lp_contract: dict | None = field(default=None, repr=False)
@@ -334,6 +335,7 @@ class IronCondorVRP:
             commission_per_contract=commission_per_contract,
             slippage_pct=spread_bps / 100.0,
             options_loader=self._options_loader,
+            start=start,
         )
 
         # Trim to [start, end] only
@@ -564,6 +566,7 @@ class IronCondorVRP:
         commission_per_contract: float,
         slippage_pct: float,
         options_loader: OptionsDataLoader | PolygonOptionsDataLoader | None = None,
+        start: pd.Timestamp | None = None,
     ) -> tuple[list[CondorTrade], list[tuple[date, float]], list[float], list[float]]:
         """Core simulation loop.  Returns (trades, equity_curve, daily_returns, daily_turnover).
 
@@ -587,7 +590,14 @@ class IronCondorVRP:
         equity = capital
         prev_equity = equity
 
-        for i in range(60, n):
+        # Start the simulation at the first date of the requested OOS window,
+        # not at an arbitrary 60-day warmup offset. This keeps the trade
+        # ledger aligned with the equity curve trim and prevents warmup trades
+        # from leaking into the ledger.
+        start_idx = 60
+        if start is not None:
+            start_idx = max(start_idx, int(np.searchsorted(dates, start)))
+        for i in range(start_idx, n):
             S = float(close_arr[i])
             sigma = float(iv_arr[i])
             dt = dates[i].date() if hasattr(dates[i], "date") else dates[i]
@@ -596,7 +606,7 @@ class IronCondorVRP:
             turnover_today = 0.0
 
             # ── Update active positions ──
-            for pos in list(active):
+            for pos in active:
                 if pos.closed:
                     continue
 
@@ -631,6 +641,9 @@ class IronCondorVRP:
                     current_cost = sp_val - lp_val + sc_val - lc_val
                     unrealized = (pos.credit - current_cost) * 100 * pos.contracts
 
+                # Persist the daily MTM snapshot for forensic replay.
+                pos.daily_mtm_history[dt] = float(unrealized)
+
                 max_profit = pos.credit * 100 * pos.contracts
 
                 # Profit target
@@ -644,7 +657,7 @@ class IronCondorVRP:
                     continue
 
                 # Stop-loss: underlying touched short strike
-                if S <= pos.short_put or S >= pos.short_call:
+                if pos.short_put >= S or pos.short_call <= S:
                     stop_loss_amount = max_profit * self.stop_loss_mult
                     if unrealized <= -stop_loss_amount:
                         pos.pnl = unrealized - commission_per_contract * pos.contracts * 2
@@ -726,6 +739,7 @@ class IronCondorVRP:
                     contracts=contracts,
                     entry_spot=S,
                     entry_iv=sigma,
+                    daily_mtm_history={dt: 0.0},
                     sp_contract=sp_c,
                     lp_contract=lp_c,
                     sc_contract=sc_c,
@@ -759,6 +773,7 @@ class IronCondorVRP:
                     call_val = max(S_final - pos.short_call, 0) - max(S_final - pos.long_call, 0)
                     pos.pnl = (pos.credit - put_val - call_val) * 100 * pos.contracts
                     pos.pnl -= 0.65 * pos.contracts * 2
+                    pos.daily_mtm_history[dt_final] = float(pos.pnl)
                     pos.closed = True
                     pos.close_date = dt_final
                     pos.close_reason = "end_of_backtest"

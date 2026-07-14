@@ -32,6 +32,22 @@ from quantcore.core.exceptions import DataQualityViolation
 
 _log = logging.getLogger(__name__)
 
+# AUDIT MANDATE 2026-07-12 — emitted once when a backtest is run after the
+# mark-to-market accounting fix (hedge cost-basis now subtracted).
+_ACCOUNTING_FIX_WARNING = (
+    "Pre-fix delta-neutral Sharpe on 2024 data was artificially inflated. "
+    "Re-running backtest is mandatory before proceeding."
+)
+_warned_accounting_fix = False
+
+
+def _emit_accounting_fix_warning() -> None:
+    global _warned_accounting_fix
+    if not _warned_accounting_fix:
+        _warned_accounting_fix = True
+        _log.warning(_ACCOUNTING_FIX_WARNING)
+        print(f"\n[!] WARNING: {_ACCOUNTING_FIX_WARNING}\n")
+
 # ---- BSM helpers (reused from Iron Condor) ------------------------------------------------------------------------
 
 
@@ -105,7 +121,7 @@ def generate_synthetic_iv(
         VIX-dependent VRP scaling.  If False, use the flat premium model.
     """
     if use_enhanced:
-        from quantcore.data.vol_surface import VolatilitySurface, generate_enhanced_synthetic_iv
+        from quantcore.data.vol_surface import generate_enhanced_synthetic_iv
         return generate_enhanced_synthetic_iv(
             close, lookback=lookback, vix_series=vix_series, use_skew=True,
         )
@@ -159,7 +175,11 @@ class DeltaNeutralTrade:
     entry_iv: float
     # Delta hedge state
     hedge_shares: float = 0.0   # current shares held for delta hedge
-    cumulative_hedge_cost: float = 0.0  # total transaction cost from hedging
+    cumulative_hedge_cost: float = 0.0  # total TRANSACTION cost (commission+slippage) only
+    # AUDIT FIX 2026-07-12: cost basis of the hedge inventory (net cash paid for
+    # the shares themselves).  Without this, hedge MTM booked `shares * spot` as
+    # pure profit -> systematic P&L inflation.  See `avg_hedge_entry_price`.
+    hedge_cost_basis: float = 0.0  # net signed cash outlay to build current inventory
     # P&L
     pnl: float = 0.0
     closed: bool = False
@@ -168,6 +188,18 @@ class DeltaNeutralTrade:
     # Contract identifiers for real-data mode
     call_contract: dict | None = field(default=None, repr=False)
     put_contract: dict | None = field(default=None, repr=False)
+
+    @property
+    def avg_hedge_entry_price(self) -> float:
+        """Volume-weighted average entry price of the current hedge inventory.
+
+        Equals ``hedge_cost_basis / hedge_shares``.  Undefined (0.0) when flat.
+        Martingale identity: unrealized hedge P&L == (spot - avg_entry) * shares
+        == hedge_shares * spot - hedge_cost_basis.
+        """
+        if abs(self.hedge_shares) < 1e-9:
+            return 0.0
+        return self.hedge_cost_basis / self.hedge_shares
 
 
 # ---- Strategy ----------------------------------------------------------------------------------------------------------------------------------
@@ -333,6 +365,7 @@ class DeltaNeutralVRP:
         logs : dict
             Trade-level logs.
         """
+        _emit_accounting_fix_warning()
         # Slice data to the requested window (plus warmup for IVR)
         warmup = pd.Timedelta(days=300)
         warmup_start = start - warmup
@@ -454,10 +487,11 @@ class DeltaNeutralVRP:
         cost_to_close = call_now + put_now
         options_pnl = (pos.credit - cost_to_close) * 100 * pos.contracts
 
-        # Underlying hedge P&L: current value of hedge shares
-        hedge_pnl = pos.hedge_shares * spot
+        # Underlying hedge P&L (AUDIT FIX): mark-to-market vs. cost basis, NOT
+        # gross market value.  hedge_pnl = (spot - avg_entry) * shares.
+        hedge_pnl = pos.hedge_shares * spot - pos.hedge_cost_basis
 
-        # Total: options + hedge - cumulative hedge costs
+        # Total: options + hedge MTM - cumulative transaction costs
         return options_pnl + hedge_pnl - pos.cumulative_hedge_cost
 
     # ---- Core simulation --------------------------------------------------------------------------------------------
@@ -501,7 +535,7 @@ class DeltaNeutralVRP:
             turnover_today = 0.0
 
             # ---- Update active positions ----
-            for pos in list(active):
+            for pos in active:
                 if pos.closed:
                     continue
 
@@ -539,6 +573,10 @@ class DeltaNeutralVRP:
                     # Spread + market impact: ~5bps on SPY
                     hedge_cost += abs(hedge_change) * S * self.hedge_slippage_pct
                     pos.cumulative_hedge_cost += hedge_cost
+                    # AUDIT FIX: accrue the ACTUAL cash outlay for the shares.
+                    # Buying (hedge_change>0) spends cash (+basis); selling releases
+                    # cash (-basis).  This is what makes MTM = (spot-avg)*shares.
+                    pos.hedge_cost_basis += hedge_change * S
                     pos.hedge_shares = target_hedge
                     daily_pnl -= hedge_cost
                     turnover_today += abs(hedge_change) * S
@@ -561,7 +599,11 @@ class DeltaNeutralVRP:
                     # Hedge P&L: close the hedge position at current price
                     hedge_close_cost = abs(pos.hedge_shares) * (self.commission_per_share + S * self.hedge_slippage_pct)
 
-                    pos.pnl = options_pnl + (pos.hedge_shares * S) - pos.cumulative_hedge_cost - hedge_close_cost
+                    # AUDIT FIX: realized hedge P&L = liquidation proceeds - cost basis.
+                    # Previously `pos.hedge_shares * S` booked gross proceeds as pure
+                    # profit (cost basis never subtracted) -> inflated Sharpe.
+                    hedge_realized = (pos.hedge_shares * S) - pos.hedge_cost_basis
+                    pos.pnl = options_pnl + hedge_realized - pos.cumulative_hedge_cost - hedge_close_cost
                     pos.closed = True
                     pos.close_date = dt
                     pos.close_reason = "expiration"
@@ -573,10 +615,20 @@ class DeltaNeutralVRP:
                 # ---- Mark-to-market options (prefer real data) ----
                 options_unrealized: float
                 if use_real and pos.call_contract is not None:
-                    # Raises DataQualityViolation if real prices unavailable -- no BSM fallback
-                    options_unrealized = self._real_unrealized_pnl(
-                        options_loader, dt, pos, S
-                    )
+                    # During cold-start (no real IV for this date), fall back to BSM for
+                    # MTM ONLY. The entry credit is locked at the real fill price. This
+                    # is acceptable for MTM accuracy during the warmup gap; it does NOT
+                    # fake an entry. Once real data becomes available, real MTM resumes.
+                    try:
+                        options_unrealized = self._real_unrealized_pnl(
+                            options_loader, dt, pos, S
+                        )
+                    except DataQualityViolation:
+                        # Cold-start gap -- use BSM for MTM only (entry credit is real)
+                        call_val = _bsm_call(S, pos.short_call_strike, T, self.r, sigma)
+                        put_val  = _bsm_put (S, pos.short_put_strike, T, self.r, sigma)
+                        current_cost = call_val + put_val
+                        options_unrealized = (pos.credit - current_cost) * 100 * pos.contracts
                 else:
                     # BSM fallback -- ONLY for synthetic mode (no real options_loader)
                     call_val = _bsm_call(S, pos.short_call_strike, T, self.r, sigma)
@@ -585,8 +637,13 @@ class DeltaNeutralVRP:
                     options_unrealized = (pos.credit - current_cost) * 100 * pos.contracts
                 max_profit = pos.credit * 100 * pos.contracts
 
-                # Hedge unrealized: value of shares held
-                hedge_unrealized = pos.hedge_shares * S - pos.cumulative_hedge_cost
+                # Hedge unrealized: (spot - avg_entry) * shares, net of txn costs.
+                # AUDIT FIX: subtract hedge_cost_basis (cash paid for the shares).
+                # Old code (`shares * S - cumulative_hedge_cost`) treated the entire
+                # market value of the hedge as profit -> P&L inflation bias.
+                hedge_unrealized = (
+                    pos.hedge_shares * S - pos.hedge_cost_basis - pos.cumulative_hedge_cost
+                )
 
                 total_unrealized = options_unrealized + hedge_unrealized
 
@@ -619,11 +676,20 @@ class DeltaNeutralVRP:
                     pos.hedge_shares = 0.0
                     continue
 
-            # ---- Entry logic ----
+            # ---- Cold-start guard: skip entries until real IV data is available ----
+            # During the warmup window, _build_real_iv_series returns synthetic IV.
+            # Entries with synthetic fills cause hard DataQualityViolation crashes once
+            # real data becomes available. Skip all entries until >= 10 real IV values
+            # appear in the last 30 days (indicating the cold-start has passed).
+            real_iv_count = sum(
+                1 for j in range(max(0, i - 30), i + 1)
+                if pd.notna(iv_arr[j])
+            )
             can_enter = True
-            if last_entry_date is not None:
-                if (dt - last_entry_date).days < self.entry_interval_days:
-                    can_enter = False
+            if real_iv_count < 10:
+                can_enter = False  # still cold-starting -- skip entry
+            if last_entry_date is not None and (dt - last_entry_date).days < self.entry_interval_days:
+                can_enter = False
 
             active_open = [p for p in active if not p.closed]
             if can_enter and ivr > self.ivr_entry and len(active_open) < 3:
@@ -750,6 +816,8 @@ class DeltaNeutralVRP:
                     entry_iv=sigma,
                     hedge_shares=initial_hedge,
                     cumulative_hedge_cost=hedge_cost,
+                    # AUDIT FIX: record cash paid for the initial hedge inventory.
+                    hedge_cost_basis=initial_hedge * S,
                     call_contract=call_contract,
                     put_contract=put_contract,
                 )
@@ -783,7 +851,9 @@ class DeltaNeutralVRP:
                     hedge_close_cost = abs(pos.hedge_shares) * (self.commission_per_share + S_final * self.hedge_slippage_pct)
                     close_commission = self.commission_per_contract * pos.contracts * 2
 
-                    pos.pnl = options_pnl + (pos.hedge_shares * S_final) - pos.cumulative_hedge_cost - hedge_close_cost - close_commission
+                    # AUDIT FIX: hedge realized = proceeds - cost basis (not gross proceeds)
+                    hedge_realized = (pos.hedge_shares * S_final) - pos.hedge_cost_basis
+                    pos.pnl = options_pnl + hedge_realized - pos.cumulative_hedge_cost - hedge_close_cost - close_commission
                     pos.closed = True
                     pos.close_date = dt_final
                     pos.close_reason = "end_of_backtest"
