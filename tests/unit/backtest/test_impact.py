@@ -9,13 +9,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantcore.backtest.engine import BacktestEngine, SignalData
+from quantcore.backtest.engine import BacktestEngine, FillSimulator, SignalData
 from quantcore.backtest.impact_config import (
     MarketImpactConfig,
     MarketImpactEngine,
     VolumeFilterConfig,
 )
-from quantcore.core.types import Order, OrderType, Side
+from quantcore.core.types import OHLCV, Order, OrderType, Side
 
 
 # ---------------------------------------------------------------------------
@@ -335,4 +335,74 @@ class TestMarketImpactIntegration:
         # Each step up should cost more (monotonicity)
         assert costs[0] < costs[1] < costs[2], (
             f"Impact costs should be strictly increasing with shares: {costs}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# fill_at mode contract + degenerate-bar guardrail (post-audit fixes)
+# ---------------------------------------------------------------------------
+
+
+class TestFillAtModes:
+    def _bar(self, o: float, h: float, l: float, c: float) -> OHLCV:
+        return OHLCV(
+            symbol="TEST",
+            timestamp=datetime(2020, 1, 2),
+            open=Decimal(str(o)),
+            high=Decimal(str(h)),
+            low=Decimal(str(l)),
+            close=Decimal(str(c)),
+            volume=10_000_000,
+        )
+
+    def test_next_open_and_close_differ(self) -> None:
+        """fill_at='next_open' and fill_at='close' MUST produce different
+        fills. This is the regression guard for the dead-branch bug where the
+        two modes were silently identical (the `fill_at` param was a lie that
+        always filled at bar.open regardless of value)."""
+        bar = self._bar(o=109.0, h=111.0, l=108.0, c=110.0)
+        order = Order(
+            id="o1", symbol="TEST", side=Side.BUY,
+            type=OrderType.MARKET, quantity=Decimal("1000"),
+        )
+
+        fs_open = FillSimulator(slippage_bps=5.0, commission_per_share=0.005, fill_at="next_open")
+        fs_open.set_bars(bar, bar)
+        f_open = fs_open.simulate_fill(order)
+
+        fs_close = FillSimulator(slippage_bps=5.0, commission_per_share=0.005, fill_at="close")
+        fs_close.set_bars(bar, bar)
+        f_close = fs_close.simulate_fill(order)
+
+        # Both modes apply the SAME slippage convention (BUY pays more):
+        #   next_open -> near bar.open  (109 + 5bps = 109.0545)
+        #   close     -> near bar.close (110 + 5bps = 110.055)
+        # The guard is that the two fills DIFFER (the dead-branch bug made
+        # them silently identical at bar.open).
+        assert abs(float(f_open.price) - 109.0545) < 1e-4, (
+            f"next_open should fill near open 109.055, got {f_open.price}"
+        )
+        assert abs(float(f_close.price) - 110.055) < 1e-4, (
+            f"close should fill near close 110 plus slippage, got {f_close.price}"
+        )
+        assert float(f_open.price) != float(f_close.price), (
+            "next_open and close must produce DIFFERENT fills; the contract "
+            "regressed and the two modes are silently identical again."
+        )
+
+    def test_zero_range_bar_clamps_slippage(self) -> None:
+        """On a zero-range bar (O==H==L==C) the [low, high] clip collapses
+        slippage to the single bar price, so slippage is zeroed for that bar.
+        This documents the edge case so it is never mistaken for a
+        missing-cost bug (guardrail for the degenerate-bar clamp finding)."""
+        bar = self._bar(o=110.0, h=110.0, l=110.0, c=110.0)
+        order = Order(
+            id="o2", symbol="TEST", side=Side.BUY,
+            type=OrderType.MARKET, quantity=Decimal("1000"),
+        )
+        fs = FillSimulator(slippage_bps=5.0, commission_per_share=0.005)
+        fs.set_bars(bar, bar)
+        f = fs.simulate_fill(order)
+        assert abs(float(f.price) - 110.0) < 1e-9, (
+            f"zero-range bar must clamp fill to 110.0 (slippage zeroed), got {f.price}"
         )

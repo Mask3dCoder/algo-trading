@@ -6,13 +6,12 @@ drawdown tracking, and risk metrics.
 
 from __future__ import annotations
 
-from quantcore.backtest.simulation import OptionFillSimulator
-
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum, auto
+from types import MappingProxyType
 from typing import Any, Protocol
 
 import numpy as np
@@ -23,22 +22,22 @@ from quantcore.backtest.analytics import (
     compute_returns,
     generate_performance_report,
 )
+from quantcore.backtest.financing import (
+    FinancingConfig,
+)
 from quantcore.backtest.impact_config import (
     MarketImpactConfig,
     MarketImpactEngine,
     VolumeFilterConfig,
 )
-from quantcore.backtest.financing import (
-    BorrowCostRegistry,
-    FinancingConfig,
-    compute_daily_borrow_cost,
-    compute_daily_margin_interest,
-)
+from quantcore.backtest.simulation import OptionFillSimulator
 from quantcore.core import economic_kernel
 from quantcore.core.cash import AssetClass, CashLedger
+from quantcore.core.data_validation import clean_snapshot
 from quantcore.core.types import OHLCV, Fill, Order, OrderType, Position, Side
 from quantcore.risk.drawdown import DrawdownAction, DrawdownConfig, DrawdownTracker
 from quantcore.risk.limits import LimitCheckResult, RiskLimits, check_pre_trade
+from quantcore.risk.manager import ApprovedTrade, RiskContext, RiskDecision, RiskManager
 
 # ---------------------------------------------------------------------------
 # Event types
@@ -64,6 +63,41 @@ class MarketData:
     bar: OHLCV
 
 
+@dataclass(frozen=True)
+class MarketDataSnapshot:
+    """Immutable cross-sectional market-data slice for one timestamp.
+
+    The snapshot is the only market-data object exposed to snapshot-aware
+    strategies. It contains every bar available for the timestamp and nothing
+    from future timestamps. Omitted/missing symbols are absent from ``bars``;
+    strategies should treat absence as missing data rather than as a zero price.
+    """
+
+    timestamp: datetime
+    bars: Mapping[str, OHLCV] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+
+    @property
+    def symbols(self) -> tuple[str, ...]:
+        return tuple(sorted(self.bars))
+
+    def get_bar(self, symbol: str) -> OHLCV | None:
+        return self.bars.get(symbol)
+
+    def representative_bar(self) -> OHLCV | None:
+        """Return a deterministic bar for legacy on_bar() compatibility.
+
+        Snapshot-aware strategies should use ``on_snapshot``. Legacy single-bar
+        strategies receive only this representative bar and therefore cannot see
+        the full universe through the engine interface.
+        """
+        if not self.bars:
+            return None
+        symbol = self.symbols[0]
+        return self.bars[symbol]
+
+
 @dataclass
 class SignalData:
     symbol: str
@@ -86,12 +120,20 @@ class OrderData:
 
 
 class Strategy(Protocol):
-    """Protocol for backtest strategies."""
+    """Protocol for backtest strategies.
 
-    def on_bar(self, bar: OHLCV, portfolio: PortfolioState) -> list[SignalData]:
-        """Generate signals from the current bar."""
+    Preferred interface is ``on_snapshot`` so cross-sectional strategies receive
+    the entire timestamp slice simultaneously. ``on_bar`` remains supported only
+    as a legacy compatibility path.
+    """
+
+    def on_snapshot(self, snapshot: MarketDataSnapshot, portfolio: PortfolioState) -> list[SignalData]:
+        """Generate signals from a complete market-data snapshot."""
         ...
 
+    def on_bar(self, bar: OHLCV, portfolio: PortfolioState) -> list[SignalData]:
+        """Legacy single-bar entry point."""
+        ...
 
     def on_fill(self, fill: Fill, portfolio: PortfolioState) -> None:
         """React to a fill (optional)."""
@@ -221,6 +263,16 @@ class PortfolioState:
                 realized_pnl=pos.realized_pnl,
             )
 
+    def mark_to_market(self, snapshot: MarketDataSnapshot) -> None:
+        """Update all held asset valuations from one immutable timestamp slice.
+
+        This is the portfolio-side data-boundary enforcement: every symbol in
+        the snapshot is marked before any strategy logic runs. The strategy never
+        observes per-symbol price updates one row at a time.
+        """
+        for symbol, bar in snapshot.bars.items():
+            self.update_price(symbol, float(bar.close))
+
     def apply_fill(self, fill: Fill, symbol: str) -> None:
         """Apply a fill to the portfolio.
 
@@ -304,7 +356,7 @@ class PortfolioState:
         """Deduct cash, routing through CashLedger if available."""
         if self._cash_ledger is not None:
             self._cash_ledger.add_unsettled(-amount, "equity",
-                                            description=f"financing cost")
+                                            description="financing cost")
         else:
             self._cash -= amount
 
@@ -382,30 +434,76 @@ class PortfolioState:
 
 
 class HistoricalDataHandler:
-    """Feeds historical OHLCV bars as MarketEvents."""
+    """Feeds historical OHLCV bars as timestamp-aligned MarketDataSnapshots."""
 
     def __init__(self, data: pd.DataFrame) -> None:
         """data: DataFrame with columns [symbol, timestamp, open, high, low, close, volume]."""
-        self._data = data.sort_values("timestamp").reset_index(drop=True)
+        if data.empty:
+            self._data = data.copy()
+            self._snapshots: Sequence[MarketDataSnapshot] = ()
+            self._index = 0
+            return
+
+        normalized = data.copy()
+        normalized["timestamp"] = pd.to_datetime(normalized["timestamp"])
+        normalized["symbol"] = normalized["symbol"].astype(str)
+        normalized = normalized.sort_values(["timestamp", "symbol"], kind="mergesort").reset_index(drop=True)
+        self._data = normalized
+
+        snapshots: list[MarketDataSnapshot] = []
+        for timestamp, group in normalized.groupby("timestamp", sort=True, dropna=False):
+            bars: dict[str, OHLCV] = {}
+            for _, row in group.sort_values("symbol", kind="mergesort").iterrows():
+                symbol = str(row.get("symbol", "UNKNOWN")).strip()
+                if symbol in bars:
+                    raise ValueError(
+                        f"Duplicate bar for symbol={symbol!r} at timestamp={timestamp!r}; "
+                        "cross-sectional snapshots require one row per symbol per timestamp."
+                    )
+                bars[symbol] = OHLCV(
+                    symbol=symbol,
+                    timestamp=timestamp.to_pydatetime(),
+                    open=Decimal(str(row["open"])),
+                    high=Decimal(str(row["high"])),
+                    low=Decimal(str(row["low"])),
+                    close=Decimal(str(row["close"])),
+                    volume=int(row["volume"]),
+                )
+            snapshots.append(
+                MarketDataSnapshot(
+                    timestamp=timestamp.to_pydatetime(),
+                    bars=MappingProxyType(bars),
+                )
+            )
+        self._snapshots = snapshots
         self._index = 0
 
     def has_next(self) -> bool:
-        return self._index < len(self._data)
+        return self._index < len(self._snapshots)
 
-    def next_bar(self) -> OHLCV | None:
+    def next_snapshot(self) -> MarketDataSnapshot | None:
+        """Return the next complete timestamp slice.
+
+        Data-boundary enforcement: callers receive all symbols for exactly one
+        timestamp. The handler never exposes a later timestamp while the current
+        snapshot is being processed.
+        """
         if not self.has_next():
             return None
-        row = self._data.iloc[self._index]
+        snapshot = self._snapshots[self._index]
         self._index += 1
-        return OHLCV(
-            symbol=str(row.get("symbol", "UNKNOWN")),
-            timestamp=row["timestamp"] if isinstance(row["timestamp"], datetime) else pd.Timestamp(row["timestamp"]).to_pydatetime(),
-            open=Decimal(str(row["open"])),
-            high=Decimal(str(row["high"])),
-            low=Decimal(str(row["low"])),
-            close=Decimal(str(row["close"])),
-            volume=int(row["volume"]),
-        )
+        return snapshot
+
+    def next_bar(self) -> OHLCV | None:
+        """Legacy row compatibility helper.
+
+        Prefer ``next_snapshot``. If legacy code calls ``next_bar``, only the
+        deterministic representative bar from the next snapshot is returned.
+        """
+        snapshot = self.next_snapshot()
+        if snapshot is None:
+            return None
+        return snapshot.representative_bar()
 
     def reset(self) -> None:
         self._index = 0
@@ -423,9 +521,12 @@ class FillSimulator:
         self,
         slippage_bps: float = 5.0,
         commission_per_share: float = 0.005,
-        fill_at: str = "close",  # DAILY-BAR BACKTEST DEFAULT: use close to avoid look-ahead
-                               # bias. next_open creates -0.29 mean Sharpe on zero-drift
-                               # data (entry at tomorrow's open but MTM at today's close).
+        fill_at: str = "next_open",  # EXECUTION-BAR price level used for the fill.
+                                  # The order is generated at the prior snapshot and queued, so it
+                                  # always fills against the *execution* bar (>= the signal bar) --
+                                  # never a future close. Both modes are therefore look-ahead-safe.
+                                  #   "next_open" (default): fill at bar.open.
+                                  #   "close": fill at bar.close.
         impact_config: MarketImpactConfig | None = None,
         volume_filter_config: VolumeFilterConfig | None = None,
     ) -> None:
@@ -455,13 +556,12 @@ class FillSimulator:
         if order.metadata.get("instrument") == "OPTION":
             return self._simulate_option_fill(order)
 
-        bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
-        if bar is None:
-            bar = self._current_bar
+        bar = self._current_bar
         if bar is None:
             return None
 
-        fill_price = float(bar.open)
+        # fill_at selects the execution bar's price level (see __init__ doc).
+        fill_price = float(bar.open) if self.fill_at == "next_open" else float(bar.close)
 
         # Apply base slippage
         slip = fill_price * self.slippage_bps / 10_000.0
@@ -520,8 +620,15 @@ class FillSimulator:
 
             market_impact_cost = result.total_cost_dollars
 
-        # Clip fill price to bar's high/low range — slippage + impact
-        # can push the price outside the observed bar, which is impossible.
+        # Clip fill price to the bar's [low, high] range. A fill can never
+        # land outside the observed bar, so this is a hard bound.
+        # EDGE CASE (documented guardrail): on a zero-range bar
+        # (open == high == low == close) the clip collapses any
+        # slippage/impact to the single bar price -- i.e. slippage is
+        # silently zeroed. This is intentional (you cannot pay slippage
+        # on a bar with no range) but is called out here so it is
+        # never mistaken for a missing-cost bug. See
+        # tests/unit/backtest/test_impact.py::test_zero_range_bar_clamps_slippage.
         bar_high = float(bar.high)
         bar_low = float(bar.low)
         fill_price = max(bar_low, min(fill_price, bar_high))
@@ -557,9 +664,7 @@ class FillSimulator:
         if contracts <= 0 or strike <= 0 or iv <= 0 or dte <= 0:
             return None
 
-        bar = self._next_bar if self.fill_at == "next_open" else self._current_bar
-        if bar is None:
-            bar = self._current_bar
+        bar = self._current_bar
         if bar is None:
             return None
         underlying_price = float(bar.close)
@@ -622,6 +727,7 @@ class BacktestEngine:
         impact_config: MarketImpactConfig | None = None,
         volume_filter_config: VolumeFilterConfig | None = None,
         financing_config: FinancingConfig | None = None,
+        risk_manager: RiskManager | None = None,
     ) -> None:
         self.strategy = strategy
         self.portfolio = PortfolioState(initial_cash)
@@ -638,6 +744,8 @@ class BacktestEngine:
         self.sizing_fn = sizing_fn  # (cash, price, context) -> shares
         self.drawdown_tracker = DrawdownTracker(drawdown_config) if drawdown_config else None
         self.regime_model = regime_model
+        self.risk_manager = risk_manager
+        self._risk_decisions: list[RiskDecision] = []
         self._rejected_orders: list[tuple[Order, LimitCheckResult]] = []
         # Phase 3: track option metadata by contract_id for EOP/liquidation pricing
         self._option_meta: dict[str, dict] = {}
@@ -645,6 +753,10 @@ class BacktestEngine:
     @property
     def rejected_orders(self) -> list[tuple[Order, LimitCheckResult]]:
         return self._rejected_orders
+
+    @property
+    def risk_decisions(self) -> list[RiskDecision]:
+        return list(self._risk_decisions)
 
     def _force_fill(self, order: Order, bar: OHLCV) -> Fill:
         """Create a forced fill at worst-case price when simulate_fill fails.
@@ -770,18 +882,340 @@ class BacktestEngine:
         except Exception:
             return None
 
+    def _execute_queued_orders(
+        self,
+        queued_orders: list[Order],
+        snapshot: MarketDataSnapshot,
+    ) -> list[Order]:
+        """Fill orders queued from the previous timestamp using current open prices.
+
+        This is the only place queued strategy/risk orders are executed. Orders
+        generated from snapshot T are never filled with T prices; they are filled
+        only when a later snapshot becomes available.
+        """
+        if not snapshot.bars:
+            return list(queued_orders)
+
+        unfilled: list[Order] = []
+        for order in queued_orders:
+            bar = snapshot.bars.get(order.symbol)
+            if bar is None:
+                # Missing/omitted symbol for this timestamp: keep the order queued
+                # rather than injecting a synthetic price or breaking alignment.
+                unfilled.append(order)
+                continue
+
+            # Fill at the current timestamp's open. The current snapshot is already
+            # available, so this uses no future data.
+            self.fill_sim.set_bars(bar, bar)
+            fill = self.fill_sim.simulate_fill(order)
+            if fill is None:
+                fill = self._force_fill(order, bar)
+            self.portfolio.apply_fill(fill, order.symbol)
+            self.strategy.on_fill(fill, self.portfolio)
+
+        return unfilled
+
+    def _queue_position_adjustment(
+        self,
+        queued_orders: list[Order],
+        snapshot: MarketDataSnapshot,
+        fraction: float,
+        reason: str,
+    ) -> None:
+        """Queue proportional position reductions for the next timestamp."""
+        for sym, pos in self.portfolio.positions.items():
+            if sym not in snapshot.bars:
+                # Do not manufacture prices for missing symbols.
+                continue
+            current_qty = float(pos.quantity)
+            if abs(current_qty) < 1e-8:
+                continue
+            reduce_qty = int(abs(current_qty) * fraction)
+            if reduce_qty <= 0:
+                continue
+            close_side = Side.SELL if current_qty > 0 else Side.BUY
+            meta = getattr(self, "_option_meta", {}).get(sym, {})
+            queued_orders.append(
+                Order(
+                    id=f"ord_{snapshot.timestamp.isoformat()}_{sym}_{reason}_{close_side.value}",
+                    symbol=sym,
+                    side=close_side,
+                    type=OrderType.MARKET,
+                    quantity=Decimal(str(reduce_qty)),
+                    metadata=meta,
+                )
+            )
+
+    def _queue_flatten_all_positions(
+        self,
+        queued_orders: list[Order],
+        snapshot: MarketDataSnapshot,
+        reason: str,
+    ) -> None:
+        """Queue full liquidation for the next timestamp."""
+        for sym, pos in self.portfolio.positions.items():
+            if sym not in snapshot.bars:
+                continue
+            close_qty = int(abs(float(pos.quantity)))
+            if close_qty == 0:
+                continue
+            close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
+            meta = getattr(self, "_option_meta", {}).get(sym, {})
+            queued_orders.append(
+                Order(
+                    id=f"ord_{snapshot.timestamp.isoformat()}_{sym}_{reason}_{close_side.value}",
+                    symbol=sym,
+                    side=close_side,
+                    type=OrderType.MARKET,
+                    quantity=Decimal(str(close_qty)),
+                    metadata=meta,
+                )
+            )
+
+    def _generate_signals(self, snapshot: MarketDataSnapshot) -> list[SignalData]:
+        """Generate cross-sectional signals from an immutable snapshot.
+
+        Data boundary: fill_sim._next_bar is explicitly None while strategy code
+        runs. The strategy receives either a full snapshot via on_snapshot(), or
+        a single representative bar via the legacy on_bar() compatibility path.
+        """
+        clean_snapshot(snapshot)
+        representative = snapshot.representative_bar()
+        if representative is None:
+            return []
+
+        # Strict look-ahead barrier: no next-timestamp bar is visible to strategy.
+        self.fill_sim.set_bars(representative, None)
+
+        regime = self._current_regime(representative)
+        if regime:
+            self.portfolio.regime_state = regime
+
+        if hasattr(self.strategy, "on_snapshot"):
+            return list(self.strategy.on_snapshot(snapshot, self.portfolio) or [])
+
+        # Legacy compatibility only. Cross-sectional strategies should implement
+        # on_snapshot() to avoid single-row leakage.
+        return list(self.strategy.on_bar(representative, self.portfolio) or [])
+
+    @staticmethod
+    def _direction_value(sig: Any) -> Any:
+        return getattr(sig.direction, "value", sig.direction)
+
+    @staticmethod
+    def _is_flat_signal(sig: Any) -> bool:
+        direction = BacktestEngine._direction_value(sig)
+        return direction == "flat" or direction == 0
+
+    @staticmethod
+    def _is_long_signal(sig: Any) -> bool:
+        direction = BacktestEngine._direction_value(sig)
+        return direction == "long" or direction == 1
+
+    @staticmethod
+    def _is_short_signal(sig: Any) -> bool:
+        direction = BacktestEngine._direction_value(sig)
+        return direction == "short" or direction == -1
+
+    def _signal_reference_price(self, sig: Any, snapshot: MarketDataSnapshot) -> float | None:
+        symbol = str(getattr(sig, "symbol", "")).strip()
+        bar = snapshot.get_bar(symbol)
+        if bar is None:
+            return None
+        return float(bar.close)
+
+    def _orders_from_risk_decision(
+        self,
+        decision_trades: Sequence[ApprovedTrade],
+        timestamp: datetime,
+    ) -> list[Order]:
+        """Convert broker-neutral approved trades into internal orders."""
+        orders: list[Order] = []
+        for trade in decision_trades:
+            quantity = max(1, int(trade.quantity))
+            orders.append(
+                Order(
+                    id=f"ord_{timestamp.isoformat()}_{trade.symbol}_{trade.side.value}_risk",
+                    symbol=trade.symbol,
+                    side=trade.side,
+                    type=OrderType.MARKET,
+                    quantity=Decimal(str(quantity)),
+                    metadata={
+                        "risk_managed": True,
+                        "target_weight": trade.target_weight,
+                        "normalized_weight": trade.normalized_weight,
+                        "target_notional": trade.target_notional,
+                        "delta_notional": trade.delta_notional,
+                    },
+                )
+            )
+        return orders
+
+    def _queue_orders_from_signals(
+        self,
+        queued_orders: list[Order],
+        snapshot: MarketDataSnapshot,
+        signals: Sequence[SignalData],
+    ) -> None:
+        """Convert signals into orders queued for the next timestamp window.
+
+        If a broker-neutral RiskManager is configured, raw strategy outputs are
+        normalized and compliance-gated before this engine constructs Order
+        objects. This keeps alpha logic isolated from portfolio constraints.
+        """
+        if self.risk_manager is not None:
+            context = RiskContext.from_bars(snapshot.bars)
+            decision = self.risk_manager.pre_trade_check(
+                raw_signals=signals,
+                portfolio=self.portfolio,
+                market=snapshot,
+                context=context,
+            )
+            self._risk_decisions.append(decision)
+            queued_orders.extend(
+                self._orders_from_risk_decision(decision.approved_trades, snapshot.timestamp)
+            )
+            return
+
+        for sig in signals:
+            symbol = str(getattr(sig, "symbol", "")).strip()
+            if not symbol:
+                continue
+
+            price = self._signal_reference_price(sig, snapshot)
+            if price is None or price <= 0:
+                # Missing/omitted symbol: skip signal instead of inventing data.
+                continue
+
+            metadata = getattr(sig, "metadata", {}) or {}
+            is_option = getattr(sig, "instrument_type", "") == "option" or metadata.get("instrument") == "OPTION"
+            if is_option:
+                order_symbol = str(metadata.get("contract_id", symbol))
+                multiplier = int(metadata.get("multiplier", 100))
+                contracts = int(metadata.get("contracts", 0))
+                option_qty = contracts * multiplier if contracts > 0 else 0
+            else:
+                order_symbol = symbol
+                option_qty = 0
+
+            pos = self.portfolio.positions.get(order_symbol)
+            current_qty = float(pos.quantity) if pos else 0.0
+
+            if self._is_flat_signal(sig):
+                if abs(current_qty) > 1e-8:
+                    close_side = Side.SELL if current_qty > 0 else Side.BUY
+                    queued_orders.append(
+                        Order(
+                            id=f"ord_{snapshot.timestamp.isoformat()}_{order_symbol}_exit",
+                            symbol=order_symbol,
+                            side=close_side,
+                            type=OrderType.MARKET,
+                            quantity=Decimal(str(int(abs(current_qty)))),
+                            metadata=metadata,
+                        )
+                    )
+                continue
+
+            if self._is_long_signal(sig):
+                side = Side.BUY
+            elif self._is_short_signal(sig):
+                side = Side.SELL
+            else:
+                continue
+
+            # Queue any required opposing-position close before the new target order.
+            # Both orders execute only on the next timestamp window.
+            if not is_option:
+                if side == Side.BUY and current_qty < 0:
+                    cover_qty = int(abs(current_qty))
+                    queued_orders.append(
+                        Order(
+                            id=f"ord_{snapshot.timestamp.isoformat()}_{order_symbol}_buy_cover",
+                            symbol=order_symbol,
+                            side=Side.BUY,
+                            type=OrderType.MARKET,
+                            quantity=Decimal(str(cover_qty)),
+                            metadata=metadata,
+                        )
+                    )
+                elif side == Side.SELL and current_qty > 0:
+                    close_qty = int(abs(current_qty))
+                    queued_orders.append(
+                        Order(
+                            id=f"ord_{snapshot.timestamp.isoformat()}_{order_symbol}_sell_close",
+                            symbol=order_symbol,
+                            side=Side.SELL,
+                            type=OrderType.MARKET,
+                            quantity=Decimal(str(close_qty)),
+                            metadata=metadata,
+                        )
+                    )
+
+            representative = snapshot.representative_bar()
+            qty = option_qty if is_option else self._compute_sizing(side, price, representative, sig)
+            if qty <= 0:
+                continue
+
+            order = Order(
+                id=f"ord_{snapshot.timestamp.isoformat()}_{order_symbol}_{side.value}",
+                symbol=order_symbol,
+                side=side,
+                type=OrderType.MARKET,
+                quantity=Decimal(str(qty)),
+                metadata=metadata,
+            )
+
+            if self.risk_limits is not None:
+                from quantcore.core.types import PortfolioSnapshot
+
+                snap = PortfolioSnapshot(
+                    timestamp=snapshot.timestamp,
+                    positions=self.portfolio.positions,
+                    cash=Decimal(str(max(0.0, self.portfolio.cash))),
+                    total_value=Decimal(str(self.portfolio.total_value)),
+                    returns=self.portfolio.returns,
+                )
+                result = check_pre_trade(
+                    order,
+                    snap,
+                    self.risk_limits,
+                    market_price=price,
+                )
+                if result.status.value == "rejected":
+                    self._rejected_orders.append((order, result))
+                    continue
+
+            queued_orders.append(order)
+
+            if is_option:
+                self._option_meta[order_symbol] = metadata
+
+            self.portfolio.signal_log.append({
+                "timestamp": snapshot.timestamp,
+                "symbol": order_symbol,
+                "direction": self._direction_value(sig),
+                "strength": getattr(sig, "strength", 0.0),
+                "regime": self.portfolio.regime_state,
+            })
+
     def run(self, data: pd.DataFrame) -> pd.DataFrame:
         """Run the backtest on historical data.
 
         data: DataFrame with columns [symbol, timestamp, open, high, low, close, volume]
         Returns DataFrame with equity curve and risk metrics accessible via summary().
+
+        Core event loop: each timestamp is processed as one immutable
+        MarketDataSnapshot. The loop never peeks at a later timestamp during
+        signal generation.
         """
         handler = HistoricalDataHandler(data)
         self.portfolio = PortfolioState(self.portfolio.initial_cash)
         self.portfolio.set_financing_config(self._financing_config)
+        self._risk_decisions = []
         self._rejected_orders = []
+        self._option_meta = {}
 
-        # Set up market impact engine with historical data
         self.fill_sim.set_data(data)
 
         if self.drawdown_tracker:
@@ -789,258 +1223,116 @@ class BacktestEngine:
                 self.drawdown_tracker.config if hasattr(self.drawdown_tracker, 'config') else DrawdownConfig()
             )
 
-        pending_orders: list[Order] = []
+        # Orders generated from snapshot T are queued here and executed only when
+        # snapshot T+1 arrives. This is the execution queue boundary.
+        queued_orders: list[Order] = []
         daily_returns: list[float] = []
-        bar: OHLCV | None = None
+        halted = False
+        last_snapshot: MarketDataSnapshot | None = None
 
         while handler.has_next():
-            bar = handler.next_bar()
-            if bar is None:
+            # 1. Grouping by Timestamp: HistoricalDataHandler yields one complete
+            # timestamp slice containing all available symbols for that timestamp.
+            snapshot = handler.next_snapshot()
+            if snapshot is None:
                 break
+            clean_snapshot(snapshot)
+            last_snapshot = snapshot
 
-            # Update portfolio prices
-            self.portfolio.update_price(bar.symbol, float(bar.close))
+            # Execution of prior snapshot's queued orders at the current open.
+            # These orders were created after the previous snapshot was fully
+            # processed, so filling them now cannot leak future data backward.
+            queued_orders = self._execute_queued_orders(queued_orders, snapshot)
 
-            # Daily financing cost accrual (borrow costs + margin interest)
+            # 3. Mark-to-Market Valuation: update the entire portfolio from the
+            # current snapshot before any strategy logic can observe prices.
+            self.portfolio.mark_to_market(snapshot)
+
+            # 4. Financing & Fees: borrow/margin costs now use newly marked prices.
             self.portfolio.daily_financing_update()
 
-            # Forced liquidation on margin breach
+            # Risk circuit breakers queue liquidation for the next timestamp
+            # instead of filling intra-bar from the signal-generation snapshot.
             if self.portfolio.is_margin_breach:
-                for sym in list(self.portfolio.positions.keys()):
-                    pos = self.portfolio.positions[sym]
-                    close_qty = int(abs(float(pos.quantity)))
-                    if close_qty == 0:
-                        continue
-                    close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
-                    oid = f"ord_margin_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
-                    order = Order(
-                        id=oid, symbol=sym, side=close_side,
-                        type=OrderType.MARKET, quantity=Decimal(str(close_qty)),
-                    )
-                    self.fill_sim.set_bars(bar, None)
-                    fill = self.fill_sim.simulate_fill(order)
-                    if fill is None:
-                        fill = self._force_fill(order, bar)
-                    self.portfolio.apply_fill(fill, sym)
-                    self.strategy.on_fill(fill, self.portfolio)
-                # Skip signal processing for this bar (all positions closed)
-                self.portfolio.record_equity(
-                    bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
-                )
+                queued_orders.clear()
+                self._queue_flatten_all_positions(queued_orders, snapshot, "margin_liquidation")
+                ts = snapshot.timestamp.timestamp() if hasattr(snapshot.timestamp, "timestamp") else 0.0
+                self.portfolio.record_equity(ts)
                 continue
 
-            # Update drawdown tracker
+            # Drawdown circuit breakers.
             if self.drawdown_tracker is not None:
                 dd_state = self.drawdown_tracker.update(self.portfolio.total_value)
                 self.portfolio.regime_state = dd_state.action.value
 
-                # Graduated drawdown actions
                 if dd_state.action == DrawdownAction.REDUCE_25:
-                    self._reduce_positions(bar, 0.25)
+                    self._queue_position_adjustment(queued_orders, snapshot, 0.25, "dd_reduce_25")
                 elif dd_state.action == DrawdownAction.REDUCE_50:
-                    self._reduce_positions(bar, 0.50)
+                    self._queue_position_adjustment(queued_orders, snapshot, 0.50, "dd_reduce_50")
                 elif dd_state.action == DrawdownAction.REDUCE_75:
-                    self._reduce_positions(bar, 0.75)
+                    self._queue_position_adjustment(queued_orders, snapshot, 0.75, "dd_reduce_75")
                 elif dd_state.action == DrawdownAction.FLATTEN:
-                    # Close ALL positions immediately
-                    self._flatten_all_positions(bar)
-                    pending_orders.clear()
+                    queued_orders.clear()
+                    self._queue_flatten_all_positions(queued_orders, snapshot, "dd_flatten")
                 elif dd_state.action == DrawdownAction.HALT:
-                    # Close ALL positions and stop trading
-                    self._flatten_all_positions(bar)
-                    pending_orders.clear()
-                    self.portfolio.record_equity(
-                        bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
-                    )
-                    continue
+                    queued_orders.clear()
+                    self._queue_flatten_all_positions(queued_orders, snapshot, "dd_halt")
+                    halted = True
 
-            # ─── Process pending orders from previous bar at CURRENT bar's open ───
-            # set_bars(bar, bar) makes simulate_fill use bar.open for fill price.
-            # next_bar is NOT loaded here — no future data touches fill logic yet.
-            self.fill_sim.set_bars(bar, bar)
-            for order in pending_orders:
-                fill = self.fill_sim.simulate_fill(order)
-                if fill is not None:
-                    self.portfolio.apply_fill(fill, order.symbol)
-                    self.strategy.on_fill(fill, self.portfolio)
-            pending_orders.clear()
+            if halted:
+                # No new alpha signals after halt; only queued liquidation/fills remain.
+                ts = snapshot.timestamp.timestamp() if hasattr(snapshot.timestamp, "timestamp") else 0.0
+                self.portfolio.record_equity(ts)
+                continue
 
-            # ─── LOOK-AHEAD BARRIER ──────────────────────────────────────────────
-            # Reset fill_sim to (bar, None) so that NO next-bar price data is
-            # reachable during regime detection or signal generation.  Any strategy
-            # that tried to call fill_sim.simulate_fill() here would only see the
-            # current bar's prices — never the future.
-            self.fill_sim.set_bars(bar, None)
+            # 5. Cross-Sectional Signal Generation: strategy sees the complete
+            # immutable snapshot. No future timestamp is visible here.
+            signals = self._generate_signals(snapshot)
 
-            # Detect regime
-            regime = self._current_regime(bar)
-            if regime:
-                self.portfolio.regime_state = regime
+            # 6. Execution Queueing: convert signals into internal orders for the
+            # next timestamp window. No immediate fill occurs in this step.
+            self._queue_orders_from_signals(queued_orders, snapshot, signals)
 
-            # Generate signals using ONLY data up to and including the current bar.
-            # next_bar has NOT been peeked yet — the strategy receives no future info.
-            signals = self.strategy.on_bar(bar, self.portfolio)
-
-            # ─── POST-SIGNAL PEEK ─────────────────────────────────────────────────
-            # Only AFTER signal generation is complete do we look at the next bar.
-            # This data is used exclusively to simulate fill prices for new orders.
-            # It MUST NOT feed back into strategy logic.
-            next_bar: OHLCV | None = None
-            peek_idx = handler._index
-            if peek_idx < len(handler._data):
-                next_row = handler._data.iloc[peek_idx]
-                try:
-                    next_bar = OHLCV(
-                        symbol=str(next_row.get("symbol", bar.symbol)),
-                        timestamp=next_row["timestamp"] if isinstance(next_row["timestamp"], datetime) else pd.Timestamp(next_row["timestamp"]).to_pydatetime(),
-                        open=Decimal(str(next_row["open"])),
-                        high=Decimal(str(next_row["high"])),
-                        low=Decimal(str(next_row["low"])),
-                        close=Decimal(str(next_row["close"])),
-                        volume=int(next_row["volume"]),
-                    )
-                except Exception:
-                    next_bar = None
-
-            # Configure fill simulator for NEW signals (will fill at next_bar.open)
-            self.fill_sim.set_bars(bar, next_bar)
-
-            # Convert signals to orders with risk checks and sizing
-            for sig in signals:
-                price = float(bar.close)
-
-                # Phase 3: branch on instrument type (backward-compatible default equity)
-                is_option = getattr(sig, "instrument_type", "") == "option" or sig.metadata.get("instrument") == "OPTION"
-                if is_option:
-                    order_symbol = str(sig.metadata.get("contract_id", sig.symbol))
-                    multiplier = int(sig.metadata.get("multiplier", 100))
-                    contracts = int(sig.metadata.get("contracts", 0))
-                    option_qty = contracts * multiplier if contracts > 0 else 0
-                else:
-                    order_symbol = sig.symbol
-                    option_qty = 0
-
-                pos = self.portfolio.positions.get(order_symbol)
-                current_qty = float(pos.quantity) if pos else 0.0
-
-                # "flat" signal: close any existing position (string "flat" or int 0)
-                if sig.direction == "flat" or sig.direction == 0:
-                    if abs(current_qty) > 1e-8:
-                        close_side = Side.SELL if current_qty > 0 else Side.BUY
-                        close_order = Order(
-                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_exit",
-                            symbol=order_symbol, side=close_side, type=OrderType.MARKET,
-                            quantity=Decimal(str(int(abs(current_qty)))),
-                            metadata=sig.metadata,
-                        )
-                        pending_orders.append(close_order)
-                    continue
-
-                if sig.direction == "long" or sig.direction == 1:
-                    side = Side.BUY
-                elif sig.direction == "short" or sig.direction == -1:
-                    side = Side.SELL
-                else:
-                    continue
-
-                # Close opposing position before opening new one
-                if not is_option:
-                    if side == Side.BUY and current_qty < 0:
-                        cover_qty = int(abs(current_qty))
-                        cover_order = Order(
-                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_buy_cover",
-                            symbol=order_symbol, side=Side.BUY, type=OrderType.MARKET,
-                            quantity=Decimal(str(cover_qty)),
-                        )
-                        pending_orders.append(cover_order)
-                    elif side == Side.SELL and current_qty > 0:
-                        close_qty = int(abs(current_qty))
-                        close_order = Order(
-                            id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_sell_close",
-                            symbol=order_symbol, side=Side.SELL, type=OrderType.MARKET,
-                            quantity=Decimal(str(close_qty)),
-                        )
-                        pending_orders.append(close_order)
-
-                if is_option:
-                    qty = option_qty
-                else:
-                    qty = self._compute_sizing(side, price, bar, sig)
-                if qty <= 0:
-                    continue
-
-                order = Order(
-                    id=f"ord_{bar.timestamp.isoformat()}_{order_symbol}_{side.value}",
-                    symbol=order_symbol,
-                    side=side,
-                    type=OrderType.MARKET,
-                    quantity=Decimal(str(qty)),
-                    metadata=sig.metadata,
-                )
-
-                # Pre-trade risk check
-                if self.risk_limits is not None:
-                    from quantcore.core.types import PortfolioSnapshot
-                    snap = PortfolioSnapshot(
-                        timestamp=bar.timestamp if isinstance(bar.timestamp, datetime) else datetime.utcnow(),
-                        positions=self.portfolio.positions,
-                        total_value=Decimal(str(self.portfolio.total_value)),
-                    )
-                    result = check_pre_trade(
-                        order, snap, self.risk_limits,
-                        market_price=price,
-                    )
-                    if result.status.value == "rejected":
-                        self._rejected_orders.append((order, result))
-                        continue
-
-                pending_orders.append(order)
-
-                # Phase 3: cache option metadata for EOP / liquidation pricing
-                if is_option:
-                    self._option_meta[order_symbol] = sig.metadata
-
-                # Log signal
-                self.portfolio.signal_log.append({
-                    "timestamp": bar.timestamp,
-                    "symbol": order_symbol,
-                    "direction": sig.direction,
-                    "strength": sig.strength,
-                    "regime": self.portfolio.regime_state,
-                })
-
-            # Record daily return
+            # Record daily return after MTM, financing, fills, and queued orders.
             prev_equity = self.portfolio.equity_curve[-1][1] if self.portfolio.equity_curve else self.portfolio.initial_cash
             current_equity = self.portfolio.total_value
             daily_returns.append((current_equity - prev_equity) / prev_equity if prev_equity > 0 else 0.0)
 
-            # Record equity
-            ts = bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
+            ts = snapshot.timestamp.timestamp() if hasattr(snapshot.timestamp, "timestamp") else 0.0
             self.portfolio.record_equity(ts)
 
-        # --- End-of-period cleanup: close remaining positions ---
-        if bar is not None:
-            # Process any pending orders from the final bar
-            for order in pending_orders:
+        # End-of-run cleanup: process remaining queued orders and liquidate open
+        # positions using the last available snapshot. This is a forced terminal
+        # liquidation, not part of the normal intra-run event loop.
+        if last_snapshot is not None:
+            for order in queued_orders:
+                bar = last_snapshot.bars.get(order.symbol)
+                if bar is None:
+                    representative = last_snapshot.representative_bar()
+                    if representative is None:
+                        continue
+                    bar = representative
                 self.fill_sim.set_bars(bar, None)
                 fill = self.fill_sim.simulate_fill(order)
                 if fill is None:
                     fill = self._force_fill(order, bar)
                 self.portfolio.apply_fill(fill, order.symbol)
                 self.strategy.on_fill(fill, self.portfolio)
-            pending_orders.clear()
 
-            # Close any remaining open positions at the last available price
-            for sym in list(self.portfolio.positions.keys()):
-                pos = self.portfolio.positions[sym]
+            for sym, pos in list(self.portfolio.positions.items()):
                 close_qty = int(abs(float(pos.quantity)))
                 if close_qty == 0:
                     continue
+                bar = last_snapshot.bars.get(sym)
+                if bar is None:
+                    representative = last_snapshot.representative_bar()
+                    if representative is None:
+                        continue
+                    bar = representative
                 close_side = Side.SELL if float(pos.quantity) > 0 else Side.BUY
-                oid = f"ord_eop_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}"
-                meta = getattr(self, '_option_meta', {}).get(sym, {})
+                meta = getattr(self, "_option_meta", {}).get(sym, {})
                 order = Order(
-                    id=oid,
+                    id=f"ord_eop_{sym}_{'sell' if close_side == Side.SELL else 'buy_cover'}",
                     symbol=sym,
                     side=close_side,
                     type=OrderType.MARKET,
@@ -1054,18 +1346,16 @@ class BacktestEngine:
                 self.portfolio.apply_fill(fill, sym)
                 self.strategy.on_fill(fill, self.portfolio)
                 self.portfolio.signal_log.append({
-                    "timestamp": bar.timestamp,
+                    "timestamp": last_snapshot.timestamp,
                     "symbol": sym,
                     "direction": "eop_close",
                     "strength": 1.0,
                     "regime": self.portfolio.regime_state,
                 })
 
-            # Record final equity after EOP closes
-            ts = bar.timestamp.timestamp() if hasattr(bar.timestamp, "timestamp") else 0.0
+            ts = last_snapshot.timestamp.timestamp() if hasattr(last_snapshot.timestamp, "timestamp") else 0.0
             self.portfolio.record_equity(ts)
 
-        # Build result DataFrame
         if not self.portfolio.equity_curve:
             return pd.DataFrame(columns=["timestamp", "equity"])
 
