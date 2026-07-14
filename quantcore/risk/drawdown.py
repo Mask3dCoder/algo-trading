@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 import numpy as np
@@ -66,7 +66,7 @@ class DrawdownTracker:
 
     def update(self, nav: float, ts: datetime | None = None) -> DrawdownState:
         """Update the tracker with a new NAV and return current state."""
-        timestamp = ts or datetime.utcnow()
+        timestamp = ts or datetime.now(timezone.utc)
         self._current_nav = nav
         self._history.append((timestamp, nav))
 
