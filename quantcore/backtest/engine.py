@@ -22,6 +22,7 @@ from quantcore.backtest.analytics import (
     compute_returns,
     generate_performance_report,
 )
+from quantcore.backtest.corporate_actions import CorporateActionsConfig, ex_date_key
 from quantcore.backtest.financing import (
     FinancingConfig,
 )
@@ -175,6 +176,9 @@ class PortfolioState:
         self.total_borrow_cost: float = 0.0
         self.total_margin_interest: float = 0.0
         self._financing_config: FinancingConfig | None = None
+        # Corporate actions (dividends / splits) — see CorporateActionsConfig
+        self._corporate_actions: CorporateActionsConfig | None = None
+        self.total_dividend_income: float = 0.0
 
     # ------------------------------------------------------------------
     # Property guards — economic state is READ-ONLY through the public API.
@@ -359,6 +363,52 @@ class PortfolioState:
                                             description="financing cost")
         else:
             self._cash -= amount
+
+    def _credit_cash(self, amount: float) -> None:
+        """Credit cash (e.g. dividend income), routing through CashLedger if set."""
+        if self._cash_ledger is not None:
+            self._cash_ledger.add_unsettled(amount, "equity", description="dividend")
+        else:
+            self._cash += amount
+
+    def set_corporate_actions(self, config: CorporateActionsConfig | None) -> None:
+        """Set the dividend/split schedule applied during the backtest."""
+        self._corporate_actions = config
+
+    def daily_corporate_actions_update(self, timestamp: object) -> None:
+        """Credit dividends and apply splits for the current bar.
+
+        Called once per bar after mark-to-market and financing. A long position
+        held on an ex-date receives ``amount`` cash per share (a short pays it);
+        on a split date the position's quantity is rescaled by the ratio and its
+        average cost divided by it, so value is preserved across the
+        unadjusted-price jump. Ex-dates outside the run window are ignored.
+        """
+        config = self._corporate_actions
+        if config is None or not (config.dividends or config.splits):
+            return
+        key = ex_date_key(timestamp)
+        for symbol, pos in list(self._positions.items()):
+            qty = float(pos.quantity)
+            if abs(qty) < 1e-12:
+                continue
+            div_amt = config.dividends.get(symbol, {}).get(key)
+            if div_amt:
+                self._credit_cash(qty * div_amt)
+                self.total_dividend_income += qty * div_amt
+            ratio = config.splits.get(symbol, {}).get(key)
+            if ratio and ratio > 0 and abs(ratio - 1.0) > 1e-12:
+                new_qty = qty * ratio
+                new_avg = float(pos.avg_cost) / ratio
+                new_market = float(pos.market_price)
+                self._positions[symbol] = Position(
+                    symbol=symbol,
+                    quantity=Decimal(str(new_qty)),
+                    avg_cost=Decimal(str(new_avg)),
+                    market_price=pos.market_price,
+                    unrealized_pnl=Decimal(str(new_qty * (new_market - new_avg))),
+                    realized_pnl=pos.realized_pnl,
+                )
 
     def set_financing_config(self, config: FinancingConfig | None) -> None:
         """Set the financing config for borrow/margin cost calculations."""
@@ -727,12 +777,14 @@ class BacktestEngine:
         impact_config: MarketImpactConfig | None = None,
         volume_filter_config: VolumeFilterConfig | None = None,
         financing_config: FinancingConfig | None = None,
+        corporate_actions_config: CorporateActionsConfig | None = None,
         risk_manager: RiskManager | None = None,
     ) -> None:
         self.strategy = strategy
         self.portfolio = PortfolioState(initial_cash)
         self.portfolio.set_financing_config(financing_config)
         self._financing_config = financing_config
+        self._corporate_actions_config = corporate_actions_config
         self.fill_sim = FillSimulator(
             slippage_bps,
             commission_per_share,
@@ -1212,6 +1264,7 @@ class BacktestEngine:
         handler = HistoricalDataHandler(data)
         self.portfolio = PortfolioState(self.portfolio.initial_cash)
         self.portfolio.set_financing_config(self._financing_config)
+        self.portfolio.set_corporate_actions(self._corporate_actions_config)
         self._risk_decisions = []
         self._rejected_orders = []
         self._option_meta = {}
@@ -1250,6 +1303,9 @@ class BacktestEngine:
 
             # 4. Financing & Fees: borrow/margin costs now use newly marked prices.
             self.portfolio.daily_financing_update()
+
+            # 4b. Corporate actions: credit dividends / apply splits for today.
+            self.portfolio.daily_corporate_actions_update(snapshot.timestamp)
 
             # Risk circuit breakers queue liquidation for the next timestamp
             # instead of filling intra-bar from the signal-generation snapshot.
