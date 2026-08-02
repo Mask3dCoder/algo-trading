@@ -49,28 +49,50 @@ def select_universe(
     *,
     min_market_cap: float = _DEFAULT_MIN_MARKET_CAP,
     top_n: int | None = 500,
+    max_delisted: int | None = None,
 ) -> pd.DataFrame:
-    """Return the top ``top_n`` active common stocks by market cap (>= floor).
+    """Return liquid active names (top ``top_n`` by market cap) plus the delisted tail.
 
-    Setting ``top_n=None`` returns every active CS ticker above the market-cap
-    floor. The ``$2B`` floor plus top-500 cap yields a liquid, backtestable
-    universe without pulling the full 7k-name reference.
+    ``min_market_cap`` and ``top_n`` rank **active** names by *current* market
+    cap. Delisted tickers are appended afterwards **without** the market-cap
+    floor: their current ``market_cap`` is typically null/0, and applying the
+    floor there would silently drop every company that died (or was acquired)
+    during the backtest window — rebuilding the survivorship bias this layer
+    exists to remove.
+
+    ``max_delisted`` optionally bounds the historical tail (the full inactive
+    reference can be tens of thousands of names; ingesting bars for all of them
+    is expensive). Keep it ``None`` for correctness, or set a ceiling for the
+    first pilot.
+
+    .. note:: Present-day market-cap ranking is a *proxy* for point-in-time
+       membership. A fully PIT universe needs historical constituent
+       membership (e.g. S&P 500 constituents history) or PIT market-cap
+       ranking computed from the ingested bars (``shares_outstanding_t *
+       price_t``); until then a name that was large in the window but is dead
+       today only survives if it still ranks here. See the audit's Step 3.
     """
     active = client.all_tickers(active=True)
     active_df = _row_to_frame(active)
 
-    # Merge in delisted tickers so the universe table is survivorship-free.
+    # The delisted tail is survivorship-critical — retain it unconditionally.
     delisted = client.all_tickers(active=False)
     delisted_df = _row_to_frame(delisted)
+
+    if min_market_cap is not None:
+        active_df = active_df[active_df["market_cap"].fillna(0.0) >= min_market_cap]
+    active_df = active_df.sort_values("market_cap", ascending=False)
+    if top_n is not None:
+        active_df = active_df.head(top_n)
+
+    if max_delisted is not None:
+        delisted_df = delisted_df.sort_values(
+            "market_cap", ascending=False, na_position="last"
+        ).head(max_delisted)
+
     df = pd.concat([active_df, delisted_df], ignore_index=True).drop_duplicates(
         subset=["symbol"], keep="first"
     )
-
-    if min_market_cap is not None:
-        df = df[df["market_cap"].fillna(0.0) >= min_market_cap]
-    df = df.sort_values("market_cap", ascending=False)
-    if top_n is not None:
-        df = df.head(top_n)
     return df.reset_index(drop=True)
 
 

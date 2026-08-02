@@ -7,7 +7,6 @@ store — no network, no Polygon API key required.
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from quantcore.data.pit.market import ParquetPitStore
 from quantcore.data.pit.market import universe as universe_mod
@@ -96,6 +95,45 @@ def test_universe_is_survivorship_free(tmp_path) -> None:
     syms_2021 = reader.universe_symbols_asof("2021-06-01")
     assert "DEAD" in syms_2019 and "SPY" in syms_2019
     assert "DEAD" not in syms_2021 and "SPY" in syms_2021
+
+
+def test_select_universe_keeps_delisted_tail(tmp_path) -> None:
+    """Delisted names must not be evicted by the active-only market-cap floor.
+
+    Regression for a survivorship-bias bug: the floor was applied to the merged
+    frame, so a delisted ticker whose current market_cap is null/0 was dropped
+    from the snapshot — excluding every company that died during the window.
+    """
+    class _FakeClient:
+        def __init__(self, active: list[dict], delisted: list[dict]) -> None:
+            self._active = active
+            self._delisted = delisted
+
+        def all_tickers(self, *, active: bool, market: str = "stocks", type_: str = "CS") -> list[dict]:
+            return self._active if active else self._delisted
+
+    client = _FakeClient(
+        active=[
+            {"ticker": "SPY", "name": "x", "market_cap": 1e12,
+             "shares_outstanding": 1e9, "type": "CS", "delisted_utc": None,
+             "updated": "2024-01-01"},
+            # Active name BELOW the $2B floor — must be dropped.
+            {"ticker": "TINY", "name": "t", "market_cap": 5e8,
+             "shares_outstanding": 1e8, "type": "CS", "delisted_utc": None,
+             "updated": "2024-01-01"},
+        ],
+        delisted=[
+            # Dead name, null market cap today — must be retained regardless.
+            {"ticker": "DEAD", "name": "y", "market_cap": None,
+             "shares_outstanding": None, "type": "CS",
+             "delisted_utc": "2022-06-01", "updated": "2024-01-01"},
+        ],
+    )
+    df = universe_mod.select_universe(client, min_market_cap=2e9, top_n=500)
+    syms = set(df["symbol"])
+    assert "SPY" in syms
+    assert "DEAD" in syms, "delisted tail must survive the market-cap floor"
+    assert "TINY" not in syms, "active names below the floor are still excluded"
 
 
 def test_empty_store_queries_return_empty_frames(tmp_path) -> None:
