@@ -23,6 +23,14 @@ market data**. Everything upstream of that is fiction until it is fixed.
 - ✅ The `buy_and_hold(SPY)` sanity gate — until it passes, all backtests are fiction
 - ✅ Mechanical codebase triage under the `pre-forensic-audit` tag
 
+## Unfrozen-but-segregated work
+
+- 🔀 Broker consolidation WIP (duplicate `quantcore/brokers/` vs
+  `quantcore/execution/brokers/`, plus `live/` + `risk/` touch points) is
+  preserved on the **`broker-consolidation-wip`** branch (`b9c8dee`). It was
+  swept there un-reviewed to keep the data-pipeline line clean. Do not merge
+  into `main` without review; treat it as a parallel line of work.
+
 ## Unfreeze gate
 
 New strategy/signal code may resume only after:
