@@ -9,6 +9,14 @@ Backtests run on **unadjusted** bars (the PIT convention — see
 ``quantcore.data.pit.market``). A dividend or split therefore shows up as a
 cash flow / price discontinuity that the portfolio must handle explicitly:
 
+**Dividends are credited as cash, not reinvested, by design** — this matches
+real fund accounting and is the reason a buy-and-hold equity curve trails a
+total-return benchmark (e.g. Yahoo adj-close) by roughly the reinvestment
+drag. Do NOT "fix" this gap by auto-reinvesting at the next bar's close: that
+reintroduces a look-ahead-adjacent assumption and is not how real portfolios
+behave by default. (An explicit, flag-gated reinvestment mode is a separate
+feature; a silent default is a bug.)
+
 * **Dividends** — a long position held on the ex-date receives ``amount`` cash
   per share; a short position *pays* it. Credited after mark-to-market for the
   bar, so the equity curve reflects the income on the day it is earned.
