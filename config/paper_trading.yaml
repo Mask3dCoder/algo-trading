@@ -1,0 +1,140 @@
+# QuantCore -- Delta Neutral VRP Paper Trading Configuration
+# Investment Committee Authorised: 2026-06-23
+#
+# Purpose: Out-of-sample paper trading validation for delta_neutral_vrp
+#          with mandatory hardcoded risk guardrails.
+#
+# Discipline:
+#   - Kill switch thresholds are NOT tunable during the validation window.
+#   - RiskController thresholds are hardcoded; any change requires committee approval.
+#   - Strategy params from walk-forward validation (2024-10 to 2026-05).
+#
+# Benchmark (walk-forward OOS, 504-day train / 126-day test per fold):
+#   Expected Sharpe  : 1.30  (annualised)
+#   Expected Return  : 12.0% (annualised)
+#   Expected MaxDD   : 15.4% (walk-forward max)
+#   Expected WinRate: 86.7% (2022/2023 closed-trade ledger)
+#
+# Kill switch overrides require Investment Committee written approval.
+# After 24 months / 50+ closed trades -> full committee review.
+
+# -- Passive Tracking (Silent Run) --------------------------------------------------------
+# When enabled, the runner logs intended trades to passive_trades.json
+# instead of submitting to the broker.  Internal state (positions, cash,
+# peak equity) is still updated as if fills occurred at mid-price.
+# 72-hour validation window recommended before live trading.
+#
+# NOTE: passive_tracking_mode must remain TRUE until Investment Committee
+#       approves transition to live.
+execution:
+  passive_tracking_mode: true       # <<< SILENT RUN: DO NOT CHANGE
+  scale_mode: CAPITAL_ALLOCATED
+  initial_cash: 100000.0           # single-share scale (notional / 100)
+  slippage_spread_bps: 5.0         # 5 bps on SPY hedge
+  options_slippage_bps: 50.0       # 5% haircut on options fills
+
+# -- Risk management (hardcoded -- NOT tunable) ---------------------------------
+risk:
+  # Kill Switch 1: Hard MaxDD -- mandatory per Investment Committee
+  max_drawdown_pct: 0.10           # 10% hard kill (from peak equity)
+
+  # Kill Switch 2: Rolling 3-Month Sharpe Halt
+  sharpe_lookback_days: 63         # ~3 trading months
+  sharpe_min_threshold: 0.0        # halt if Sharpe < 0
+
+  # Kill Switch 3: Macro / Replay Volatility Exit
+  macro_vix_threshold: 30.0
+  macro_drawdown_warning_pct: 0.08   # 8% -> warning, reduce to 50%
+  macro_drawdown_kill_pct: 0.12      # 12% -> full halt
+
+# -- Slippage & commissions --------------------------------------------------------
+slippage:
+  spy_spread_bps: 5.0
+  options_spread_bps: 50.0
+  options_commission_per_contract: 0.65
+  equity_commission_per_share: 0.005
+
+# -- Benchmark (for P&L drift monitoring) ----------------------------------------
+benchmark:
+  expected_sharpe_annual: 1.30
+  expected_annual_return: 0.12
+  expected_max_dd: 0.1543
+  expected_win_rate: 0.867
+  win_rate_warn_threshold: 0.65     # < 65% 3-month win rate -> WARNING
+
+# -- Strategy: options_delta_neutral -----------------------------------------------
+strategies:
+  - name: options_delta_neutral
+    enabled: true
+    paper: true
+    allocation_weight: 1.0          # single strategy in this validation
+    data_source: yfinance_vix
+    strategy_type: OPTIONS
+    circuit_breaker:
+      max_daily_loss_pct: 0.01
+      max_drawdown_pct: 0.10       # mirrors RiskController
+    params:
+      ivr_entry: 50               # IV Rank entry threshold
+      ivr_exit: 25                # IV Rank exit threshold
+      dte_min: 30                 # minimum DTE at entry
+      dte_max: 60                 # maximum DTE at entry
+      delta_target: 0.30           # delta-neutral target
+      hedge_freq: 1                # daily hedge
+      gamma_scalp_threshold: 0.01 # gamma scalp threshold
+      max_positions: 5
+
+# -- Universe ------------------------------------------------------------------------
+universe:
+  tickers:
+    - SPY
+    - QQQ
+    - IWM
+    - GLD
+    - TLT
+  macro_assets:
+    - SPY
+    - QQQ
+    - IWM
+    - GLD
+    - TLT
+  vix_ticker: ^VIX
+
+# -- Schedule (ET) ------------------------------------------------------------------
+schedule:
+  trading_time: "16:15"           # submit orders ~15 min after close
+  reconciliation_time: "16:30"     # reconcile 30 min after close
+  timezone: US/Eastern
+
+# -- Monitoring & output -----------------------------------------------------------
+monitoring:
+  health_check_interval_sec: 60
+  log_dir: reports/paper_trading/logs
+  equity_file: reports/paper_trading/equity.csv
+  delta_log: reports/paper_trading/daily_delta_log.csv
+  alert_log: reports/paper_trading/alerts.log
+  daily_csv: reports/paper_trading/daily_log.csv
+
+# -- Sizing (capital-allocated) ----------------------------------------------------
+sizing:
+  max_premium_allocation_pct: 0.05   # 5% of equity per trade cycle
+  max_portfolio_premium_pct: 0.20    # 20% of equity across all open positions
+  max_contracts_per_trade: 10        # hard cap per single entry
+  max_total_contracts: 50            # hard cap across all open positions
+  initial_margin_pct: 0.20          # Reg T 20% per short option
+  max_margin_utilization_pct: 0.50   # never use > 50% of equity as margin
+
+# -- Delta telemetry ---------------------------------------------------------------
+delta_telemetry:
+  log_interval_seconds: 300          # log snapshot every 5 minutes
+  drift_warning_threshold: 5.0       # |net_delta| > 5 -> WARNING
+  drift_critical_threshold: 15.0     # |net_delta| > 15 -> CRITICAL
+  drift_lookback: 20                 # last 20 snapshots for statistics
+
+# -- Alerting -----------------------------------------------------------------------
+alerting:
+  enabled: true
+  file_path: reports/paper_trading/alerts.log
+
+kill_switch:
+  file_path: PAPER_KILL_SWITCH
+  check_interval_sec: 10

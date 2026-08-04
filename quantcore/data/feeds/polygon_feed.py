@@ -1,4 +1,4 @@
-"""Polygon and Crypto WebSocket feed handlers."""
+"""Massive (Polygon.io) and Crypto WebSocket feed handlers."""
 
 from __future__ import annotations
 
@@ -10,12 +10,13 @@ from typing import Any
 
 from quantcore.core.types import OHLCV, Quote, Tick
 from quantcore.data.feeds.base import FeedHandler
+from quantcore.data.polygon_hosts import WS_BASE_URL
 
 
 class PolygonFeed(FeedHandler):
-    """Polygon.io WebSocket feed for trades, quotes, and aggregates."""
+    """Massive (Polygon.io) WebSocket feed for trades, quotes, and aggregates."""
 
-    WS_URL = "wss://socket.polygon.io/stocks"
+    WS_URL = f"{WS_BASE_URL}/stocks"
 
     def __init__(self, api_key: str) -> None:
         super().__init__()

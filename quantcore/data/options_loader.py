@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from quantcore.data.polygon_hosts import REST_BASE_URL
+
 log = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
@@ -734,7 +736,7 @@ class PolygonOptionsDataLoader:
     per minute; paid tiers are much faster.
     """
 
-    _BASE = "https://api.polygon.io"
+    _BASE = os.environ.get("MASSIVE_REST_BASE_URL", REST_BASE_URL)
 
     def __init__(
         self,
@@ -743,7 +745,7 @@ class PolygonOptionsDataLoader:
         rate_limit_sleep: float = 12.0,  # free tier: 5 req/min
     ) -> None:
         self.data_dir = Path(data_dir)
-        self.api_key = api_key or os.environ.get("POLYGON_API_KEY", "")
+        self.api_key = api_key or os.environ.get("MASSIVE_API_KEY", "") or os.environ.get("POLYGON_API_KEY", "")
         self.rate_limit_sleep = rate_limit_sleep
         self._last_request_time = 0.0
         self._session = None
@@ -771,9 +773,11 @@ class PolygonOptionsDataLoader:
         self._rate_limit()
         session = self._get_session()
         p = dict(params or {})
-        p["apiKey"] = self.api_key
         url = f"{self._BASE}{path}"
-        resp = session.get(url, params=p, timeout=30)
+        resp = session.get(
+            url, params=p, timeout=30,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+        )
         if resp.status_code == 429:
             log.warning("Polygon rate limited, sleeping 30s")
             time.sleep(30)

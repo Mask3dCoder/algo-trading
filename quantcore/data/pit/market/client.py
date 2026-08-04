@@ -1,4 +1,12 @@
-"""Rate-limited, paginating Polygon.io REST client for PIT ingestion.
+"""Rate-limited, paginating Massive (Polygon.io) REST client for PIT ingestion.
+
+Hosts
+-----
+Polygon.io rebranded to Massive (massive.com). The REST base URL is now
+``https://api.massive.com`` (legacy ``https://api.polygon.io`` still works for an
+extended period). Flat-file bulk export is served from an S3-compatible endpoint
+(``https://files.massive.com``) under ``flatfiles/us_stocks_sip/day_aggs_v1/``.
+All hosts are overridable via env vars (see ``quantcore/data/polygon_hosts.py``).
 
 Tier notes
 ----------
@@ -7,18 +15,41 @@ Tier notes
   options **NBBO quotes** require the Advanced tier (~$199/mo).
 * Default rate limit is 5 calls/minute (Starter). Raise it via
   ``rate_limit_per_minute`` when on a higher tier.
+* Day-aggregate flat files are included in Starter/Developer/Advanced/Business,
+  NOT in Basic (see massive.com/docs/flat-files/stocks/day-aggregates).
 """
 
 from __future__ import annotations
 
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 
-BASE_URL = "https://api.polygon.io"
+from quantcore.data.polygon_hosts import (
+    DAY_AGG_PREFIX,
+    FLAT_FILE_BUCKET,
+    FLAT_FILE_ENDPOINT,
+    REST_BASE_URL,
+)
+
+BASE_URL = REST_BASE_URL
 
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+
+def resolve_api_key(explicit: str = "") -> str:
+    """Return the first non-empty API key from the arg / env.
+
+    Massive accepts the existing ``POLYGON_API_KEY`` and recommends
+    ``MASSIVE_API_KEY`` (same keys, both hosts). Raises if neither is set.
+    """
+    key = (explicit or os.environ.get("MASSIVE_API_KEY", "") or os.environ.get("POLYGON_API_KEY", "")).strip()
+    if not key:
+        raise PolygonClientError("MASSIVE_API_KEY / POLYGON_API_KEY is required")
+    return key
 
 
 class PolygonClientError(RuntimeError):
@@ -34,16 +65,14 @@ class PolygonPitClient:
         rate_limit_per_minute: int = 5,
         retries: int = 4,
     ) -> None:
-        if not api_key:
-            raise PolygonClientError("POLYGON_API_KEY is required (currently a placeholder in .env)")
-        self.api_key = api_key
+        self.api_key = resolve_api_key(api_key)
         self._min_interval = 60.0 / max(rate_limit_per_minute, 1)
         self._retries = max(retries, 1)
         self._last_request = 0.0
         self._client = httpx.Client(
             base_url=BASE_URL,
             timeout=60.0,
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={"Authorization": f"Bearer {self.api_key}"},
             limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
         )
 
@@ -163,3 +192,70 @@ class PolygonPitClient:
 
     def __exit__(self, *exc: object) -> None:
         self.close()
+
+
+class PolygonFlatFileClient:
+    """Minimal S3 client for Massive/Polygon flat-file bulk export.
+
+    Day aggregates are served from the S3-compatible ``FLAT_FILE_ENDPOINT`` under
+    the ``flatfiles`` bucket at ``us_stocks_sip/day_aggs_v1/{year}/{month}/``
+    (``*.csv.gz`` per ticker/day). This is the bulk path for the 500-ticker
+    backfill — orders of magnitude cheaper than per-symbol REST calls.
+
+    **Authentication uses S3 credentials (access key id + secret), NOT the REST
+    API key.** Get them from the Massive dashboard alongside the REST key. Env
+    vars accepted (new name first, legacy second):
+
+        MASSIVE_S3_ACCESS_ID        / MASSIVE_S3_SECRET_ACCESS_KEY
+        POLYGON_S3_Access_ID        / POLYGON_Secret_Access_Key
+
+    Requires ``boto3``/``botocore`` (present in the project deps).
+    """
+
+    def __init__(
+        self,
+        access_key_id: str = "",
+        secret_access_key: str = "",
+        endpoint: str = "",
+    ) -> None:
+        self.access_key_id = access_key_id or os.environ.get("MASSIVE_S3_ACCESS_ID", "") or os.environ.get("POLYGON_S3_Access_ID", "")
+        self.secret_access_key = secret_access_key or os.environ.get("MASSIVE_S3_SECRET_ACCESS_KEY", "") or os.environ.get("POLYGON_Secret_Access_Key", "")
+        self.endpoint = (endpoint or FLAT_FILE_ENDPOINT).rstrip("/")
+        if not (self.access_key_id and self.secret_access_key):
+            raise PolygonClientError(
+                "Flat-file S3 credentials missing. Set MASSIVE_S3_ACCESS_ID and "
+                "MASSIVE_S3_SECRET_ACCESS_KEY (or legacy POLYGON_S3_Access_ID / "
+                "POLYGON_Secret_Access_Key)."
+            )
+        try:
+            import boto3
+            from botocore.config import Config
+        except ImportError as exc:  # pragma: no cover - env dependent
+            raise PolygonClientError("boto3/botocore are required for flat-file download") from exc
+        self._s3 = boto3.client(
+            "s3",
+            endpoint_url=self.endpoint,
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+            region_name="us-east-1",
+            config=Config(s3={"addressing_style": "path"}, signature_version="s3v4"),
+        )
+
+    def day_agg_keys(self, year: int, month: int | None = None) -> list[str]:
+        """List flat-file object keys under ``us_stocks_sip/day_aggs_v1``."""
+        prefix = f"{DAY_AGG_PREFIX}/{year}"
+        if month is not None:
+            prefix += f"/{int(month):02d}"
+        keys: list[str] = []
+        paginator = self._s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=FLAT_FILE_BUCKET, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                keys.append(obj["Key"])
+        return sorted(keys)
+
+    def download(self, key: str, dest_dir: str | Path) -> Path:
+        """Download one flat-file object to ``dest_dir`` (basename preserved)."""
+        dest = Path(dest_dir) / Path(key).name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        self._s3.download_file(FLAT_FILE_BUCKET, key, str(dest))
+        return dest

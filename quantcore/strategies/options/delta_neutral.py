@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from quantcore.backtest.engine import SignalData
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
@@ -45,6 +46,9 @@ class DeltaNeutralStrategy(Strategy):
         self.max_positions = int(config.params.get("max_positions", 5))
         self._active_positions: list[dict] = []
         self._days_since_hedge = 0
+        # Rolling close window fed to on_data() by the engine adapter (on_bar).
+        # on_data() requires >= 20 bars before emitting signals.
+        self._hist_close: list[float] = []
 
     def _compute_ivr(self, iv_history: NDArray) -> float:
         """Compute IV rank: (current - min) / (max - min) * 100.
@@ -268,3 +272,62 @@ class DeltaNeutralStrategy(Strategy):
                 self._active_positions.remove(pos)
 
         return signals
+
+    # ------------------------------------------------------------------
+    # BacktestEngine adapter (interface compatibility — see note below).
+    # ------------------------------------------------------------------
+
+    def on_bar(self, bar, portfolio) -> list[SignalData]:
+        """Engine entry point (legacy single-bar path).
+
+        The engine's ``Strategy`` Protocol calls ``on_bar(bar, portfolio)`` while
+        this strategy implements the batch/live ``on_data(dict[str, NDArray])``
+        interface. This adapter bridges the two by accumulating a rolling window
+        of closes — ``on_data`` requires >= 20 bars before emitting signals, so a
+        per-bar call alone would never produce one.
+
+        **Modeling boundary (read before trusting any engine equity curve).**
+        This strategy trades options, but the engine is fed equity bars and
+        cannot fill option contracts (no contract metadata, no options data
+        model). Every signal this strategy emits is a *stock hedge* order
+        (direction +-1/0, ``size`` = hedge notional — see ``on_data``), so the
+        adapter maps ``instrument_type`` to ``equity`` and the engine simulates
+        only the delta-hedge leg. The short-option premium / theta / gamma is
+        tracked inside the strategy (``_pnl_attribution``) and does NOT appear
+        in the engine's equity curve. A faithful options backtest requires the
+        options data pipeline.
+        """
+        self._hist_close.append(float(bar.close))
+        if len(self._hist_close) < 20:
+            return []
+        data: dict[str, NDArray] = {
+            "close": np.asarray(self._hist_close, dtype=float),
+            "symbols": [bar.symbol],
+        }
+        return [self._to_engine_signal(sig) for sig in self.on_data(data)]
+
+    def on_fill(self, *args, **kwargs) -> None:
+        """Signature-tolerant no-op.
+
+        The engine calls ``on_fill(fill, portfolio)`` (its Protocol) while the
+        base ``Strategy`` exposes the live ``on_fill(symbol, fill_price,
+        fill_qty, side)``. This strategy doesn't react to fills, so it must
+        tolerate either interface rather than inherit the mismatched base
+        default. (Same pattern as SimpleBuyHoldStrategy.)
+        """
+        return None
+
+    def _to_engine_signal(self, sig: TradeSignal) -> SignalData:
+        """Convert the strategy's TradeSignal into the engine's SignalData."""
+        direction = {1: "long", -1: "short", 0: "flat"}.get(int(sig.direction), "flat")
+        size = float(sig.size) if sig.size else 0.0
+        return SignalData(
+            symbol=str(sig.symbol),
+            direction=direction,
+            strength=float(sig.strength),
+            strategy_id=str(self.config.name),
+            # Hedge leg only (see on_bar docstring); engine cannot fill the option.
+            notional_size=size if size > 0 else None,
+            instrument_type="equity",
+            metadata=dict(sig.metadata or {}),
+        )

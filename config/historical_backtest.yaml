@@ -1,0 +1,49 @@
+# QuantCore — Historical Backtest Harness for delta_neutral_vrp
+# Drives synthetic chains through PaperTradingRunner.run_once(date)
+# See docstring in bin/run_production_backtest.py for details.
+
+harness:
+  start_date: 2020-01-01
+  end_date: 2025-12-31
+  spy_vix_cache: data/synthetic_universe/spy_vix_2020_2025.csv
+
+execution:
+  # NOTE: passive_tracking_mode is FALSE here to let equity move and risk
+  # kills fire.  Equivalent to mid-price fills thanks to slippage_bps=0.
+  passive_tracking_mode: false
+  # NOTE: PaperTradingConfig.from_dict() is case-sensitive and expects
+  # the exact enum string (all lower-case). CAPITAL_ALLOCATED would
+  # silently fall back to single_share. Use lower-case here.
+  scale_mode: capital_allocated
+  initial_cash: 100000.0
+  slippage_spread_bps: 0.0    # mid-price hedge fills
+  options_slippage_bps: 0.0   # mid-price option fills
+
+risk:
+  max_drawdown_pct: 0.10
+  sharpe_lookback_days: 63
+  sharpe_min_threshold: 0.0
+  macro_vix_threshold: 30.0
+  macro_drawdown_kill_pct: 0.12
+
+sizing:
+  max_premium_allocation_pct: 0.05
+  max_portfolio_premium_pct: 0.20
+  max_contracts_per_trade: 10
+  max_total_contracts: 50
+
+strategies:
+  - name: options_delta_neutral
+    enabled: true
+    paper: true
+    params: { ivr_entry: 50, ivr_exit: 25, dte_min: 30, dte_max: 60 }
+
+benchmark:
+  expected_sharpe_annual: 1.30
+  expected_annual_return: 0.12
+  expected_max_dd: 0.1543
+  expected_win_rate: 0.867
+
+universe:
+  tickers: [SPY]
+  vix_ticker: ^VIX

@@ -1,0 +1,85 @@
+{
+  "factor_id": "mom_1m",
+  "factor_name": "mom_1m",
+  "group": "Momentum",
+  "holding_days": 21,
+  "econ_rationale": "Underreaction / Herding",
+  "formula": "",
+  "formula_code": "",
+  "pearson_ic": -0.002991471588131786,
+  "spearman_ic": -0.004637838962889358,
+  "icir": -0.01598075337632277,
+  "hit_rate": 0.5018351685018352,
+  "coverage": 0.9930440543226234,
+  "persistence": 0.9200318701319571,
+  "bootstrap_ci_lower": -0.014254022945526135,
+  "bootstrap_ci_upper": 0.007006581029899675,
+  "t_stat": -0.8748641505908961,
+  "t_pvalue": 0.3817179539726761,
+  "permutation_pvalue": 0.77,
+  "reject_null": false,
+  "fdr_survives": false,
+  "regime_ics": {
+    "Bull+LowVol": {
+      "ic": 0.009617,
+      "rank_ic": 0.003239,
+      "n_dates": 869,
+      "coverage": 0.29
+    },
+    "Bull+HighVol": {
+      "ic": 0.001401,
+      "rank_ic": -0.001481,
+      "n_dates": 538,
+      "coverage": 0.1795
+    },
+    "Bear+LowVol": {
+      "ic": -0.003866,
+      "rank_ic": 0.004765,
+      "n_dates": 83,
+      "coverage": 0.0277
+    },
+    "Bear+HighVol": {
+      "ic": -0.051663,
+      "rank_ic": -0.049541,
+      "n_dates": 161,
+      "coverage": 0.0537
+    },
+    "Bull": {
+      "ic": -0.000892,
+      "rank_ic": -0.005384,
+      "n_dates": 2494,
+      "coverage": 0.8322
+    },
+    "Bear": {
+      "ic": -0.023779,
+      "rank_ic": -0.019121,
+      "n_dates": 503,
+      "coverage": 0.1678
+    },
+    "HighVol": {
+      "ic": -0.010821,
+      "rank_ic": -0.01255,
+      "n_dates": 699,
+      "coverage": 0.2332
+    },
+    "LowVol": {
+      "ic": 0.008441,
+      "rank_ic": 0.003372,
+      "n_dates": 952,
+      "coverage": 0.3177
+    }
+  },
+  "regime_robust": false,
+  "regime_stable": false,
+  "avg_adv_usd": 1902367339.3462667,
+  "max_capacity_usd": 95118366.96731335,
+  "annual_turnover": 235.96012012012008,
+  "annual_cost_bps": 2359.6012012012006,
+  "min_ic_to_survive": 1.5730674674674672,
+  "cost_viable": "False",
+  "max_corr_with": "rev_1m",
+  "max_corr_value": -0.9999999999999998,
+  "is_independent": false,
+  "promotion_decision": "PENDING",
+  "last_updated": "2026-06-30T23:55:29.587011Z"
+}

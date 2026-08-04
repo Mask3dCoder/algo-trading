@@ -82,3 +82,14 @@ HONEST_FOUNDATION_REPORT.json
 
 # External tool repos
 ruflo/
+
+# user-specific local settings (never commit)
+.claude/settings.local.json
+
+# Runtime logs (root-level, not under logs/)
+runner_persistent.log
+
+# Config backups (git history is the backup)
+config/backups/
+*.bak
+*.bak_*

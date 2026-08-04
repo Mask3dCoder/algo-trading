@@ -1,25 +1,36 @@
-"""Polygon.io data source adapter."""
+"""Massive (Polygon.io) data source adapter.
+
+Polygon.io rebranded to Massive (massive.com); the REST host is now
+``https://api.massive.com`` (legacy ``api.polygon.io`` still served). Auth is
+``Authorization: Bearer <API_KEY>`` (same key, both hosts). Hosts are
+overridable via env vars — see ``quantcore/data/polygon_hosts.py``.
+"""
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 import httpx
 import pandas as pd
 
+from quantcore.data.polygon_hosts import REST_BASE_URL
 from quantcore.data.sources.base import DataSource, DataSourceConfig
 
 
 class PolygonDataSource(DataSource):
-    """Polygon.io REST API data source."""
+    """Massive (Polygon.io) REST API data source."""
 
-    BASE_URL = "https://api.polygon.io"
+    BASE_URL = os.environ.get("MASSIVE_REST_BASE_URL", REST_BASE_URL)
 
     def __init__(self, api_key: str = "", rate_limit: int = 5) -> None:
         config = DataSourceConfig(api_key=api_key, rate_limit=rate_limit)
         super().__init__(config)
-        self.api_key = api_key or self.config.api_key
+        self.api_key = (api_key or self.config.api_key or os.environ.get("MASSIVE_API_KEY", "")).strip()
         self._client: httpx.AsyncClient | None = None
+
+    def _auth_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.api_key}"}
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -41,14 +52,14 @@ class PolygonDataSource(DataSource):
         end: str | datetime,
         interval: str = "1d",
     ) -> pd.DataFrame:
-        """Fetch OHLCV aggregates from Polygon."""
+        """Fetch OHLCV aggregates from Massive (Polygon.io)."""
         await self._rate_limit()
 
         multiplier, timespan = self._parse_interval(interval)
         url = f"{self.BASE_URL}/v2/aggs/ticker/{symbol}/range/{multiplier}/{timespan}/{start}/{end}"
 
         client = await self._get_client()
-        resp = await client.get(url, params={"apiKey": self.api_key, "limit": 50000})
+        resp = await client.get(url, params={"limit": 50000}, headers=self._auth_headers())
         resp.raise_for_status()
         data = resp.json()
 
@@ -72,9 +83,11 @@ class PolygonDataSource(DataSource):
 
         url = f"{self.BASE_URL}/v3/reference/options/contracts"
         client = await self._get_client()
-        resp = await client.get(url, params={
-            "underlying_ticker": symbol, "apiKey": self.api_key, "limit": 1000
-        })
+        resp = await client.get(
+            url,
+            params={"underlying_ticker": symbol, "limit": 1000},
+            headers=self._auth_headers(),
+        )
         resp.raise_for_status()
         data = resp.json()
 
@@ -87,11 +100,15 @@ class PolygonDataSource(DataSource):
         """Fetch tick-level trade data."""
         url = f"{self.BASE_URL}/v3/trades/{symbol}"
         client = await self._get_client()
-        resp = await client.get(url, params={
-            "timestamp.gte": f"{date}T00:00:00Z",
-            "timestamp.lt": f"{date}T23:59:59Z",
-            "apiKey": self.api_key, "limit": 50000,
-        })
+        resp = await client.get(
+            url,
+            params={
+                "timestamp.gte": f"{date}T00:00:00Z",
+                "timestamp.lt": f"{date}T23:59:59Z",
+                "limit": 50000,
+            },
+            headers=self._auth_headers(),
+        )
         resp.raise_for_status()
         data = resp.json()
 

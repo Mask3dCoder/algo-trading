@@ -38,17 +38,19 @@ _PLACEHOLDER_MARKERS = ("your", "here", "placeholder", "changeme")
 
 
 def _resolve_key() -> str:
-    key = os.environ.get("POLYGON_API_KEY", "").strip()
+    key = os.environ.get("MASSIVE_API_KEY", "") or os.environ.get("POLYGON_API_KEY", "")
+    key = (key or "").strip()
     lowered = key.lower()
     if not key:
         raise PolygonClientError(
-            "POLYGON_API_KEY is not set in .env. Sign up at https://polygon.io "
-            "and add the real key to .env (or set POLYGON_API_KEY)."
+            "MASSIVE_API_KEY / POLYGON_API_KEY is not set in .env. Sign up at "
+            "https://massive.com and add the real key to .env "
+            "(either MASSIVE_API_KEY or POLYGON_API_KEY)."
         )
     if any(m in lowered for m in _PLACEHOLDER_MARKERS) or len(key) < 20:
         raise PolygonClientError(
-            "POLYGON_API_KEY in .env looks like a placeholder "
-            f"({key[:4]}…{key[-4:]}). Replace it with a real Polygon key before ingesting."
+            "MASSIVE_API_KEY / POLYGON_API_KEY in .env looks like a placeholder "
+            f"({key[:4]}…{key[-4:]}). Replace it with a real Massive key before ingesting."
         )
     return key
 
@@ -69,6 +71,50 @@ def _resolve_symbols(args: argparse.Namespace, store: ParquetPitStore) -> list[s
 
 
 # --------------------------------------------------------------------------- commands
+def cmd_check(_: argparse.Namespace, store: ParquetPitStore) -> int:
+    """Verify connectivity with the real key against the current Massive hosts."""
+    import httpx
+
+    from quantcore.data.pit.market.client import BASE_URL
+    from quantcore.data.pit.market.client import FLAT_FILE_ENDPOINT, FLAT_FILE_BUCKET, DAY_AGG_PREFIX
+
+    key = _resolve_key()
+    print(f"REST base URL : {BASE_URL}")
+    print(f"Flat endpoint : {FLAT_FILE_ENDPOINT}  bucket={FLAT_FILE_BUCKET}  prefix={DAY_AGG_PREFIX}")
+
+    ok = True
+    try:
+        with httpx.Client(base_url=BASE_URL, timeout=30.0,
+                          headers={"Authorization": f"Bearer {key}"}) as client:
+            resp = client.get("/v3/reference/tickers/SPY")
+            print(f"REST /v3/reference/tickers/SPY -> HTTP {resp.status_code}")
+            if resp.status_code == 200:
+                r = resp.json().get("results") or {}
+                print(f"  auth OK — ticker {r.get('ticker')} ({r.get('name')})")
+            elif resp.status_code == 401:
+                print("  ERROR: HTTP 401 - key rejected. Check MASSIVE_API_KEY / POLYGON_API_KEY.")
+                ok = False
+            else:
+                print(f"  WARN: unexpected HTTP {resp.status_code}")
+                ok = False
+    except Exception as exc:  # noqa: BLE001
+        print(f"  ERROR: REST connectivity failed: {exc}")
+        ok = False
+
+    # Flat-file readiness: endpoint reachability + S3 cred presence (no download).
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            r = client.get(FLAT_FILE_ENDPOINT + "/")
+            print(f"Flat endpoint reachable -> HTTP {r.status_code} (expected 403 = auth-gated, host live)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  WARN: flat endpoint unreachable: {exc}")
+    s3_id = os.environ.get("MASSIVE_S3_ACCESS_ID") or os.environ.get("POLYGON_S3_Access_ID")
+    s3_secret = os.environ.get("MASSIVE_S3_SECRET_ACCESS_KEY") or os.environ.get("POLYGON_Secret_Access_Key")
+    print(f"Flat-file S3 creds: {'present' if (s3_id and s3_secret) else 'MISSING (flat-file download will not work)'}")
+
+    return 0 if ok else 2
+
+
 def cmd_status(_: argparse.Namespace, store: ParquetPitStore) -> int:
     report = store.status()
     if not report:
@@ -169,6 +215,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rate-limit", type=int, default=5, help="Polygon calls/minute (Starter=5)")
 
     sub = parser.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("check", help="Verify REST + flat-file connectivity with the real key").set_defaults(func=cmd_check)
 
     sub.add_parser("status", help="Show what's in the store").set_defaults(func=cmd_status)
 

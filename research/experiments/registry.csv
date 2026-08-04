@@ -1,0 +1,2 @@
+experiment_id,timestamp,researcher,commit_hash,dataset_version,signal_version,ic_mean,rank_ic_mean,status
+EXP-001,2026-06-26T00:00:00Z,SYSTEM,HEAD,v1.0,v1.0,0.0,0.0,DRAFT

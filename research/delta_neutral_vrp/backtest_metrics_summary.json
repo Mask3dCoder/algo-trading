@@ -1,0 +1,39 @@
+{
+  "strategy": "DeltaNeutralRealisticVRP",
+  "period": "2024-01-01 to 2024-12-31",
+  "initial_capital": 1000000.0,
+  "final_equity": 1326264.3432192972,
+  "total_return_pct": 32.62643432192973,
+  "risk_free_rate_annual": 0.04,
+  "risk_free_rate_daily": 0.0001556498627912628,
+  "annualized_sharpe_excess_returns": 2.2360160726784186,
+  "max_drawdown_pct_equity_curve": -4.857369825893187,
+  "win_rate_pct_closed_trades": 78.94736842105263,
+  "n_trades_closed": 19,
+  "profit_factor": 4.402974183231965,
+  "total_trade_pnl": 12134.136559605666,
+  "total_hedge_cost": 1200.8924942914307,
+  "total_gamma_cost": 0.0,
+  "close_reasons": {
+    "end_of_backtest": 1,
+    "profit_target": 5,
+    "time_exit": 13
+  },
+  "equity_points": 251,
+  "assumptions": {
+    "data": "SPY close from Yahoo Finance auto_adjust=True; CBOE VIX close",
+    "iv_source": "CBOE VIX used as implied volatility",
+    "option_bid_ask_haircut": "5% applied to option theoretical value on entry and exit",
+    "option_commission": "$0.65 per option leg/contract; entry and close applied",
+    "hedge_commission": "$0.005 per SPY share",
+    "hedge_slippage": "5 bps of SPY notional on hedge trades",
+    "gamma_cost_model": "gamma_cost_mult=0.7 configured; cumulative_gamma_cost remains 0.0 in current strategy accounting because daily gamma scalping is captured in BSM MTM and only hedge execution costs are deducted",
+    "gap_probability": 0.0,
+    "risk_per_trade_pct": 0.01,
+    "max_loss_mult": 3.0,
+    "entry_interval_days": 21,
+    "max_active_positions": 2,
+    "rf_used_in_bsm_and_sharpe": 0.04,
+    "fill_assumption": "daily close mark-to-market; no explicit next-open fill model"
+  }
+}
