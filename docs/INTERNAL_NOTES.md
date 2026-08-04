@@ -179,6 +179,30 @@ Expected result: All Q1 infrastructure tests pass. Verification script reports F
 decisive run source raw Massive/Polygon bars; the CSV remains triage-only. See
 `docs/cross_sectional_factor_protocol.md` Section 3.
 
+## Alpaca delisted-name data probe (2026-08-04)
+
+Bounded free test before paying for Massive: daily bars 2018-01-01..2024-12-31 via
+`https://data.alpaca.markets` (paper keys in `.env`).
+
+| Symbol | Bars HTTP | n bars | first | last | asset endpoint |
+|---|---|---|---|---|---|
+| ATVI | 200 | 1456 | 2018-01-02 | 2023-10-13 | inactive, tradable=False (Activision Blizzard) |
+| AIV | 200 | 1761 | 2018-01-02 | 2024-12-31 | active, tradable=True |
+| ADS | 200 | 1071 | 2018-01-02 | 2022-04-01 | HTTP 404 (series ends ~4 months before known delisting) |
+| AAPL (control) | 200 | 1761 | 2018-01-02 | 2024-12-31 | active, tradable=True |
+
+Reading: Alpaca DOES return historical bars for some delisted names (ATVI is clean
+through its delisting), but coverage is inconsistent (ADS is truncated well before its
+real last trade) and there is no delisted-ticker reference set or coverage guarantee
+(asset 404 for ADS; no survivorship-free universe endpoint). Corporate actions were not
+tested here. Verdict: partial coverage, not full - Massive/Polygon remains the primary
+research source per the plan (PIT schema, delisted reference set, corp actions, reusable
+pipeline). Alpaca stays execution/live-feed only. IBKR data API not tested (frozen by
+decision; execution-only).
+
+Side finding: `.env` `ALPACA_DATA_URL` holds the WebSocket streaming URL
+(`wss://stream.data.alpaca.markets`), not a REST base URL - flagged, not changed.
+
 ---
 
 *End of INTERNAL_NOTES.md*
