@@ -156,7 +156,7 @@ multiple-testing correction (DSR p < 0.05)?
   found untracked in git with no verifiable authorship timestamp. We cannot
   cryptographically prove it was finalized before any informal smoke-test results
   existed. To remove ambiguity going forward: the git commit made today, hash
-  `<hash>`, is the actual pre-registration checkpoint. No thresholds, variants,
+  `ed52bae`, is the actual pre-registration checkpoint. No thresholds, variants,
   universe, or window are altered after this commit. Any prior smoke-test output
   (if it exists) was triage-only, used to catch gross errors, and did not inform the
   variant selection or thresholds below.
