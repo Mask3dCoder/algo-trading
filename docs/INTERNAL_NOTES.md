@@ -188,17 +188,21 @@ Bounded free test before paying for Massive: daily bars 2018-01-01..2024-12-31 v
 |---|---|---|---|---|---|
 | ATVI | 200 | 1456 | 2018-01-02 | 2023-10-13 | inactive, tradable=False (Activision Blizzard) |
 | AIV | 200 | 1761 | 2018-01-02 | 2024-12-31 | active, tradable=True |
-| ADS | 200 | 1071 | 2018-01-02 | 2022-04-01 | HTTP 404 (series ends ~4 months before known delisting) |
+| ADS | 200 | 1071 | 2018-01-02 | 2022-04-01 | HTTP 404 (last bar 2022-04-01 = correct final ADS session; ticker changed to BFH on 2022-04-04) |
 | AAPL (control) | 200 | 1761 | 2018-01-02 | 2024-12-31 | active, tradable=True |
 
-Reading: Alpaca DOES return historical bars for some delisted names (ATVI is clean
-through its delisting), but coverage is inconsistent (ADS is truncated well before its
-real last trade) and there is no delisted-ticker reference set or coverage guarantee
-(asset 404 for ADS; no survivorship-free universe endpoint). Corporate actions were not
-tested here. Verdict: partial coverage, not full - Massive/Polygon remains the primary
-research source per the plan (PIT schema, delisted reference set, corp actions, reusable
-pipeline). Alpaca stays execution/live-feed only. IBKR data API not tested (frozen by
-decision; execution-only).
+Corporate actions: `GET /v2/stocks/{symbol}/corporate_actions` (AMZN splits 2022, ATVI
+2023) -> HTTP 404 Not Found on the data API.
+
+Reading: Alpaca returned clean, correctly-bounded daily bars for both true ticker-death
+cases tested (ATVI through its merger close; ADS through the BFH ticker change) - better
+than the plan assumed. What it does NOT provide (probe scope): a delisted/inactive
+reference set to DISCOVER deaths (assets 404 for ADS; no survivorship-free universe
+endpoint), corporate actions for the pilot's split/dividend/delisting cases (404 on the
+data API), or a coverage guarantee beyond hand-picked names. Verdict: bars-only partial
+coverage - the PIT pilot and decisive run still need Massive/Polygon (corp actions,
+delisted reference set, reusable schema-complete pipeline). Alpaca stays execution/
+live-feed only. IBKR data API not tested (frozen by decision; execution-only).
 
 Side finding: `.env` `ALPACA_DATA_URL` holds the WebSocket streaming URL
 (`wss://stream.data.alpaca.markets`), not a REST base URL - flagged, not changed.
