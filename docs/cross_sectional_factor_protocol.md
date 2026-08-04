@@ -117,14 +117,17 @@ multiple-testing correction (DSR p < 0.05)?
 - **Paper phase:** 12 months (fixed at lock; a 6-month phase was considered and rejected
   because it adds almost no statistical power on top of ~60 OOS observations). Paper
   notional: $10,000. Daily reconciliation; monthly reporting.
-- **Personal-live pilot:** after the 12 clean paper months, run the same strategy with
-  $25,000 of personal capital for 6 months. No external capital before this completes
-  with net-of-cost performance >= SPY over the live window and no 3-month rolling
-  Sharpe < 0.
-- **Fund-formation triggers:** (1) 12-month paper phase clean; (2) 6-month personal-live
-  pilot clean as above; (3) legal/registration track resolved; (4) only then begin any
-  external raise, sized conservatively and structured under the applicable exemption
-  with counsel.
+- **Personal-live pilot (overlaps the paper phase; resolved 2026-08-04):** starts after
+  the first 6 clean paper months (no 3-month rolling Sharpe < 0, reconciliation clean)
+  and runs concurrently with paper months 7-12: $25,000 of personal capital, 6 months of
+  live evidence. Total post-PASS runway to external-capital readiness: 12 months, not 18.
+  No external capital before the full 12-month paper phase completes clean AND the live
+  pilot is clean (net-of-cost >= SPY over the live window, no 3-month rolling Sharpe < 0)
+  at fund-formation time.
+- **Fund-formation triggers:** (1) 12-month paper phase clean; (2) 6 months of live
+  personal-capital evidence clean at fund-formation time; (3) legal/registration track
+  resolved; (4) only then begin any external raise, sized conservatively and structured
+  under the applicable exemption with counsel.
 - **Legal/registration track (user-owned, started 2026-08-04):** research
   SEC/FINRA-exempt vs registered-adviser status and fund structure NOW, in parallel
   with the data work, so a PASS cannot be blocked later by a surprise. This is not code
@@ -166,3 +169,9 @@ multiple-testing correction (DSR p < 0.05)?
 - **2026-08-04 (lock point) - execution-phase decisions:** paper phase fixed at 12
   months; paper notional $10,000; personal-live pilot $25,000 for 6 months;
   fund-formation triggers and the legal/registration track recorded in Section 9.
+- **2026-08-04 (lock point) - pilot sequencing resolved:** the $25,000 personal-live
+  pilot OVERLAPS paper months 7-12 (starts after 6 clean paper months) instead of
+  running sequentially after month 12. Total post-PASS runway to external-capital
+  readiness: 12 months, not 18. The live pilot proves execution, not alpha; overlap
+  keeps the raise on a deliberate 12-month clock while preserving the kill-switch
+  safeguards.

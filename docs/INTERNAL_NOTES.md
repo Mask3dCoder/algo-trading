@@ -171,4 +171,14 @@ Expected result: All Q1 infrastructure tests pass. Verification script reports F
 
 ---
 
+## Data provenance note (2026-08-04)
+
+`data/sp500_pit_universe_2018_2024.csv` is TOTAL-RETURN-ADJUSTED (AMZN at $58.60 in
+2018 = $1,180/20 back-adjusted), NOT raw/unadjusted as its filename and the
+2026-08-04 plan text implied. Resolved as a non-issue for the gate: the pilot and the
+decisive run source raw Massive/Polygon bars; the CSV remains triage-only. See
+`docs/cross_sectional_factor_protocol.md` Section 3.
+
+---
+
 *End of INTERNAL_NOTES.md*
