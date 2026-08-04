@@ -96,5 +96,10 @@ Checks (stresses "invisible until announced" PIT logic):
   same honesty band used by `tests/integration/test_backtest_sanity.py`.
 
 Only after all of the above: scale to `--top-n 500` (flat files on Starter are
-included in all paid plans — see FREEZE/data notes), then re-test exactly one
-strategy (`options_delta_neutral`) with walk-forward + DSR.
+included in all paid plans — see FREEZE/data notes), then run the locked
+decisive experiment per `docs/cross_sectional_factor_protocol.md`.
+
+> **Amended 2026-08-04:** the earlier instruction to re-test
+> `options_delta_neutral` with walk-forward + DSR is superseded by the
+> pre-registered factor protocol (`cross_sectional_factor_protocol.md`, locked
+> 2026-08-04). The live system stays dormant pending the gate verdict.

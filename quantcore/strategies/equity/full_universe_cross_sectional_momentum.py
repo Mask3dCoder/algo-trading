@@ -497,6 +497,14 @@ class FullUniverseCrossSectionalMomentum(Strategy):
 
         symbols = data.get("symbols", [f"asset_{i}" for i in range(n_assets)])
 
+        # Exclude names that are not yet listed or already delisted from the
+        # cross-section (they are NaN-masked, never zero-filled). Dead columns
+        # get -inf scores so softmax gives them zero weight.
+        live_now = np.ones(n_assets, dtype=bool)
+        live_mask = data.get("live_mask")
+        if live_mask is not None and getattr(live_mask, "ndim", 0) == 2 and live_mask.shape[0]:
+            live_now = np.asarray(live_mask[-1], dtype=bool)
+
         # Update risk state
         self._update_risk_state(close)
 
@@ -507,29 +515,34 @@ class FullUniverseCrossSectionalMomentum(Strategy):
             if len(self._equity_history) > 252:
                 self._equity_history = self._equity_history[-252:]
 
-        # Compute momentum scores
+        # Compute momentum scores (cross-sectional stats over live names only)
         scores = np.zeros(n_assets)
         for window, weight in zip(self.mom_windows, self.mom_weights):
             if n_periods < window + 1:
                 continue
             ret = (close[-1, :] - close[-window-1, :]) / \
                   np.maximum(close[-window-1, :], 1e-10)
-            mean_ret = np.mean(ret)
-            std_ret = np.std(ret, ddof=1)
-            if std_ret > 1e-10:
+            ret = np.where(live_now, ret, np.nan)
+            if not live_now.any():
+                continue
+            mean_ret = float(np.nanmean(ret))
+            std_ret = float(np.nanstd(ret, ddof=1)) if live_now.sum() >= 2 else float("nan")
+            if np.isfinite(mean_ret) and np.isfinite(std_ret) and std_ret > 1e-10:
                 z = (ret - mean_ret) / std_ret
+                z = np.where(live_now, z, -np.inf)
             else:
                 z = np.zeros_like(ret)
             scores += weight * z
 
-        # Vol ranks
+        # Vol ranks (dead names ranked worst so they get zero weight)
         vol_window = min(20, n_periods - 1)
         if vol_window >= 5:
             segment = close[-vol_window-1:, :]
             daily_rets = np.diff(segment, axis=0) / np.maximum(segment[:-1, :], 1e-10)
             vol = np.std(daily_rets, axis=0, ddof=1)
+            vol = np.where(live_now, vol, np.inf)
         else:
-            vol = np.ones(n_assets) * 1e-10
+            vol = np.where(live_now, np.ones(n_assets) * 1e-10, np.inf)
 
         order = np.argsort(vol)
         vol_ranks = np.zeros_like(vol)

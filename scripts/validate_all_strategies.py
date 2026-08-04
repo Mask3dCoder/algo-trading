@@ -247,7 +247,13 @@ def _load_data(universe: str, start: str, end: str) -> pd.DataFrame:
 
 
 def _df_to_data(df: pd.DataFrame) -> dict:
-    """Convert long-format DataFrame to strategy data dict."""
+    """Convert long-format DataFrame to strategy data dict.
+
+    Delisted / not-yet-listed names are masked to NaN after their last traded
+    day (the mask is carried as ``live_mask`` + ``last_traded_index``) and are
+    NEVER zero-filled: a zero price manufactures a fake -100% return for every
+    dead name and poisons the whole cross-section.
+    """
     symbols = sorted(df["symbol"].unique())
     if not symbols:
         return {"close": np.array([[]], dtype=float), "symbols": []}
@@ -260,6 +266,17 @@ def _df_to_data(df: pd.DataFrame) -> dict:
     if pivots["close"].empty:
         return {"close": np.array([[]], dtype=float), "symbols": symbols}
 
+    # Last traded row per symbol, from RAW prices (before any forward-fill).
+    close_raw = pivots["close"].to_numpy()
+    last_traded_index: dict[str, int] = {}
+    live_mask = np.zeros(close_raw.shape, dtype=bool)
+    for j, sym in enumerate(symbols):
+        valid = np.flatnonzero(~np.isnan(close_raw[:, j]))
+        last_idx = int(valid[-1]) if valid.size else -1
+        last_traded_index[sym] = last_idx
+        if last_idx >= 0:
+            live_mask[: last_idx + 1, j] = True
+
     data = {
         "close": pivots["close"].values,
         "high": pivots["high"].values,
@@ -268,13 +285,44 @@ def _df_to_data(df: pd.DataFrame) -> dict:
         "volume": pivots["volume"].values,
         "symbols": symbols,
     }
-    # Forward-fill NaN (causal: only past data)
+    # Causal forward-fill of short gaps (max 5 days), then mask every row after
+    # a name's last traded day back to NaN. Never zero-fill: 0.0 is a real price
+    # for nothing and manufactures a fake -100% bar after delisting.
     for k in ["close", "high", "low", "open", "volume"]:
         arr = data[k]
         if np.any(np.isnan(arr)):
             df_filled = pd.DataFrame(arr).ffill(limit=5)
-            data[k] = np.nan_to_num(df_filled.values, nan=0.0)
+            arr = df_filled.to_numpy(copy=True)
+            arr[~live_mask] = np.nan
+            data[k] = arr
+    data["live_mask"] = live_mask
+    data["last_traded_index"] = last_traded_index
     return data
+
+
+def _last_valid_price(
+    close: np.ndarray,
+    symbols: list[str],
+    sym: str,
+    bar_i: int,
+    last_traded_index: dict[str, int],
+) -> float | None:
+    """Price at ``bar_i`` for ``sym``, falling back to the final traded close.
+
+    After a name's last traded day its column is NaN; a position still held
+    through delisting is settled at the final real trade, never at NaN.
+    """
+    try:
+        idx = symbols.index(sym)
+    except ValueError:
+        return None
+    price = close[bar_i, idx] if bar_i < close.shape[0] else np.nan
+    if np.isfinite(price):
+        return float(price)
+    lti = last_traded_index.get(sym)
+    if lti is not None and 0 <= lti <= bar_i and lti < close.shape[0] and np.isfinite(close[lti, idx]):
+        return float(close[lti, idx])
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -300,6 +348,8 @@ def _compute_signal_returns(
     n_assets = len(symbols)
     if n_assets == 0:
         return np.array([], dtype=float), []
+
+    last_traded_index: dict[str, int] = data.get("last_traded_index", {})
 
     asset_rets = (close[start + 1:end] - close[start:end - 1]) / np.maximum(close[start:end - 1], 1e-10)
 
@@ -338,6 +388,8 @@ def _compute_signal_returns(
                 weight = float(s.direction) * float(s.size)
             else:
                 weight = float(s.direction) * float(s.strength)
+            if not np.isfinite(weight):
+                continue
             if s.direction != 0:
                 current_weights[s.symbol] = weight
                 current_signals[s.symbol] = {
@@ -348,7 +400,10 @@ def _compute_signal_returns(
                 asset_idx = symbols.index(s.symbol)
             except (ValueError, IndexError):
                 continue
-            weighted_ret += weight * float(asset_rets[idx, asset_idx])
+            asset_ret = float(asset_rets[idx, asset_idx])
+            if not np.isfinite(asset_ret):
+                continue
+            weighted_ret += weight * asset_ret
 
         bar_rets[idx] = weighted_ret
 
@@ -369,7 +424,7 @@ def _compute_signal_returns(
             for sym in list(positions.keys()):
                 pos = positions[sym]
                 exit_ts = timestamps[bar_i] if timestamps and bar_i < len(timestamps) else None
-                exit_price = float(close[bar_i, symbols.index(sym)]) if bar_i < close.shape[0] else None
+                exit_price = _last_valid_price(close, symbols, sym, bar_i, last_traded_index)
                 if sym not in current_signals or current_signals[sym]["direction"] != pos["direction"]:
                     pnl_abs = (exit_price - pos["entry_price"]) * pos["direction"] if exit_price and pos["entry_price"] else 0.0
                     pnl_pct = pnl_abs / pos["entry_price"] if pos["entry_price"] else 0.0
@@ -383,7 +438,13 @@ def _compute_signal_returns(
             for sym in current_signals:
                 if sym not in positions:
                     sig = current_signals[sym]
-                    entry_price = float(close[bar_i, symbols.index(sym)]) if bar_i < close.shape[0] else None
+                    try:
+                        asset_idx = symbols.index(sym)
+                    except ValueError:
+                        continue
+                    entry_price = float(close[bar_i, asset_idx]) if bar_i < close.shape[0] else np.nan
+                    if not np.isfinite(entry_price):
+                        continue
                     entry_ts = timestamps[bar_i] if timestamps and bar_i < len(timestamps) else None
                     positions[sym] = {"direction": sig["direction"], "entry_ts": entry_ts, "entry_price": entry_price}
 
@@ -394,7 +455,7 @@ def _compute_signal_returns(
     for sym in list(positions.keys()):
         pos = positions.pop(sym)
         exit_ts = timestamps[end - 1] if timestamps and end - 1 < len(timestamps) else None
-        exit_price = float(close[end - 1, symbols.index(sym)]) if end - 1 < close.shape[0] else None
+        exit_price = _last_valid_price(close, symbols, sym, end - 1, last_traded_index)
         pnl_abs = (exit_price - pos["entry_price"]) * pos["direction"] if exit_price and pos["entry_price"] else 0.0
         pnl_pct = pnl_abs / pos["entry_price"] if pos["entry_price"] else 0.0
         trades.append({
