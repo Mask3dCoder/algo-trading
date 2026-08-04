@@ -207,6 +207,33 @@ live-feed only. IBKR data API not tested (frozen by decision; execution-only).
 Side finding: `.env` `ALPACA_DATA_URL` holds the WebSocket streaming URL
 (`wss://stream.data.alpaca.markets`), not a REST base URL - flagged, not changed.
 
+## Data vendor alternatives survey (2026-08-04)
+
+Question asked: "any alternative to Massive (Polygon) for the PIT backfill?" Surveyed the
+current landscape. Requirements: survivorship-free PIT history (delisted names), raw EOD
+bars, corporate actions (splits/dividends with dates), 5+ years, 500+ names,
+bulk-friendly.
+
+| Provider | Delisted reference set | Corporate actions | Approx cost | Fit for this repo |
+|---|---|---|---|---|
+| Massive (Polygon) | Yes (`active=false` flag) | Yes | $29/mo | Baseline - pipeline built for its schema |
+| EODHD | Yes (`delisted=1` symbol list) | Yes (splits/dividends endpoints) | $19.99/mo EOD; +$29.99 constituents add-on | Capable; new adapter + pilot re-validation |
+| Sharadar (via Nasdaq Data Link) | Yes (no survivorship bias; 20k+ US names) | Yes | Tiered; verify at signup | Capable; new adapter; professional vs non-professional licensing |
+| Norgate | Yes (survivorship-free, backtest-native) | Yes | Tiered; verify at signup | Exact index constituents; desktop/CSV-oriented delivery |
+| Databento | Corporate-actions dataset covers listed + delisted | Yes | Usage-based | Institutional-grade; more complex than needed now |
+| Tiingo | Partial ("not yet recycled") | Splits API | Low; verify | Weak delisted guarantee |
+| Alpaca (probed 2026-08-04) | No | 404 on data API | Free | Bars OK for known delisted names; execution/live only |
+| IBKR | No (contract resolution) | - | - | Execution only (frozen by decision) |
+| yfinance / Alpha Vantage | No (survivorship bias) | No | Free | Excluded - the original problem |
+
+Decision: stay with Massive Starter for the pilot and the decisive run. Engineering and
+calendar time to verdict are the expensive things; the ~$10/mo delta with EODHD is dwarfed
+by a new adapter plus pilot re-validation. Revisit only if Massive proves deficient during
+the pilot. One protocol nuance: exact S&P 500 membership history (the universe rule in
+Section 3) is available from Norgate / Sharadar / EODHD add-on, whereas Massive gives
+listing-date-based membership - noted as a possible future protocol amendment, not a
+Step-7 blocker.
+
 ---
 
 *End of INTERNAL_NOTES.md*
