@@ -324,6 +324,10 @@ class TestTCA:
         ]
         summary = tca_strategy(trades, "strat1")
         assert summary.n_trades == 2
+        # AAPL notional=10K, MSFT notional=10K → equal weight
+        # weighted avg = (5.0 + 3.0) / 2 = 4.0
+        assert summary.total_cost_bps == 4.0
+        assert summary.avg_cost_bps == 4.0
 
     def test_tca_report(self):
         trades = [
@@ -333,3 +337,51 @@ class TestTCA:
         report = tca_report(trades)
         assert report["n_trades"] == 2
         assert "by_strategy" in report
+
+    # -----------------------------------------------------------------------
+    # Phase 8a: Regression test for Fix 1 - TCA bps not double-scaled
+    # -----------------------------------------------------------------------
+
+    def test_tca_no_double_scaling_fix_1(self):
+        """Verify tca_strategy() does not apply *10_000 scaling to bps values."""
+        trades = [
+            TCAResult(symbol="AAPL", total_cost_bps=5.0, shares=100, arrival_price=100.0),
+            TCAResult(symbol="MSFT", total_cost_bps=3.0, shares=50, arrival_price=200.0),
+        ]
+        summary = tca_strategy(trades, "test_strategy")
+        # AAPL notional = 100 * 100 = 10_000, MSFT notional = 50 * 200 = 10_000
+        # Weighted avg = (5.0 * 10_000 + 3.0 * 10_000) / 20_000 = 4.0
+        assert summary.total_cost_bps == 4.0
+        assert summary.avg_cost_bps == 4.0
+        # If scaling bug present, would be 40_000 (or similar)
+
+    def test_tca_single_trade_no_scaling(self):
+        """Verify tca_strategy() with single trade doesn't scale bps."""
+        trades = [
+            TCAResult(symbol="AAPL", total_cost_bps=7.5, shares=200, arrival_price=150.0),
+        ]
+        summary = tca_strategy(trades, "test_strategy")
+        assert summary.total_cost_bps == 7.5
+        assert summary.avg_cost_bps == 7.5
+
+    # -----------------------------------------------------------------------
+    # Phase 8b: Regression test for Fix 5b - avg_cost_bps == total_cost_bps
+    # -----------------------------------------------------------------------
+
+    def test_avg_cost_bps_equals_total_cost_bps_fix_5b(self):
+        """Verify avg_cost_bps == total_cost_bps (notional-weighted average)."""
+        trades = [
+            TCAResult(symbol="AAPL", total_cost_bps=5.0, shares=100, arrival_price=100.0),
+            TCAResult(symbol="MSFT", total_cost_bps=3.0, shares=50, arrival_price=200.0),
+        ]
+        summary = tca_strategy(trades, "test_strategy")
+        # After fix: avg_cost_bps = total_cost_bps (both are notional-weighted)
+        assert summary.avg_cost_bps == summary.total_cost_bps
+
+    def test_avg_cost_bps_single_trade(self):
+        """Verify avg_cost_bps == total_cost_bps for single trade."""
+        trades = [
+            TCAResult(symbol="AAPL", total_cost_bps=5.0, shares=100, arrival_price=100.0),
+        ]
+        summary = tca_strategy(trades, "test_strategy")
+        assert summary.avg_cost_bps == summary.total_cost_bps == 5.0

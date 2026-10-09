@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 
-from quantcore.core.types import Side
+from quantcore.core.types import Fill, Side
 from quantcore.execution.algos.twap import TWAPAlgo, TWAPConfig
 from quantcore.execution.algos.vwap import VWAPAlgo, VWAPConfig
 from quantcore.execution.impact import (
@@ -16,7 +18,7 @@ from quantcore.execution.impact import (
     sqrt_impact_bps,
 )
 from quantcore.execution.oms import OrderManager, limit_order, market_order
-from quantcore.execution.tca import tca_strategy, tca_trade
+from quantcore.execution.tca import StrategySummary, TCAResult, tca_strategy, tca_trade
 
 router = APIRouter(prefix="/execution", tags=["execution"])
 
@@ -159,14 +161,23 @@ def api_tca_trade(
 ) -> dict[str, Any]:
     """Run transaction cost analysis on a trade."""
     s = Side.BUY if side == "buy" else Side.SELL
-    prices = np.array(execution_prices)
-    qty = np.array(quantities) if quantities else np.ones(len(prices))
-    result = tca_trade(prices, qty, benchmark_price, s)
+    if quantities is None:
+        quantities = [1.0] * len(execution_prices)
+    fills = [
+        Fill(
+            order_id=str(uuid4()),
+            price=Decimal(str(p)),
+            quantity=Decimal(str(q)),
+            commission=Decimal("0"),
+        )
+        for p, q in zip(execution_prices, quantities)
+    ]
+    result = tca_trade(fills, float(benchmark_price), s)
     return {
-        "avg_execution_price": float(np.average(prices, weights=qty)),
+        "avg_execution_price": result.avg_fill_price,
         "benchmark_price": benchmark_price,
-        "slippage_bps": result.get("slippage_bps", 0),
-        "total_cost": result.get("total_cost", 0),
+        "slippage_bps": result.total_cost_bps,
+        "total_cost_bps": result.total_cost_bps,
     }
 
 
@@ -176,8 +187,9 @@ def api_tca_strategy(
     benchmark: str = Query("arrival", pattern="^(arrival|vwap|close)$"),
 ) -> dict[str, Any]:
     """Run TCA across a strategy's trades."""
-    result = tca_strategy(trades, benchmark)
-    return result
+    tca_results = [TCAResult(**t) for t in trades]
+    result = tca_strategy(tca_results, strategy_name=benchmark)
+    return asdict(result)
 
 
 # ---------------------------------------------------------------------------

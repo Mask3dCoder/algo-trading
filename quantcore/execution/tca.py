@@ -168,11 +168,7 @@ def tca_strategy(
         summary.impact_cost_bps /= summary.total_notional
         summary.timing_cost_bps /= summary.total_notional
 
-    summary.total_cost_bps = summary.total_cost_bps * 10_000  # Scale
-    summary.spread_cost_bps = summary.spread_cost_bps * 10_000
-    summary.impact_cost_bps = summary.impact_cost_bps * 10_000
-    summary.timing_cost_bps = summary.timing_cost_bps * 10_000
-    summary.avg_cost_bps = summary.total_cost_bps / summary.n_trades if summary.n_trades > 0 else 0.0
+    summary.avg_cost_bps = summary.total_cost_bps
 
     return summary
 

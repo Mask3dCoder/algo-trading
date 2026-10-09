@@ -140,13 +140,12 @@ def generate_regulatory_report(
 
         # Best execution from TCA
         try:
-            tca_result = tca_strategy(trades, benchmark="arrival")
-            if isinstance(tca_result, dict):
-                report.avg_slippage_bps = float(tca_result.get("avg_slippage_bps", 0))
-                report.best_exec_compliant = abs(report.avg_slippage_bps) <= 50
-                if not report.best_exec_compliant:
-                    report.flags.append(f"Best execution slippage {report.avg_slippage_bps:.1f} bps exceeds 50 bps")
-                    report.recommendations.append("Review execution algorithms and broker routing")
+            tca_result = tca_strategy(trades, strategy_name="arrival")
+            report.avg_slippage_bps = float(tca_result.avg_cost_bps)
+            report.best_exec_compliant = abs(report.avg_slippage_bps) <= 50
+            if not report.best_exec_compliant:
+                report.flags.append(f"Best execution slippage {report.avg_slippage_bps:.1f} bps exceeds 50 bps")
+                report.recommendations.append("Review execution algorithms and broker routing")
         except Exception:
             pass
 
