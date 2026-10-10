@@ -9,7 +9,11 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Full suite is ~1,900 tests (~12-15 min) plus dependency install and the
+    # runtime evidence gate (~20-30 min; equity_stat_arb alone ~10-20 min).
+    # 10 min was never sufficient — CI previously died on collection errors
+    # before reaching the suite, so this was never seen.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -35,7 +39,7 @@ jobs:
           -m "not integration"
           --tb=short
           -q
-          --timeout=120
+          --timeout=600
           --junitxml=junit.xml
           --cov=quantcore
           --cov-report=xml
