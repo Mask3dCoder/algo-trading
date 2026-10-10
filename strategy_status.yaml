@@ -1,5 +1,5 @@
 schema_version: 1
-updated_at: '2026-06-12'
+updated_at: '2026-10-10'
 phase: Phase 4 - Production Risk Controls
 runtime_policy:
   allowed_live_config_statuses:
@@ -422,25 +422,31 @@ strategies:
     notes: Registered and walk-forward tested; deferred pending paper batch results
       and risk review.
   opening_gap_fade:
-    phase: LIVE
+    phase: INACTIVE
     family: equity
     config_file: null
-    live_weight: 0.1
+    live_weight: null
     paper_allocation_weight: null
     paper_risk_budget_weight: null
     paper_start_date: null
     paper_end_date: null
-    notes: Enabled in config/live.yaml; live/paper production allocation included.
+    notes: 'Registry reconciliation 2026-10-10: purged from config/live.yaml by
+      the 2026-07-12 audit mandate (pre-purge config: live.yaml.pre_audit_20260712.bak).
+      Not deployable until re-validated through the phase gates under FREEZE.md;
+      also structurally unvalidatable in the daily-bar quick gate (intraday strategy
+      requires intraday bars).'
   options_delta_neutral:
     phase: LIVE
     family: options
     config_file: config/strategies/options_delta_neutral.toml
-    live_weight: 0.317
+    live_weight: 1.0
     paper_allocation_weight: null
     paper_risk_budget_weight: null
     paper_start_date: null
     paper_end_date: null
-    notes: Enabled in config/live.yaml; live/paper production allocation included.
+    notes: Sole strategy in config/live.yaml after the 2026-07-12 audit purge;
+      weight 1.0 at single_share scale (LOCKED until institutional gate PASS
+      on real options data plus 30 reconciled paper days).
   options_earnings_vol:
     phase: CANDIDATE
     family: options
@@ -453,25 +459,31 @@ strategies:
     notes: Registered and walk-forward tested; deferred pending paper batch results
       and risk review.
   options_iron_condor:
-    phase: LIVE
+    phase: INACTIVE
     family: options
     config_file: config/strategies/options_iron_condor.toml
-    live_weight: 0.061
+    live_weight: null
     paper_allocation_weight: null
     paper_risk_budget_weight: null
     paper_start_date: null
     paper_end_date: null
-    notes: Enabled in config/live.yaml; live/paper production allocation included.
+    notes: 'Registry reconciliation 2026-10-10: purged from config/live.yaml by
+      the 2026-07-12 audit mandate (pre-purge config: live.yaml.pre_audit_20260712.bak).
+      Prior reported Sharpe derived from the hedge-P&L inflation bug; not deployable
+      until re-validated through the phase gates under FREEZE.md.'
   options_put_write:
-    phase: LIVE
+    phase: INACTIVE
     family: options
     config_file: null
-    live_weight: 0.522
+    live_weight: null
     paper_allocation_weight: null
     paper_risk_budget_weight: null
     paper_start_date: null
     paper_end_date: null
-    notes: Enabled in config/live.yaml; live/paper production allocation included.
+    notes: 'Registry reconciliation 2026-10-10: purged from config/live.yaml by
+      the 2026-07-12 audit mandate (pre-purge config: live.yaml.pre_audit_20260712.bak).
+      Prior reported Sharpe derived from the hedge-P&L inflation bug; not deployable
+      until re-validated through the phase gates under FREEZE.md.'
   options_tail_hedge:
     phase: PAPER
     family: options
