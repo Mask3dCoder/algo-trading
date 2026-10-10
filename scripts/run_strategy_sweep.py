@@ -529,7 +529,7 @@ def validate_strategy(
 # ------------------------------------------------------------------------------
 
 
-def generate_sweep_report(results: list[dict]) -> str:
+def generate_sweep_report(results: list[dict], n_trials: int) -> str:
     """Generate the consolidated sweep report."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M %Z")
 
@@ -730,7 +730,7 @@ def main() -> int:
 
     # Save report
     report_path = REPORTS_DIR / "strategy_sweep.md"
-    report_path.write_text(generate_sweep_report(all_results), encoding="utf-8")
+    report_path.write_text(generate_sweep_report(all_results, n_trials), encoding="utf-8")
     _log.info("Sweep report saved to %s", report_path)
 
     # Summary table

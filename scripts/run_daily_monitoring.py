@@ -674,7 +674,7 @@ def main() -> int:
             if sigma_flag == "Y":
                 dr.notes.append(f"SIGMA EVENT: return {daily_ret:.4f}% is outside ±3σ bounds (z={z_score:.2f})")
             if not parity_ok:
-                dr.notes.append(f"PARITY FAILURES: {n_parity_failures}")
+                dr.notes.append(f"PARITY FAILURES: {n_parity_fail}")
             results.append(dr)
             print(f"  [{strat}] Return: {daily_ret:+.4f}%  Sigma: {sigma_flag} (z={z_score:.2f})")
     else:

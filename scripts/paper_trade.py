@@ -22,6 +22,7 @@ import sys
 import time
 import traceback
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -33,9 +34,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import nest_asyncio  # noqa: E402
+import asyncio
 
-nest_asyncio.apply()
+# nest_asyncio is only needed when an event loop is ALREADY running (e.g., inside
+# Jupyter). Applying it unconditionally monkeypatches asyncio process-globally at
+# import time, which breaks anyio-based consumers (FastAPI TestClient) in any
+# process that merely imports this module. Patch only when required.
+try:
+    asyncio.get_running_loop()
+
+    import nest_asyncio  # noqa: E402
+
+    nest_asyncio.apply()
+except RuntimeError:
+    pass  # No running loop — plain asyncio works; do not patch.
 
 import numpy as np  # noqa: E402
 

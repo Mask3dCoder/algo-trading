@@ -1575,6 +1575,7 @@ def print_results_table(all_results: list[dict[str, Any]]) -> dict[str, Any]:
 def save_results_json(all_results: list[dict[str, Any]], summary: dict[str, Any]) -> None:
     """Save results and summary to results/real_data_validation.json."""
     output_path = REPO_ROOT / "results" / "real_data_validation.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Convert numpy types and non-serializable objects
     def _serialize(obj: Any) -> Any:

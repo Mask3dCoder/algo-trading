@@ -1,5 +1,7 @@
 import os
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 script = r"""# Phase 2.0: Trade Quality Attribution
 from __future__ import annotations
 import json, sys, random
