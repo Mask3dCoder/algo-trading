@@ -19,15 +19,14 @@ Position limits: no single name > max_position_pct of gross, max leverage cap.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.strategies.base import Strategy, StrategyConfig, StrategyType, TradeSignal
-
+from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 
 # ── Configuration ──────────────────────────────────────────────────────────
 
@@ -395,6 +394,7 @@ class MultiStrategyAggregator:
     def _compute_hrp_weights(self, active: list[int], n: int) -> None:
         """Compute strategy weights via Hierarchical Risk Parity."""
         import pandas as pd
+
         from quantcore.portfolio.hrp import compute_hrp_weights
 
         lookback = self._cfg.vol_lookback
@@ -443,6 +443,7 @@ class MultiStrategyAggregator:
     def _compute_bl_weights(self, active: list[int], n: int) -> None:
         """Compute strategy weights via Black-Litterman optimization."""
         import pandas as pd
+
         from quantcore.portfolio.black_litterman import compute_bl_weights
 
         lookback = self._cfg.vol_lookback

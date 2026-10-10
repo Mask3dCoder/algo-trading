@@ -4,9 +4,11 @@ Public API: download_spy_vix_history(), build_synthetic_chain(),
             build_chain_history(), make_snapshot()
 """
 from __future__ import annotations
+
 import logging
 from datetime import date
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.stats import norm

@@ -38,11 +38,11 @@ class RegimeFilter:
         self.risk_off_when = risk_off_when
 
     @classmethod
-    def from_yield_curve(cls, series: pd.Series, threshold: float = 0.0) -> "RegimeFilter":
+    def from_yield_curve(cls, series: pd.Series, threshold: float = 0.0) -> RegimeFilter:
         return cls("yield_curve", series, threshold, "below")
 
     @classmethod
-    def from_vix_slope(cls, series: pd.Series, threshold: float = 0.0) -> "RegimeFilter":
+    def from_vix_slope(cls, series: pd.Series, threshold: float = 0.0) -> RegimeFilter:
         return cls("vix_slope", series, threshold, "below")
 
     def is_risk_on(self, as_of: datetime) -> bool:

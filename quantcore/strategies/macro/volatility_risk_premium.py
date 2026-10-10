@@ -13,6 +13,7 @@ Sizing: vol-targeted half-Kelly with drawdown scalar.
 from __future__ import annotations
 
 import logging
+
 import numpy as np
 from numpy.typing import NDArray
 

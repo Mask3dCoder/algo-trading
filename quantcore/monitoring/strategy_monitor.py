@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.dashboard.alerts import Alert, AlertEngine, AlertRule, AlertSeverity
+from quantcore.dashboard.alerts import AlertEngine, AlertRule, AlertSeverity
 from quantcore.strategies.base import TradeSignal
 
 

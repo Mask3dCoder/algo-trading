@@ -14,11 +14,12 @@ the board is rigged." — Bailey & López de Prado, 2012
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
+
 from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 
 
@@ -248,7 +249,7 @@ class NullStrategy(Strategy):
 
 def run_null_strategy_audit(
     engine,
-    data: "pd.DataFrame",        # noqa: F821
+    data: pd.DataFrame,        # noqa: F821
     n_runs: int = 10,
     seed: int = 42,
 ) -> dict:
@@ -273,8 +274,7 @@ def run_null_strategy_audit(
         - engine_is_biased: True if mean_sharpe > 0.1 or std_sharpe < 0.05
         - PASS/FAIL judgment
     """
-    import pandas as pd
-    from collections import defaultdict
+
 
     rng_base = np.random.default_rng(seed)
     seeds = rng_base.integers(0, 2**31, size=n_runs)
@@ -354,7 +354,7 @@ def _NullStrategyFromConfig(cfg: NullStrategyConfig) -> NullStrategy:
     return NullStrategy(sc)
 
 
-def _recreate_engine(base_engine, strategy) -> "BacktestEngine":  # noqa: F821
+def _recreate_engine(base_engine, strategy) -> BacktestEngine:  # noqa: F821
     """Recreate a fresh engine instance with the given strategy."""
     from quantcore.backtest.engine import BacktestEngine
 

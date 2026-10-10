@@ -20,7 +20,7 @@ Requirements:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
@@ -378,8 +378,8 @@ class IntradayDrawdownCalculator:
 
     def verify_two_independent_calculations(
         self,
-        calc_A: "IntradayDrawdownCalculator",
-        calc_B: "IntradayDrawdownCalculator",
+        calc_A: IntradayDrawdownCalculator,
+        calc_B: IntradayDrawdownCalculator,
         tolerance: float = 0.0001,
     ) -> tuple[bool, float]:
         """Verify two IntradayDrawdownCalculator instances agree within tolerance.
@@ -444,7 +444,7 @@ def compute_drawdown_from_equity(
     if timestamps is not None and max_dd_idx > 0:
         # Find the peak index — walk backwards from max_dd_idx to find the
         # point where the HWM was at its maximum before the drawdown.
-        peak_idx = int(np.argmax(eq[:max_dd_idx + 1]))  # noqa: NPY002
+        peak_idx = int(np.argmax(eq[:max_dd_idx + 1]))
         if peak_idx < max_dd_idx:
             trough_ts = timestamps[min(max_dd_idx, len(timestamps) - 1)]
             peak_ts = timestamps[min(peak_idx, len(timestamps) - 1)]

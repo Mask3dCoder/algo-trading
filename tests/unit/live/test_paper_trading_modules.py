@@ -3,13 +3,11 @@ AnalyticsDashboard, PositionSizer, DeltaTelemetry, PassiveExecutionProxy."""
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerState
@@ -21,16 +19,15 @@ from quantcore.live.paper_trading import (
     DeltaTelemetryConfig,
     DeltaTelemetryMiddleware,
     ExecutionState,
-    PassiveExecutionProxy,
     PaperExecutionConfig,
     PaperExecutionEnvironment,
     PaperTradingAnalytics,
+    PassiveExecutionProxy,
     PositionSizer,
     PositionSizerConfig,
     RiskController,
     RiskControllerConfig,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────
 

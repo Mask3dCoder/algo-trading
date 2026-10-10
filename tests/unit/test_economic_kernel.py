@@ -6,11 +6,7 @@ and the pure function contract (no side effects).
 
 from __future__ import annotations
 
-from decimal import Decimal
-
-import pytest
-
-from quantcore.core.economic_kernel import FillApplication, apply_fill
+from quantcore.core.economic_kernel import apply_fill
 
 
 def pos(quantity, avg_cost, realized_pnl=0.0):

@@ -36,8 +36,9 @@ class TestGetAccountDict:
         assert result["total_commission"] == 25.0
 
     def test_from_account_info(self):
-        from quantcore.execution.brokers.base import AccountInfo
         from scripts.paper_trade import _get_account_dict
+
+        from quantcore.execution.brokers.base import AccountInfo
 
         acct_info = AccountInfo(
             account_id="DU123",
@@ -74,8 +75,9 @@ class TestGetAccountDict:
 
 class TestGetBrokerPositions:
     def test_from_dict(self):
-        from quantcore.core.types import Position
         from scripts.paper_trade import _get_broker_positions
+
+        from quantcore.core.types import Position
 
         pos = Position(
             symbol="AAPL", quantity=Decimal("100"),
@@ -90,8 +92,9 @@ class TestGetBrokerPositions:
         assert result["AAPL"].quantity == Decimal("100")
 
     def test_from_list(self):
-        from quantcore.core.types import Position
         from scripts.paper_trade import _get_broker_positions
+
+        from quantcore.core.types import Position
 
         pos = Position(
             symbol="SPY", quantity=Decimal("50"),
@@ -115,8 +118,9 @@ class TestGetBrokerPositions:
         assert result == {}
 
     def test_uses_sync_wrapper_if_available(self):
-        from quantcore.core.types import Position
         from scripts.paper_trade import _get_broker_positions
+
+        from quantcore.core.types import Position
 
         pos = Position(
             symbol="QQQ", quantity=Decimal("25"),
@@ -175,8 +179,9 @@ class TestUpdateBrokerState:
 
 class TestOrderToBrokerOrder:
     def test_buy_market_order(self):
-        from quantcore.core.types import Order, OrderType, Side
         from scripts.paper_trade import _order_to_broker_order
+
+        from quantcore.core.types import Order, OrderType, Side
 
         order = Order(
             id="test-1", symbol="AAPL", side=Side.BUY,
@@ -190,8 +195,9 @@ class TestOrderToBrokerOrder:
         assert bo.quantity == Decimal("100")
 
     def test_sell_limit_order(self):
-        from quantcore.core.types import Order, OrderType, Side
         from scripts.paper_trade import _order_to_broker_order
+
+        from quantcore.core.types import Order, OrderType, Side
 
         order = Order(
             id="test-2", symbol="SPY", side=Side.SELL,

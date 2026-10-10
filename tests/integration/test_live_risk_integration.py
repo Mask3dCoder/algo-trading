@@ -17,7 +17,6 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@ class TestLiveRiskEngineFit:
 
     def test_fit_initial_creates_synthetic_fallback(self, synthetic_returns):
         """fit_initial uses synthetic returns when real data is insufficient."""
-        from quantcore.live.live_risk_engine import LiveRiskEngine, ReturnWindow
+        from quantcore.live.live_risk_engine import LiveRiskEngine
         # Pre-populate window with very few observations
         engine = LiveRiskEngine()
         # Manually push a few returns (less than 20 observation threshold)
@@ -318,7 +317,11 @@ class TestCircuitBreakerCorrelationRegime:
 
     def test_warning_state_after_5_consecutive_high_corr_days(self):
         """5+ days of high correlation triggers WARNING state (not halt)."""
-        from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
+        from quantcore.live.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+            CircuitBreakerState,
+        )
         cb = CircuitBreaker(CircuitBreakerConfig(
             daily_loss_pct=0.10,  # generous so we don't hit daily loss halt
             high_corr_days_persistence_alert=5,
@@ -337,7 +340,11 @@ class TestCircuitBreakerCorrelationRegime:
 
     def test_warning_state_does_not_block_trading(self):
         """WARNING state still allows trading — it's an alert, not a halt."""
-        from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
+        from quantcore.live.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+            CircuitBreakerState,
+        )
         cb = CircuitBreaker(CircuitBreakerConfig(
             daily_loss_pct=0.10,
             high_corr_days_persistence_alert=3,
@@ -353,6 +360,7 @@ class TestCircuitBreakerCorrelationRegime:
     def test_correlation_regime_logged_on_change(self, caplog):
         """Every regime transition is logged at INFO level."""
         import logging
+
         from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
         cb = CircuitBreaker(CircuitBreakerConfig())
         caplog.set_level(logging.INFO)

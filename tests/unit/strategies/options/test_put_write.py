@@ -11,7 +11,6 @@ Fix: use ``.item()`` or explicit indexing to extract the scalar before ``float()
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from quantcore.strategies.base import StrategyConfig
 from quantcore.strategies.options.put_write import PutWriteVRPStrategy

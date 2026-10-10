@@ -18,7 +18,6 @@ from pydantic import ValidationError
 
 from quantcore.core.types import Fill, Order, OrderType, Position, Side
 
-
 # ---------------------------------------------------------------------------
 # C1: apply_fill uses fill.side
 # ---------------------------------------------------------------------------
@@ -179,7 +178,6 @@ class TestC4_MarginInterestGuard:
         assert ps.cash < 0, f"Expected negative cash, got {ps.cash}"
 
         from quantcore.backtest.financing import FinancingConfig
-        from quantcore.core.types import PortfolioSnapshot
 
         config = FinancingConfig(margin_rate=0.5, margin_limit=2.0)
         ps.set_financing_config(config)
@@ -229,6 +227,7 @@ class TestH2_EOPForceFill:
     def test_force_fill_in_eop_path(self):
         """EOP cleanup code should use _force_fill fallback."""
         import inspect
+
         from quantcore.backtest.engine import BacktestEngine
 
         source = inspect.getsource(BacktestEngine.run)
@@ -243,8 +242,8 @@ class TestH2_EOPForceFill:
 class TestH3_DefensiveInvariants:
     def test_pre_trade_rejects_zero_price(self):
         """check_pre_trade should reject orders with price <= 0."""
-        from quantcore.risk.limits import LimitStatus, RiskLimits, check_pre_trade
         from quantcore.core.types import PortfolioSnapshot
+        from quantcore.risk.limits import LimitStatus, RiskLimits, check_pre_trade
 
         order = Order(
             id="test", symbol="AAPL", side=Side.BUY,
@@ -272,7 +271,6 @@ class TestH3_DefensiveInvariants:
     def test_weights_normalized_on_mismatch(self):
         """Risk engine should normalize weights that don't sum to 1.0."""
         # This is tested indirectly through the engine's weight normalization
-        import structlog
         from quantcore.risk.engine import RiskEngine
 
         engine = RiskEngine()
@@ -282,7 +280,7 @@ class TestH3_DefensiveInvariants:
         per_asset = np.random.normal(0.001, 0.01, (300, 3))
         engine.update_per_asset_returns(per_asset)
 
-        from quantcore.core.types import PortfolioSnapshot, Position
+        from quantcore.core.types import PortfolioSnapshot
         portfolio = PortfolioSnapshot(
             positions={
                 "AAPL": Position(symbol="AAPL", quantity=Decimal("100"),

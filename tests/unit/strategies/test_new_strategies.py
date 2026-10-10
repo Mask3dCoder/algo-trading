@@ -16,7 +16,6 @@ import pytest
 
 from quantcore.strategies.base import StrategyConfig, StrategyType
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -219,7 +218,9 @@ class TestShortTermReversal:
 
 class TestFullUniverseXSMomentum:
     def test_import(self):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         assert FullUniverseCrossSectionalMomentum is not None
 
     def test_registration(self):
@@ -227,7 +228,9 @@ class TestFullUniverseXSMomentum:
         assert "equity_full_universe_xs_momentum" in list_strategies()
 
     def test_produces_signals(self, large_universe_data, equity_config):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         strat = FullUniverseCrossSectionalMomentum(equity_config)
         signals = strat.on_data(large_universe_data)
         assert isinstance(signals, list)
@@ -237,7 +240,9 @@ class TestFullUniverseXSMomentum:
             assert 0 <= s.strength <= 1.0
 
     def test_position_cap_3pct(self, large_universe_data, equity_config):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         strat = FullUniverseCrossSectionalMomentum(equity_config)
         signals = strat.on_data(large_universe_data)
         for s in signals:
@@ -245,7 +250,9 @@ class TestFullUniverseXSMomentum:
             assert s.strength <= 0.10, f"Position too large: {s.strength}"
 
     def test_insufficient_history_returns_empty(self, equity_config):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         strat = FullUniverseCrossSectionalMomentum(equity_config)
         short_data = {
             "close": np.ones((50, 10)) * 100,
@@ -255,7 +262,9 @@ class TestFullUniverseXSMomentum:
         assert signals == []
 
     def test_56_asset_dollar_neutral(self, large_universe_data, equity_config):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         strat = FullUniverseCrossSectionalMomentum(equity_config)
         signals = strat.on_data(large_universe_data)
         if len(signals) >= 2:
@@ -355,7 +364,9 @@ class TestWalkForwardSmoke:
             assert avg > -5.0, f"Walk-forward Sharpe too negative: {avg:.4f}"
 
     def test_full_xs_momentum_wf(self, wf_data, equity_config):
-        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import FullUniverseCrossSectionalMomentum
+        from quantcore.strategies.equity.full_universe_cross_sectional_momentum import (
+            FullUniverseCrossSectionalMomentum,
+        )
         sharpes = self._run_wf(FullUniverseCrossSectionalMomentum, equity_config, wf_data)
         if sharpes:
             avg = np.mean(sharpes)

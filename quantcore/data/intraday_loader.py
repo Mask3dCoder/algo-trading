@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime, date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -198,11 +198,10 @@ class AlpacaIntradayLoader:
         start_dt = datetime.fromisoformat(start)
         end_dt = datetime.fromisoformat(end)
         # Ensure timezone-aware (UTC) for comparison with Alpaca bar timestamps
-        from datetime import timezone
         if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
         if end_dt.tzinfo is None:
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=UTC)
 
         all_bars: list[dict] = []
         current_start = start_dt

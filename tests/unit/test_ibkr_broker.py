@@ -364,17 +364,17 @@ class TestSyncWrappers:
 
 class TestConnectionErrors:
     def test_connection_refused(self):
-        from quantcore.brokers.ibkr_broker import IBKRBroker, IBKRConnectionError
         import asyncio
+
+        from quantcore.brokers.ibkr_broker import IBKRBroker, IBKRConnectionError
 
         broker = IBKRBroker(host="127.0.0.1", port=7497, client_id=1)
 
         with patch.object(broker, '_ib', None):
             pass  # _ib is None by default
 
-        with pytest.raises(IBKRConnectionError):
-            with patch("ib_insync.IB") as mock_ib_class:
-                mock_ib = MagicMock()
-                mock_ib.connect.side_effect = ConnectionRefusedError("refused")
-                mock_ib_class.return_value = mock_ib
-                asyncio.run(broker.connect())
+        with pytest.raises(IBKRConnectionError), patch("ib_insync.IB") as mock_ib_class:
+            mock_ib = MagicMock()
+            mock_ib.connect.side_effect = ConnectionRefusedError("refused")
+            mock_ib_class.return_value = mock_ib
+            asyncio.run(broker.connect())

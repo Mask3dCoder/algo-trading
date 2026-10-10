@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 # Ensure we can import quantcore live modules
-from quantcore.core.types import Order, OrderStatus, OrderType, Side
+from quantcore.core.types import Order, OrderType, Side
 from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerState
-from quantcore.live.risk_manager import Approval, RiskLimitsConfig, RiskManagerLive
-
+from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
 
 # ---------------------------------------------------------------------------
 # RiskManagerLive

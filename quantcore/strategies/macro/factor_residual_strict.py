@@ -21,8 +21,8 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.strategies.macro.factor_residual import FactorResidualStrategy
 from quantcore.strategies.base import TradeSignal
+from quantcore.strategies.macro.factor_residual import FactorResidualStrategy
 from quantcore.strategies.registry import register
 
 
@@ -358,7 +358,7 @@ class FactorResidualStrictStrategy(FactorResidualStrategy):
 
         if self._debug_autocorr_values:
             autocorr_arr = np.array(self._debug_autocorr_values)
-            print(f"\nAutocorrelation stats (assets with signals):")
+            print("\nAutocorrelation stats (assets with signals):")
             print(f"  Mean: {np.mean(autocorr_arr):.4f}")
             print(f"  Median: {np.median(autocorr_arr):.4f}")
             print(f"  Min: {np.min(autocorr_arr):.4f}")
@@ -366,7 +366,7 @@ class FactorResidualStrictStrategy(FactorResidualStrategy):
 
         if self._debug_signal_magnitudes["before_norm"]:
             before = np.array(self._debug_signal_magnitudes["before_norm"])
-            print(f"\nSignal magnitude BEFORE normalization:")
+            print("\nSignal magnitude BEFORE normalization:")
             print(f"  Count: {len(before)}")
             print(f"  Mean: {np.mean(before):.4f}")
             print(f"  Std: {np.std(before):.4f}")
@@ -374,7 +374,7 @@ class FactorResidualStrictStrategy(FactorResidualStrategy):
 
         if self._debug_signal_magnitudes["after_norm"]:
             after = np.array(self._debug_signal_magnitudes["after_norm"])
-            print(f"\nSignal magnitude AFTER normalization:")
+            print("\nSignal magnitude AFTER normalization:")
             print(f"  Count: {len(after)}")
             print(f"  Mean: {np.mean(after):.4f}")
             print(f"  Std: {np.std(after):.4f}")

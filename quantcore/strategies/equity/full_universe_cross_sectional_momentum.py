@@ -21,10 +21,9 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.special import softmax
 
+from quantcore.backtest.engine import SignalData
 from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 from quantcore.strategies.registry import register
-from quantcore.backtest.engine import SignalData
-
 
 # ---------------------------------------------------------------------------
 # Risk control configuration (identical to macro cross_sectional_momentum)

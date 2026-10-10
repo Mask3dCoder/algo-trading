@@ -33,7 +33,6 @@ Risk controls (institutional tier)
 from __future__ import annotations
 
 import logging
-import warnings
 from typing import Any
 
 import numpy as np
@@ -182,7 +181,7 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
     # -----------------------------------------------------------------
     # Public entry point (event-driven)
     # -----------------------------------------------------------------
-    def on_bar(self, bar, portfolio) -> list[SignalData]:  # noqa: D401
+    def on_bar(self, bar, portfolio) -> list[SignalData]:
         """Process single bar and emit signals (event-driven path).
 
         The BacktestEngine calls on_bar once per (timestamp, symbol).
@@ -244,7 +243,7 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
         accepting *any* first positional arg and ignoring it - the strategy
         is purely signal-driven and does not need fill feedback.
         """
-        pass  # Signal-driven strategy; no fill-based state update needed
+        # Signal-driven strategy; no fill-based state update needed
 
     def reset(self) -> None:
         """Reset all state (for walk-forward folds)."""
@@ -283,7 +282,7 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
             w = weights[i]
             if abs(w) < 1e-6:
                 continue
-            signals.append(  # noqa: ERA001
+            signals.append(
                 TradeSignal(
                     symbol=sym,
                     direction=1 if w > 0 else -1,
@@ -376,7 +375,7 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
         betas     : (N, n_factors) most recent factor loadings
         """
         T, N = returns.shape
-        if T < self.reg_lookback + self.pred_window:
+        if self.reg_lookback + self.pred_window > T:
             return None, None
 
         # Extract factor returns from the same data
@@ -389,7 +388,7 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
 
         for i in range(N):
             y = returns[:, i]
-            if _HAS_SKLEARN and T >= self.reg_lookback + 5:
+            if _HAS_SKLEARN and self.reg_lookback + 5 <= T:
                 try:
                     model = Ridge(alpha=self.ridge_alpha, fit_intercept=True)
                     model.fit(factor_rets[-self.reg_lookback:], y[-self.reg_lookback:])

@@ -65,7 +65,7 @@ def is_exit_time(ts: datetime) -> bool:
 @dataclass
 class FiveMinBar:
     """A 5-minute OHLCV bar with aggregated session context."""
-    bar: "OHLCV"
+    bar: OHLCV
     session_open: float          # RTH session open price (from 9:30 baseline)
     prev_close: float            # Previous day close
     overnight_gap_pct: float     # (session_open - prev_close) / prev_close * 100
@@ -124,15 +124,14 @@ class TickContext:
     is_first_bar: bool = True
     is_last_bar: bool = False
     vol_regime: str = "unknown"  # low | normal | elevated | high
-    bars: list["OHLCV"] = field(default_factory=list)  # 5-min bars for this session
+    bars: list[OHLCV] = field(default_factory=list)  # 5-min bars for this session
 
-    def update(self, bar: "OHLCV", vix: float = np.nan, vix_1d_change: float = np.nan) -> None:
+    def update(self, bar: OHLCV, vix: float = np.nan, vix_1d_change: float = np.nan) -> None:
         """Update context with a new 5-minute bar.
 
         Accumulates VWAP, volume, and detects session boundaries.
         This method should be called ONCE per 5-min bar in the engine loop.
         """
-        from quantcore.core.types import OHLCV
 
         self.bars.append(bar)
         self.bars_processed += 1
@@ -155,9 +154,9 @@ class TickContext:
             C = float(bar.close)
             V = int(bar.volume)
             self.first_5_min_volume += V
-            if H > self.first_5_min_high:
+            if self.first_5_min_high < H:
                 self.first_5_min_high = H
-            if L < self.first_5_min_low:
+            if self.first_5_min_low > L:
                 self.first_5_min_low = L
             # Running VWAP for first 5 min
             prev_vwap = self.first_5_min_vwap if np.isfinite(self.first_5_min_vwap) else 0.0
@@ -258,12 +257,11 @@ class TickContextHistory:
         self._current_ctx: TickContext | None = None
         self._all_contexts: list[TickContext] = []
 
-    def update(self, bar: "OHLCV", vix: float = np.nan) -> TickContext:
+    def update(self, bar: OHLCV, vix: float = np.nan) -> TickContext:
         """Process a 5-min bar and return the updated context.
 
         Creates a new TickContext when a new trading day begins (based on date).
         """
-        from quantcore.core.types import OHLCV
         ts = bar.timestamp
         date = ts.date() if hasattr(ts, 'date') else ts
 
@@ -352,9 +350,9 @@ def compute_intraday_slippage(
 # ── Intraday bar data handler ─────────────────────────────────────────────────
 
 def build_5min_bar_df(
-    df: "pd.DataFrame",      # noqa: F821
+    df: pd.DataFrame,      # noqa: F821
     timeframe: str = "5min",
-) -> "pd.DataFrame":         # noqa: F821
+) -> pd.DataFrame:         # noqa: F821
     """Resample a tick/quote DataFrame to N-minute OHLCV bars.
 
     This exists because the main backtest engine uses daily bars by default.

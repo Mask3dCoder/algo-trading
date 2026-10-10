@@ -17,14 +17,14 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from quantcore.strategies.base import TradeSignal
 from quantcore.strategies.macro.factor_residual import FactorResidualStrategy
 from quantcore.strategies.macro.optimizer import (
-    solve_factor_neutral_weights,
-    scale_to_target_vol,
-    enforce_daily_neutrality,
     check_constraints,
+    enforce_daily_neutrality,
+    scale_to_target_vol,
+    solve_factor_neutral_weights,
 )
-from quantcore.strategies.base import TradeSignal
 from quantcore.strategies.registry import register
 
 

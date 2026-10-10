@@ -16,11 +16,9 @@ These tests validate the structural fixes from the forensic audit:
 from __future__ import annotations
 
 import warnings
+from datetime import datetime
 
 import numpy as np
-import pytest
-
-from datetime import datetime
 
 from quantcore.backtest.walk_forward import (
     ACCEPTANCE_CRITERIA,
@@ -28,7 +26,9 @@ from quantcore.backtest.walk_forward import (
     purged_kfold_cv,
     rolling_walk_forward,
 )
-from quantcore.risk.drawdown_guard import DrawdownGuard, DrawdownGuardConfig, VolAdjustedDrawdownGuard
+from quantcore.risk.drawdown_guard import (
+    VolAdjustedDrawdownGuard,
+)
 from quantcore.risk.liquidity import max_position_size, update_adv_cache
 from quantcore.risk.metrics import (
     bootstrap_ci,
@@ -41,7 +41,6 @@ from quantcore.risk.metrics import (
     ulcer_index,
 )
 from quantcore.risk.var import cornish_fisher_var, parametric_var
-
 
 # ---------------------------------------------------------------------------
 # 1. Equity-based drawdown (not cumulative log-return)
@@ -366,9 +365,9 @@ class TestOptionsExecutionBranching:
     def test_equity_injection_in_adapter(self):
         """adapter.py must inject data['equity'] = portfolio.total_value before on_data()."""
         from unittest.mock import MagicMock
-        import numpy as np
+
         from quantcore.backtest.adapter import FrameworkStrategyAdapter
-        from quantcore.strategies.base import StrategyConfig, Strategy, TradeSignal
+        from quantcore.strategies.base import Strategy, StrategyConfig
 
         class DummyStrategy(Strategy):
             def __init__(self, config):
@@ -390,8 +389,9 @@ class TestOptionsExecutionBranching:
         dummy = DummyStrategy(config)
         adapter = FrameworkStrategyAdapter(dummy, symbols=["SPY"])
 
-        from quantcore.core.types import OHLCV
         from decimal import Decimal
+
+        from quantcore.core.types import OHLCV
         bar = OHLCV(
             symbol="SPY",
             timestamp=datetime.now(),

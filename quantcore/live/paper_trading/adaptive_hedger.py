@@ -64,13 +64,12 @@ from __future__ import annotations
 
 import math
 import threading
-import time as _time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Callable
 
 _log = __import__("logging").getLogger(__name__)
 

@@ -53,7 +53,6 @@ def _normalize_columns(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
                     df[col] = df[col] * adj_ratio
             # Heal tiny float rounding artefacts that violate OHLC ordering
             if "high" in df.columns and "close" in df.columns and "high" in df.columns:
-                from numpy import nextafter
                 adj_tol = float(df["high"].abs().max() or 1.0) * 1e-12  # dynamic tolerance
                 # Ensure high >= max(open, close) after rounding
                 df["high"] = df[["high", "open", "close"]].max(axis=1)  # type: ignore[index]

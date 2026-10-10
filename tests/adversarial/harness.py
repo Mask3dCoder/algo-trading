@@ -17,28 +17,18 @@ Usage:
 
 from __future__ import annotations
 
-import copy
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
 from quantcore.core.types import Fill, Order, OrderType, Side
-
 from tests.adversarial.broker_emulator import BrokerEmulator, CanonicalFillRecord
-from tests.adversarial.chaos import (
-    ChaosConfig,
-    ChaosEvent,
-    EventChaosGenerator,
-    EventType,
-    FailureEvent,
-    FailureInjector,
-    ReplayEngine,
-    ReplayMode,
-    RunResult,
+from tests.adversarial.oracle import (
+    FindingSeverity,
+    ValidationFinding,
+    ValidationOracle,
 )
-from tests.adversarial.oracle import FindingSeverity, ValidationFinding, ValidationOracle, ValidationReport
 from tests.adversarial.sut import SUTAdapter
 
 
@@ -328,7 +318,7 @@ class AdversarialHarness:
                 check="cash_overcommit_blocked",
                 expected="trade blocked (committed cash reduces available)",
                 actual="trade accepted",
-                details=f"Order2 accepted despite committed=$90k reducing available to $10k",
+                details="Order2 accepted despite committed=$90k reducing available to $10k",
             )
             self.oracle._report.add_finding(finding)
 

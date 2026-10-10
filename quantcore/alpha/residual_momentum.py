@@ -9,7 +9,6 @@ idiosyncratic returns.
 from __future__ import annotations
 
 import logging
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -124,7 +123,7 @@ class ResidualMomentumStrategy:
                 )
                 if mom is not None:
                     idiosyncratic_momentum[ticker] = mom
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 _log.debug("signal_error: ticker=%s, date=%s, exc=%s", ticker, as_of, exc)
 
         if len(idiosyncratic_momentum) < 20:

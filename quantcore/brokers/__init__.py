@@ -6,6 +6,7 @@ from quantcore.brokers.alpaca_broker import (
     BrokerAuthError,
     OrderRejectedError,
 )
+from quantcore.brokers.hybrid import HybridFeed, create_hybrid
 from quantcore.brokers.ibkr_broker import (
     IBKRBroker,
     IBKRBrokerError,
@@ -13,7 +14,6 @@ from quantcore.brokers.ibkr_broker import (
     IBKRMarketClosedError,
     IBKROrderRejectedError,
 )
-from quantcore.brokers.hybrid import HybridFeed, create_hybrid
 
 __all__ = [
     "AlpacaBroker",

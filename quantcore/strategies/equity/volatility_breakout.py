@@ -165,9 +165,7 @@ class VolatilityBreakoutStrategy(Strategy):
                 exit_reason = "squeeze_restart"
             elif symbol in self._positions:
                 pos_dir = np.sign(self._positions[symbol])
-                if pos_dir > 0 and mom_direction < 0 and rsi_val < 40:
-                    exit_reason = "momentum_reversal"
-                elif pos_dir < 0 and mom_direction > 0 and rsi_val > 60:
+                if (pos_dir > 0 and mom_direction < 0 and rsi_val < 40) or (pos_dir < 0 and mom_direction > 0 and rsi_val > 60):
                     exit_reason = "momentum_reversal"
 
             if exit_reason:

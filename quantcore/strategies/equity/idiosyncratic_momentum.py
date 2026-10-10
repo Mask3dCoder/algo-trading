@@ -21,7 +21,6 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 from quantcore.strategies.registry import register
 
-
 # ---------------------------------------------------------------------------
 # SPY symbol used as the market factor proxy.
 # ---------------------------------------------------------------------------

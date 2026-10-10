@@ -58,7 +58,7 @@ class TelegramConfig:
     chat_id: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "TelegramConfig":
+    def from_dict(cls, d: dict[str, Any]) -> TelegramConfig:
         # Also check environment variables for secrets
         token = d.get("bot_token", "") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
         chat_id = d.get("chat_id", "") or os.environ.get("TELEGRAM_CHAT_ID", "")

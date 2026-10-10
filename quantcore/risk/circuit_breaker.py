@@ -13,7 +13,7 @@ Implementation: Must be checked AFTER each bar and BEFORE signal generation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 

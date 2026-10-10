@@ -13,8 +13,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from quantcore.backtest.engine import BacktestEngine, FillSimulator, SignalData
-from quantcore.core.types import OHLCV, Fill
+from quantcore.backtest.engine import BacktestEngine, SignalData
 
 
 def _make_df(symbol, closes, opens=None, start="2020-01-02"):

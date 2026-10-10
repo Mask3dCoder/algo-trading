@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -251,9 +251,7 @@ class LiveDataFeed:
             Default 252 ≈ 1 trading year.
         """
         # Normalise date
-        if isinstance(as_of_date, str):
-            as_of_date = pd.Timestamp(as_of_date)
-        elif isinstance(as_of_date, date):
+        if isinstance(as_of_date, str) or isinstance(as_of_date, date):
             as_of_date = pd.Timestamp(as_of_date)
         as_of_ts = as_of_date
 
@@ -311,9 +309,7 @@ class LiveDataFeed:
         Returns the same dict structure as get_daily_snapshot():
             {"close": np.ndarray (n_periods, n_assets), "symbols": list[str]}
         """
-        if isinstance(as_of_date, str):
-            as_of_date = pd.Timestamp(as_of_date)
-        elif isinstance(as_of_date, date):
+        if isinstance(as_of_date, str) or isinstance(as_of_date, date):
             as_of_date = pd.Timestamp(as_of_date)
         as_of_ts = as_of_date
 
@@ -373,9 +369,7 @@ class LiveDataFeed:
                 "symbols": list[str],
             }
         """
-        if isinstance(as_of_date, str):
-            as_of_date = pd.Timestamp(as_of_date)
-        elif isinstance(as_of_date, date):
+        if isinstance(as_of_date, str) or isinstance(as_of_date, date):
             as_of_date = pd.Timestamp(as_of_date)
         as_of_ts = as_of_date
 
@@ -434,9 +428,7 @@ class LiveDataFeed:
         Fetches daily bars with 10-day lookback and returns the second-to-last
         close (i.e. yesterday's close relative to as_of_date).
         """
-        if isinstance(as_of_date, str):
-            as_of_date = pd.Timestamp(as_of_date)
-        elif isinstance(as_of_date, date):
+        if isinstance(as_of_date, str) or isinstance(as_of_date, date):
             as_of_date = pd.Timestamp(as_of_date)
 
         start_str = (as_of_date - pd.Timedelta(days=10)).isoformat()

@@ -9,8 +9,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-import warnings
-
 from quantcore.strategies.base import (
     Strategy,
     StrategyConfig,
@@ -186,22 +184,22 @@ class CTATrendStrategy(Strategy):
             # --- PHASE 2.2 & 2.4: Alignment + Strength Filters ---
             # Track total signals for diagnostics
             self._total_fast_signals += 1
-            
+
             # Check if fast signal is strong enough
             fast_signal_strong = (abs(fast_signal) >= self.min_signal_strength) if self.min_signal_strength > 0.0 else True
-            
+
             # Check if fast and slow agree in direction
             alignment_mismatch = (np.sign(fast_signal) != np.sign(slow_signal)) if self.alignment_filter else False
 
             # Determine if we should skip this trade
             skip_trade = False
             skip_reason = None
-            
+
             # Alignment filter: skip if fast and slow disagree
             if self.alignment_filter and alignment_mismatch:
                 skip_trade = True
                 skip_reason = 'alignment_mismatch'
-            
+
             # Strength filter: skip if fast signal is NOT strong enough
             # (This is the STANDARD strength filter, not the inverted Phase 2.0 logic)
             if self.min_signal_strength > 0.0 and not fast_signal_strong:

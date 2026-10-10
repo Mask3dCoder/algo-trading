@@ -15,13 +15,8 @@ import copy
 import hashlib
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from decimal import Decimal
-from enum import Enum, auto
-from typing import Any, Callable
-
-from quantcore.core.types import Fill, Order, OrderType, Side
-
+from enum import Enum
+from typing import Any
 
 # ===========================================================================
 # Event types
@@ -416,9 +411,7 @@ class EventChaosGenerator:
                         seq=self._next_seq(),
                         parameters={},
                     ))
-                elif ftype == EventType.FILL_DROPPED:
-                    params = {"order_id": f"burst-{self._next_seq()}"}
-                elif ftype == EventType.FILL_DUPLICATED:
+                elif ftype == EventType.FILL_DROPPED or ftype == EventType.FILL_DUPLICATED:
                     params = {"order_id": f"burst-{self._next_seq()}"}
 
                 events.append(ChaosEvent(

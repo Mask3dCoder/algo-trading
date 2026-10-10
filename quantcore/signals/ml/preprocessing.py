@@ -304,7 +304,7 @@ class PreprocessingPipeline:
         self._zscore_mean: NDArray | None = None
         self._zscore_std: NDArray | None = None
 
-    def fit(self, features: NDArray) -> "PreprocessingPipeline":
+    def fit(self, features: NDArray) -> PreprocessingPipeline:
         """Learn preprocessing statistics from training data."""
         if features.size == 0:
             self._fitted = False

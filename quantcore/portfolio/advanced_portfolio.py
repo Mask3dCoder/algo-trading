@@ -17,10 +17,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 
@@ -71,7 +69,7 @@ class BlackLittermanOptimizer:
     tau : float
         Uncertainty in prior (default 0.05).
     """
-    
+
     def __init__(
         self,
         risk_aversion: float = 2.5,
@@ -79,7 +77,7 @@ class BlackLittermanOptimizer:
     ) -> None:
         self.risk_aversion = risk_aversion
         self.tau = tau
-        
+
     def compute_equilibrium_returns(
         self,
         market_weights: NDArray,
@@ -101,7 +99,7 @@ class BlackLittermanOptimizer:
         """
         # π = δ * Σ * w_mkt
         return self.risk_aversion * covariance @ market_weights
-    
+
     def incorporate_views(
         self,
         equilibrium_returns: NDArray,
@@ -131,36 +129,36 @@ class BlackLittermanOptimizer:
             Posterior returns and weights.
         """
         n_assets = len(equilibrium_returns)
-        
+
         # Prior covariance (scaled)
         tau_sigma = self.tau * covariance
-        
+
         # View uncertainty (diagonal matrix)
         omega = np.diag(1.0 / (view_confidence + 1e-10))
-        
+
         # Posterior precision
         M = np.linalg.inv(tau_sigma) + view_matrix.T @ np.linalg.inv(omega) @ view_matrix
-        
+
         # Posterior returns
         posterior_returns = np.linalg.solve(
             M,
             np.linalg.inv(tau_sigma) @ equilibrium_returns + view_matrix.T @ np.linalg.inv(omega) @ view_returns,
         )
-        
+
         # Posterior covariance
         posterior_cov = np.linalg.inv(M)
-        
+
         # Optimal weights (mean-variance)
         weights = np.linalg.solve(
             self.risk_aversion * covariance,
             posterior_returns,
         )
-        
+
         # Normalize weights
         weights = np.maximum(weights, 0)  # Long-only
         if np.sum(weights) > 0:
             weights /= np.sum(weights)
-        
+
         return BlackLittermanResult(
             posterior_returns=posterior_returns,
             posterior_covariance=posterior_cov,
@@ -168,15 +166,15 @@ class BlackLittermanOptimizer:
             view_returns=view_returns,
             confidence=view_confidence,
         )
-    
+
     def optimize(
         self,
         market_weights: NDArray,
         covariance: NDArray,
-        view_matrix: Optional[NDArray] = None,
-        view_returns: Optional[NDArray] = None,
-        view_confidence: Optional[NDArray] = None,
-        alpha_signals: Optional[NDArray] = None,
+        view_matrix: NDArray | None = None,
+        view_returns: NDArray | None = None,
+        view_confidence: NDArray | None = None,
+        alpha_signals: NDArray | None = None,
         alpha_confidence: float = 0.5,
     ) -> PortfolioResult:
         """Run Black-Litterman optimization.
@@ -204,17 +202,17 @@ class BlackLittermanOptimizer:
             Optimized portfolio.
         """
         n_assets = len(market_weights)
-        
+
         # Compute equilibrium returns
         pi = self.compute_equilibrium_returns(market_weights, covariance)
-        
+
         # If no custom views, use alpha signals as views
         if view_matrix is None and alpha_signals is not None:
             # Each asset is a view
             view_matrix = np.eye(n_assets)
             view_returns = alpha_signals * np.std(pi)  # Scale to prior magnitude
             view_confidence = np.ones(n_assets) * alpha_confidence
-        
+
         if view_matrix is not None and view_returns is not None and view_confidence is not None:
             # Incorporate views
             result = self.incorporate_views(
@@ -224,12 +222,12 @@ class BlackLittermanOptimizer:
         else:
             # No views - use equilibrium
             weights = market_weights
-        
+
         # Compute portfolio metrics
         port_return = float(weights @ pi)
         port_risk = float(np.sqrt(weights @ covariance @ weights))
         sharpe = port_return / port_risk if port_risk > 0 else 0.0
-        
+
         return PortfolioResult(
             weights=weights,
             expected_return=port_return,
@@ -256,13 +254,13 @@ class RiskParityOptimizer:
     target_risk_contributions : NDArray | None
         Target risk contributions. Default: equal (1/n).
     """
-    
+
     def __init__(
         self,
-        target_risk_contributions: Optional[NDArray] = None,
+        target_risk_contributions: NDArray | None = None,
     ) -> None:
         self.target_risk_contributions = target_risk_contributions
-        
+
     def compute_risk_contributions(
         self,
         weights: NDArray,
@@ -285,13 +283,13 @@ class RiskParityOptimizer:
         port_vol = np.sqrt(weights @ covariance @ weights)
         marginal_contrib = covariance @ weights / port_vol
         component_contrib = weights * marginal_contrib
-        
+
         return component_contrib
-    
+
     def optimize(
         self,
         covariance: NDArray,
-        asset_names: Optional[list[str]] = None,
+        asset_names: list[str] | None = None,
     ) -> PortfolioResult:
         """Find risk parity portfolio.
         
@@ -308,41 +306,41 @@ class RiskParityOptimizer:
             Risk parity portfolio.
         """
         n_assets = len(covariance)
-        
+
         # Target: equal risk contribution
         if self.target_risk_contributions is None:
             target = np.ones(n_assets) / n_assets
         else:
             target = self.target_risk_contributions
-        
+
         # Objective: minimize difference between actual and target risk contributions
         def objective(w):
             w = np.abs(w)  # Ensure positive
             if np.sum(w) == 0:
                 return 1e10
             w = w / np.sum(w)  # Normalize
-            
+
             rc = self.compute_risk_contributions(w, covariance)
             total_risk = np.sum(rc)
-            
+
             if total_risk == 0:
                 return 1e10
-            
+
             rc_pct = rc / total_risk
-            
+
             # Sum of squared differences
             return np.sum((rc_pct - target) ** 2)
-        
+
         # Initial guess: inverse volatility
         iv = 1.0 / np.sqrt(np.diag(covariance))
         w0 = iv / np.sum(iv)
-        
+
         # Constraints: weights sum to 1
         constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1}
-        
+
         # Bounds: long-only
         bounds = [(0.001, 1.0)] * n_assets
-        
+
         result = minimize(
             objective,
             w0,
@@ -350,14 +348,14 @@ class RiskParityOptimizer:
             bounds=bounds,
             constraints=constraints,
         )
-        
+
         weights = np.abs(result.x)
         weights /= np.sum(weights)
-        
+
         # Compute portfolio metrics
         port_return = 0.0  # Would need expected returns
         port_risk = float(np.sqrt(weights @ covariance @ weights))
-        
+
         return PortfolioResult(
             weights=weights,
             expected_return=port_return,
@@ -379,30 +377,30 @@ class HierarchicalRiskParity:
     linkage_method : str
         Linkage method for clustering (default 'ward').
     """
-    
+
     def __init__(self, linkage_method: str = "ward") -> None:
         self.linkage_method = linkage_method
-        
+
     def _tree_clustering(self, correlation: NDArray) -> tuple:
         """Perform hierarchical clustering."""
-        from scipy.cluster.hierarchy import linkage, leaves_list
+        from scipy.cluster.hierarchy import leaves_list, linkage
         from scipy.spatial.distance import squareform
-        
+
         # Distance matrix from correlation
         dist = np.sqrt(0.5 * (1 - correlation))
         dist_condensed = squareform(dist, checks=False)
-        
+
         # Hierarchical clustering
         link = linkage(dist_condensed, method=self.linkage_method)
         sort_idx = leaves_list(link)
-        
+
         return link, sort_idx
-    
+
     def _get_quasi_diag(self, link: NDArray) -> list[int]:
         """Get quasi-diagonal ordering."""
         from scipy.cluster.hierarchy import leaves_list
         return leaves_list(link).tolist()
-    
+
     def _recursive_bisection(
         self,
         covariance: NDArray,
@@ -411,33 +409,33 @@ class HierarchicalRiskParity:
         """Recursive bisection to allocate weights."""
         n = len(sort_idx)
         weights = np.ones(n)
-        
+
         # Recursive bisection
         cluster_items = [sort_idx]
-        
+
         while cluster_items:
             new_clusters = []
-            
+
             for cluster in cluster_items:
                 if len(cluster) <= 1:
                     continue
-                
+
                 # Split cluster in half
                 mid = len(cluster) // 2
                 left = cluster[:mid]
                 right = cluster[mid:]
-                
+
                 # Compute cluster variances
                 left_var = self._cluster_variance(covariance, left)
                 right_var = self._cluster_variance(covariance, right)
-                
+
                 # Allocate inversely proportional to variance
                 total = left_var + right_var
                 if total > 0:
                     alpha = 1 - left_var / total
                 else:
                     alpha = 0.5
-                
+
                 # Apply allocation
                 for i in left:
                     idx = sort_idx.index(i)
@@ -445,13 +443,13 @@ class HierarchicalRiskParity:
                 for i in right:
                     idx = sort_idx.index(i)
                     weights[idx] *= (1 - alpha)
-                
+
                 new_clusters.extend([left, right])
-            
+
             cluster_items = [c for c in new_clusters if len(c) > 1]
-        
+
         return weights
-    
+
     def _cluster_variance(
         self,
         covariance: NDArray,
@@ -461,13 +459,13 @@ class HierarchicalRiskParity:
         sub_cov = covariance[np.ix_(cluster, cluster)]
         ivp = 1.0 / np.diag(sub_cov)
         ivp /= np.sum(ivp)
-        
+
         return float(ivp @ sub_cov @ ivp)
-    
+
     def optimize(
         self,
         returns: NDArray,
-        asset_names: Optional[list[str]] = None,
+        asset_names: list[str] | None = None,
     ) -> PortfolioResult:
         """Run HRP optimization.
         
@@ -484,28 +482,28 @@ class HierarchicalRiskParity:
             HRP portfolio.
         """
         n_assets = returns.shape[1]
-        
+
         # Compute correlation and covariance
         correlation = np.corrcoef(returns.T)
         covariance = np.cov(returns.T)
-        
+
         # Step 1: Tree clustering
         link, sort_idx = self._tree_clustering(correlation)
-        
+
         # Step 2: Quasi-diagonalization
         sort_idx = self._get_quasi_diag(link)
-        
+
         # Step 3: Recursive bisection
         weights = self._recursive_bisection(covariance, sort_idx)
-        
+
         # Normalize
         weights = np.maximum(weights, 0)
         if np.sum(weights) > 0:
             weights /= np.sum(weights)
-        
+
         # Compute portfolio metrics
         port_risk = float(np.sqrt(weights @ covariance @ weights))
-        
+
         return PortfolioResult(
             weights=weights,
             expected_return=0.0,
@@ -534,7 +532,7 @@ class MeanCVaROptimizer:
     risk_aversion : float
         Risk aversion parameter (default 1.0).
     """
-    
+
     def __init__(
         self,
         confidence: float = 0.95,
@@ -542,7 +540,7 @@ class MeanCVaROptimizer:
     ) -> None:
         self.confidence = confidence
         self.risk_aversion = risk_aversion
-        
+
     def compute_cvar(
         self,
         returns: NDArray,
@@ -564,19 +562,19 @@ class MeanCVaROptimizer:
         """
         port_returns = returns @ weights
         var_threshold = np.percentile(port_returns, (1 - self.confidence) * 100)
-        
+
         # CVaR = average of returns below VaR
         tail_returns = port_returns[port_returns <= var_threshold]
-        
+
         if len(tail_returns) > 0:
             return float(-np.mean(tail_returns))
         return 0.0
-    
+
     def optimize(
         self,
         returns: NDArray,
-        expected_returns: Optional[NDArray] = None,
-        asset_names: Optional[list[str]] = None,
+        expected_returns: NDArray | None = None,
+        asset_names: list[str] | None = None,
     ) -> PortfolioResult:
         """Optimize portfolio for mean-CVaR.
         
@@ -595,25 +593,25 @@ class MeanCVaROptimizer:
             Optimized portfolio.
         """
         n_assets = returns.shape[1]
-        
+
         if expected_returns is None:
             expected_returns = np.mean(returns, axis=0)
-        
+
         # Objective: maximize return - λ * CVaR
         def objective(w):
             port_return = w @ expected_returns
             cvar = self.compute_cvar(returns, w)
             return -(port_return - self.risk_aversion * cvar)
-        
+
         # Initial guess
         w0 = np.ones(n_assets) / n_assets
-        
+
         # Constraints
         constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 1}
-        
+
         # Bounds
         bounds = [(0, 1)] * n_assets
-        
+
         result = minimize(
             objective,
             w0,
@@ -621,17 +619,17 @@ class MeanCVaROptimizer:
             bounds=bounds,
             constraints=constraints,
         )
-        
+
         weights = np.maximum(result.x, 0)
         if np.sum(weights) > 0:
             weights /= np.sum(weights)
-        
+
         # Compute metrics
         port_return = float(weights @ expected_returns)
         port_risk = float(np.std(returns @ weights))
         cvar = self.compute_cvar(returns, weights)
         sharpe = port_return / port_risk if port_risk > 0 else 0.0
-        
+
         return PortfolioResult(
             weights=weights,
             expected_return=port_return,
@@ -661,7 +659,7 @@ class TransactionCostOptimizer:
     market_impact_coefficient : float
         Market impact coefficient (default 0.1).
     """
-    
+
     def __init__(
         self,
         cost_per_share: float = 0.005,
@@ -671,7 +669,7 @@ class TransactionCostOptimizer:
         self.cost_per_share = cost_per_share
         self.spread_bps = spread_bps
         self.market_impact_coefficient = market_impact_coefficient
-        
+
     def compute_transaction_costs(
         self,
         current_weights: NDArray,
@@ -704,21 +702,21 @@ class TransactionCostOptimizer:
         weight_changes = target_weights - current_weights
         trade_values = weight_changes * portfolio_value
         trade_shares = trade_values / prices
-        
+
         # Spread cost
         spread_cost = np.sum(np.abs(trade_values) * self.spread_bps / 10000)
-        
+
         # Market impact (square-root model)
         participation = np.abs(trade_shares) / np.maximum(adv, 1)
         impact_cost = np.sum(
             np.abs(trade_values) * self.market_impact_coefficient * np.sqrt(participation)
         )
-        
+
         # Commission
         commission = np.sum(np.abs(trade_shares) * self.cost_per_share)
-        
+
         return float(spread_cost + impact_cost + commission)
-    
+
     def optimize_rebalance(
         self,
         current_weights: NDArray,
@@ -754,31 +752,31 @@ class TransactionCostOptimizer:
             Optimized weights (may differ from target to reduce costs).
         """
         n_assets = len(current_weights)
-        
+
         # Objective: minimize tracking error + transaction costs
         def objective(w):
             # Tracking error
             te = np.sqrt((w - target_weights) @ covariance @ (w - target_weights))
-            
+
             # Transaction costs
             tc = self.compute_transaction_costs(
                 current_weights, w, portfolio_value, prices, adv,
             )
-            
+
             # Normalize
             tc_normalized = tc / portfolio_value
-            
+
             return te + tc_normalized
-        
+
         # Constraints
         constraints = [
             {"type": "eq", "fun": lambda w: np.sum(w) - 1},
             {"type": "ineq", "fun": lambda w: max_tracking_error - np.sqrt((w - target_weights) @ covariance @ (w - target_weights))},
         ]
-        
+
         # Bounds
         bounds = [(0, 1)] * n_assets
-        
+
         result = minimize(
             objective,
             target_weights,
@@ -786,13 +784,13 @@ class TransactionCostOptimizer:
             bounds=bounds,
             constraints=constraints,
         )
-        
+
         weights = np.maximum(result.x, 0)
         if np.sum(weights) > 0:
             weights /= np.sum(weights)
-        
+
         return weights
-    
+
     def compute_optimal_rebalance_frequency(
         self,
         returns: NDArray,
@@ -829,14 +827,14 @@ class TransactionCostOptimizer:
         """
         if frequencies is None:
             frequencies = [1, 5, 10, 20, 60]
-        
+
         # Simulate for each frequency
         costs = {}
-        
+
         for freq in frequencies:
             total_cost = 0.0
             n_rebalances = len(returns) // freq
-            
+
             for i in range(n_rebalances):
                 idx = i * freq
                 if idx < len(returns):
@@ -845,15 +843,15 @@ class TransactionCostOptimizer:
                         current_weights, target_weights, portfolio_value, prices, adv,
                     )
                     total_cost += cost
-            
+
             costs[freq] = total_cost
-        
+
         # Find optimal frequency (minimize cost)
         optimal_freq = min(costs, key=costs.get)
-        
+
         # Cost savings vs daily rebalancing
         savings = costs[1] - costs[optimal_freq] if 1 in costs else 0.0
-        
+
         return optimal_freq, savings
 
 
@@ -886,10 +884,10 @@ def create_portfolio_optimizer(
         "mean_cvar": MeanCVaROptimizer,
         "transaction_cost": TransactionCostOptimizer,
     }
-    
+
     if method not in optimizers:
         raise ValueError(f"Unknown method: {method}. Choose from {list(optimizers.keys())}")
-    
+
     return optimizers[method](**kwargs)
 
 
@@ -915,38 +913,38 @@ def compute_portfolio_metrics(
         Portfolio metrics.
     """
     port_returns = returns @ weights
-    
+
     # Annualization factor
     ann_factor = 252
-    
+
     # Returns
     total_return = float(np.prod(1 + port_returns) - 1)
     ann_return = float(np.mean(port_returns) * ann_factor)
-    
+
     # Risk
     ann_vol = float(np.std(port_returns) * np.sqrt(ann_factor))
-    
+
     # Sharpe ratio
     excess_return = ann_return - risk_free_rate
     sharpe = excess_return / ann_vol if ann_vol > 0 else 0.0
-    
+
     # Sortino ratio
     downside_returns = port_returns[port_returns < 0]
     downside_vol = float(np.std(downside_returns) * np.sqrt(ann_factor)) if len(downside_returns) > 0 else ann_vol
     sortino = excess_return / downside_vol if downside_vol > 0 else 0.0
-    
+
     # Maximum drawdown
     cum_returns = np.cumprod(1 + port_returns)
     running_max = np.maximum.accumulate(cum_returns)
     drawdowns = (cum_returns - running_max) / running_max
     max_drawdown = float(np.min(drawdowns))
-    
+
     # Calmar ratio
     calmar = ann_return / abs(max_drawdown) if max_drawdown != 0 else 0.0
-    
+
     # Win rate
     win_rate = float(np.mean(port_returns > 0))
-    
+
     return {
         "total_return": total_return,
         "ann_return": ann_return,

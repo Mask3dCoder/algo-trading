@@ -10,14 +10,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from quantcore.strategies.base import StrategyConfig, StrategyType, TradeSignal
-from quantcore.strategies.equity.intraday_trend import IntradayTrendStrategy, _rolling_atr
+from quantcore.strategies.base import StrategyConfig, StrategyType
 from quantcore.strategies.equity.intraday_mean_reversion import (
     IntradayMeanReversionStrategy,
     _rolling,
 )
 from quantcore.strategies.equity.intraday_momentum import IntradayMomentumStrategy
-
+from quantcore.strategies.equity.intraday_trend import IntradayTrendStrategy, _rolling_atr
 
 # ──────────────────────────────────────────────────────────────
 # Helpers

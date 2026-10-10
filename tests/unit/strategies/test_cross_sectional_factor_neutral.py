@@ -5,15 +5,14 @@ Covers core signal pipeline, factor extraction, and portfolio construction.
 
 from __future__ import annotations
 
-import pytest
 import numpy as np
+import pytest
 from numpy.typing import NDArray
-
-from quantcore.strategies.base import StrategyConfig, StrategyStatus
-from quantcore.strategies.registry import get as get_strategy_class
 
 # Import the strategy module to trigger the @register decorator
 import quantcore.strategies.macro.cross_sectional_factor_neutral  # noqa: F401
+from quantcore.strategies.base import StrategyConfig, StrategyStatus
+from quantcore.strategies.registry import get as get_strategy_class
 
 pytest.importorskip("sklearn", reason="tests require scikit-learn")
 

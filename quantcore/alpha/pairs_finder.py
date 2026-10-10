@@ -11,8 +11,8 @@ re-estimation of cointegration relationships.
 
 from __future__ import annotations
 
-import logging
 import itertools
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -105,8 +105,8 @@ class PairsFinder:
         Returns (hedge_ratio, intercept, adf_stat, adf_pvalue, spread).
         """
         from statsmodels.regression.linear_model import OLS
-        from statsmodels.tsa.stattools import adfuller
         from statsmodels.tools import add_constant
+        from statsmodels.tsa.stattools import adfuller
 
         # Regress y on x (with intercept)
         X = add_constant(x)

@@ -16,12 +16,10 @@ References:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 _log = logging.getLogger(__name__)
@@ -81,7 +79,7 @@ class NewsSentimentAnalyzer:
     min_mentions : int
         Minimum mentions for valid signal (default 5).
     """
-    
+
     def __init__(
         self,
         model_name: str = "finbert",
@@ -92,7 +90,7 @@ class NewsSentimentAnalyzer:
         self.lookback_days = lookback_days
         self.min_mentions = min_mentions
         self._model = None
-        
+
     def analyze_headlines(
         self,
         headlines: list[str],
@@ -114,10 +112,10 @@ class NewsSentimentAnalyzer:
         """
         if not headlines:
             return SentimentResult(0.0, 0.0, 0, 0.0, "news")
-        
+
         # Simplified sentiment analysis (in production, use FinBERT)
         # This is a placeholder - real implementation would use transformers
-        
+
         positive_words = {
             "upgrade", "beat", "exceed", "strong", "growth", "bullish",
             "outperform", "buy", "positive", "surge", "rally", "record",
@@ -126,20 +124,20 @@ class NewsSentimentAnalyzer:
             "downgrade", "miss", "weak", "decline", "bearish", "underperform",
             "sell", "negative", "drop", "crash", "recession", "loss",
         }
-        
+
         scores = []
         for headline in headlines:
             words = set(headline.lower().split())
             pos_count = len(words & positive_words)
             neg_count = len(words & negative_words)
-            
+
             if pos_count + neg_count > 0:
                 score = (pos_count - neg_count) / (pos_count + neg_count)
             else:
                 score = 0.0
-            
+
             scores.append(score)
-        
+
         # Compute weighted average (more recent = higher weight)
         if timestamps:
             now = max(timestamps)
@@ -148,14 +146,14 @@ class NewsSentimentAnalyzer:
                 days_ago = (now - ts).days
                 weight = np.exp(-days_ago / self.lookback_days)
                 weights.append(weight)
-            
+
             weights = np.array(weights)
             weights /= weights.sum()
-            
+
             avg_score = np.average(scores, weights=weights)
         else:
             avg_score = np.mean(scores)
-        
+
         # Compute momentum (recent vs older sentiment)
         if len(scores) >= 10:
             recent = np.mean(scores[-5:])
@@ -163,10 +161,10 @@ class NewsSentimentAnalyzer:
             momentum = recent - older
         else:
             momentum = 0.0
-        
+
         # Confidence based on volume
         confidence = min(len(headlines) / self.min_mentions, 1.0)
-        
+
         return SentimentResult(
             score=float(np.clip(avg_score, -1, 1)),
             confidence=confidence,
@@ -174,7 +172,7 @@ class NewsSentimentAnalyzer:
             momentum=momentum,
             source="news",
         )
-    
+
     def compute_sentiment_signal(
         self,
         sentiment_history: list[SentimentResult],
@@ -196,20 +194,20 @@ class NewsSentimentAnalyzer:
         """
         if len(sentiment_history) < lookback:
             return 0.0
-        
+
         recent = sentiment_history[-lookback:]
-        
+
         # Weighted average by confidence and recency
         scores = [s.score * s.confidence for s in recent]
         weights = np.array([np.exp(-i / lookback) for i in range(lookback)])[::-1]
         weights /= weights.sum()
-        
+
         signal = np.average(scores, weights=weights)
-        
+
         # Add momentum component
         momentum = recent[-1].momentum
         signal = 0.7 * signal + 0.3 * momentum
-        
+
         return float(np.clip(signal, -1, 1))
 
 
@@ -233,17 +231,17 @@ class SocialMediaSentiment:
     min_volume : int
         Minimum mention volume (default 100).
     """
-    
+
     def __init__(
         self,
-        platforms: Optional[list[str]] = None,
+        platforms: list[str] | None = None,
         lookback_hours: int = 24,
         min_volume: int = 100,
     ) -> None:
         self.platforms = platforms or ["twitter", "reddit", "stocktwits"]
         self.lookback_hours = lookback_hours
         self.min_volume = min_volume
-        
+
     def compute_retail_sentiment(
         self,
         mentions: dict[str, list[dict]],
@@ -265,35 +263,35 @@ class SocialMediaSentiment:
         """
         all_sentiments = []
         total_volume = 0
-        
+
         cutoff = datetime.now() - timedelta(hours=self.lookback_hours)
-        
+
         for platform, posts in mentions.items():
             if platform not in self.platforms:
                 continue
-            
+
             platform_sentiments = []
             for post in posts:
                 if post["timestamp"] >= cutoff:
                     # Weight by engagement
                     weight = np.log1p(post.get("engagement", 1))
                     platform_sentiments.append(post["sentiment"] * weight)
-            
+
             if platform_sentiments:
                 # Platform average
                 platform_avg = np.mean(platform_sentiments)
                 all_sentiments.append(platform_avg)
                 total_volume += len(platform_sentiments)
-        
+
         if not all_sentiments:
             return SentimentResult(0.0, 0.0, 0, 0.0, "social")
-        
+
         # Cross-platform average
         avg_sentiment = np.mean(all_sentiments)
-        
+
         # Confidence based on volume
         confidence = min(total_volume / self.min_volume, 1.0)
-        
+
         return SentimentResult(
             score=float(np.clip(avg_sentiment, -1, 1)),
             confidence=confidence,
@@ -301,7 +299,7 @@ class SocialMediaSentiment:
             momentum=0.0,  # Would need historical data
             source="social",
         )
-    
+
     def detect_sentiment_spikes(
         self,
         sentiment_history: list[SentimentResult],
@@ -323,23 +321,23 @@ class SocialMediaSentiment:
         """
         if len(sentiment_history) < 20:
             return []
-        
+
         scores = [s.score * s.volume for s in sentiment_history]
-        
+
         # Compute rolling statistics
         window = 20
         spikes = []
-        
+
         for i in range(window, len(scores)):
             window_data = scores[i-window:i]
             mean = np.mean(window_data)
             std = np.std(window_data)
-            
+
             if std > 0:
                 z = (scores[i] - mean) / std
                 if abs(z) > z_threshold:
                     spikes.append(i)
-        
+
         return spikes
 
 
@@ -364,7 +362,7 @@ class OptionsFlowAnalyzer:
     iv_percentile_lookback : int
         Days for IV percentile calculation (default 252).
     """
-    
+
     def __init__(
         self,
         unusual_volume_threshold: float = 3.0,
@@ -372,7 +370,7 @@ class OptionsFlowAnalyzer:
     ) -> None:
         self.unusual_volume_threshold = unusual_volume_threshold
         self.iv_percentile_lookback = iv_percentile_lookback
-        
+
     def compute_put_call_signal(
         self,
         put_volume: NDArray,
@@ -404,20 +402,20 @@ class OptionsFlowAnalyzer:
         # Volume P/C ratio
         total_vol = put_volume + call_volume
         pc_ratio_vol = np.where(total_vol > 0, put_volume / total_vol, 0.5)
-        
+
         # OI P/C ratio
         total_oi = put_oi + call_oi
         pc_ratio_oi = np.where(total_oi > 0, put_oi / total_oi, 0.5)
-        
+
         # Combined ratio
         pc_ratio = 0.6 * pc_ratio_vol + 0.4 * pc_ratio_oi
-        
+
         # Z-score
         if len(pc_ratio) >= lookback:
             recent = pc_ratio[-lookback:]
             mean = np.mean(recent)
             std = np.std(recent)
-            
+
             if std > 0:
                 z = (pc_ratio[-1] - mean) / std
                 # Invert: high P/C = bearish (negative signal)
@@ -426,9 +424,9 @@ class OptionsFlowAnalyzer:
                 signal = 0.0
         else:
             signal = 0.0
-        
+
         return float(signal)
-    
+
     def detect_unusual_activity(
         self,
         volume: NDArray,
@@ -451,9 +449,9 @@ class OptionsFlowAnalyzer:
         # Avoid division by zero
         safe_avg = np.maximum(avg_volume, 1)
         ratio = volume / safe_avg
-        
+
         return ratio > self.unusual_volume_threshold
-    
+
     def compute_iv_signal(
         self,
         current_iv: float,
@@ -475,10 +473,10 @@ class OptionsFlowAnalyzer:
         """
         if len(iv_history) < 20:
             return 0.0
-        
+
         # IV percentile
         percentile = np.mean(iv_history < current_iv) * 100
-        
+
         # Convert to signal
         # High IV (>80th percentile) = sell vol (negative signal)
         # Low IV (<20th percentile) = buy vol (positive signal)
@@ -488,9 +486,9 @@ class OptionsFlowAnalyzer:
             signal = (20 - percentile) / 20
         else:
             signal = 0.0
-        
+
         return float(np.clip(signal, -1, 1))
-    
+
     def compute_net_gamma(
         self,
         call_gamma: NDArray,
@@ -521,13 +519,13 @@ class OptionsFlowAnalyzer:
         """
         # Net gamma = call gamma * call OI - put gamma * put OI
         net = np.sum(call_gamma * call_oi) - np.sum(put_gamma * put_oi)
-        
+
         # Normalize
         total_oi = np.sum(call_oi) + np.sum(put_oi)
         if total_oi > 0:
             return float(net / total_oi)
         return 0.0
-    
+
     def compute_flow_signal(
         self,
         put_call_signal: float,
@@ -560,7 +558,7 @@ class OptionsFlowAnalyzer:
             0.3 * iv_signal +
             0.2 * np.sign(net_gamma) * min(abs(net_gamma) * 10, 1.0)
         )
-        
+
         return OptionsFlowSignal(
             put_call_ratio=put_call_signal,
             unusual_activity=unusual_activity,
@@ -590,7 +588,7 @@ class InsiderTradingSignal:
     min_trades : int
         Minimum trades for valid signal (default 5).
     """
-    
+
     def __init__(
         self,
         lookback_days: int = 90,
@@ -598,7 +596,7 @@ class InsiderTradingSignal:
     ) -> None:
         self.lookback_days = lookback_days
         self.min_trades = min_trades
-        
+
     def compute_insider_signal(
         self,
         insider_trades: list[dict],
@@ -625,35 +623,35 @@ class InsiderTradingSignal:
         """
         if len(insider_trades) < self.min_trades:
             return InsiderSignal(0.0, 0.0, 0.0, 0.0)
-        
+
         cutoff = datetime.now() - timedelta(days=self.lookback_days)
         recent_trades = [t for t in insider_trades if t["date"] >= cutoff]
-        
+
         if len(recent_trades) < self.min_trades:
             return InsiderSignal(0.0, 0.0, 0.0, 0.0)
-        
+
         # Separate buys and sells
         buys = [t for t in recent_trades if t["type"] == "buy"]
         sells = [t for t in recent_trades if t["type"] == "sell"]
-        
+
         # Cluster score: more buys = positive, more sells = negative
         total = len(buys) + len(sells)
         if total > 0:
             cluster_score = (len(buys) - len(sells)) / total
         else:
             cluster_score = 0.0
-        
+
         # Momentum: recent vs older activity
         mid_date = cutoff + timedelta(days=self.lookback_days // 2)
         recent_buys = len([t for t in buys if t["date"] >= mid_date])
         older_buys = len([t for t in buys if t["date"] < mid_date])
         recent_sells = len([t for t in sells if t["date"] >= mid_date])
         older_sells = len([t for t in sells if t["date"] < mid_date])
-        
+
         recent_net = recent_buys - recent_sells
         older_net = older_buys - older_sells
         momentum = recent_net - older_net
-        
+
         # Smart money: officers and directors weighted higher
         smart_weights = {"officer": 2.0, "director": 1.5, "10%owner": 1.0}
         smart_score = 0.0
@@ -663,12 +661,12 @@ class InsiderTradingSignal:
                 smart_score += weight
             else:
                 smart_score -= weight
-        
+
         smart_money = smart_score / (total * 2)  # Normalize to [-1, 1]
-        
+
         # Combined signal
         signal = 0.4 * cluster_score + 0.3 * np.sign(momentum) * min(abs(momentum) / 5, 1.0) + 0.3 * smart_money
-        
+
         return InsiderSignal(
             cluster_score=float(np.clip(cluster_score, -1, 1)),
             momentum=float(np.clip(momentum / 10, -1, 1)),
@@ -697,10 +695,10 @@ class AlternativeDataCombiner:
     min_sources : int
         Minimum sources for valid combined signal (default 2).
     """
-    
+
     def __init__(
         self,
-        signal_weights: Optional[dict[str, float]] = None,
+        signal_weights: dict[str, float] | None = None,
         freshness_decay: float = 0.94,
         min_sources: int = 2,
     ) -> None:
@@ -713,7 +711,7 @@ class AlternativeDataCombiner:
         self.freshness_decay = freshness_decay
         self.min_sources = min_sources
         self._signal_history: dict[str, list[tuple[datetime, float]]] = {}
-        
+
     def update_signal(
         self,
         source: str,
@@ -733,16 +731,16 @@ class AlternativeDataCombiner:
         """
         if source not in self._signal_history:
             self._signal_history[source] = []
-        
+
         self._signal_history[source].append((timestamp, signal))
-        
+
         # Keep only recent history
         cutoff = datetime.now() - timedelta(days=30)
         self._signal_history[source] = [
             (ts, sig) for ts, sig in self._signal_history[source]
             if ts >= cutoff
         ]
-    
+
     def compute_combined_signal(
         self,
         current_signals: dict[str, float],
@@ -764,29 +762,29 @@ class AlternativeDataCombiner:
         """
         if len(current_signals) < self.min_sources:
             return 0.0
-        
+
         weighted_sum = 0.0
         weight_sum = 0.0
-        
+
         for source, signal in current_signals.items():
             if source not in self.signal_weights:
                 continue
-            
+
             weight = self.signal_weights[source]
-            
+
             # Apply freshness decay (assume signals are recent)
             weight *= self.freshness_decay
-            
+
             weighted_sum += signal * weight
             weight_sum += weight
-        
+
         if weight_sum > 0:
             combined = weighted_sum / weight_sum
         else:
             combined = 0.0
-        
+
         return float(np.clip(combined, -1, 1))
-    
+
     def compute_alpha_decay(
         self,
         source: str,
@@ -808,22 +806,22 @@ class AlternativeDataCombiner:
         """
         if source not in self._signal_history:
             return 1.0
-        
+
         history = self._signal_history[source]
         if len(history) < 10:
             return 1.0
-        
+
         # Compute autocorrelation of signals
         signals = [sig for _, sig in history]
         if len(signals) < holding_period + 1:
             return 1.0
-        
+
         # Simple autocorrelation
         autocorr = np.corrcoef(signals[:-holding_period], signals[holding_period:])[0, 1]
-        
+
         # Decay factor (higher autocorr = slower decay)
         decay = max(autocorr, 0.5)
-        
+
         return float(decay)
 
 
@@ -875,5 +873,5 @@ def compute_sentiment_momentum(
     momentum = np.zeros_like(sentiment_series)
     for i in range(lookback, len(sentiment_series)):
         momentum[i] = sentiment_series[i] - sentiment_series[i - lookback]
-    
+
     return momentum

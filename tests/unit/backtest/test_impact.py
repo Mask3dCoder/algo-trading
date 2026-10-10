@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from quantcore.backtest.engine import BacktestEngine, FillSimulator, SignalData
 from quantcore.backtest.impact_config import (
@@ -16,7 +15,6 @@ from quantcore.backtest.impact_config import (
     VolumeFilterConfig,
 )
 from quantcore.core.types import OHLCV, Order, OrderType, Side
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -17,11 +17,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from quantcore.strategies.base import StrategyConfig, StrategyType, TradeSignal
-from quantcore.strategies.equity.intraday_trend import IntradayTrendStrategy, _rolling_atr
+from quantcore.strategies.base import StrategyConfig, StrategyType
 from quantcore.strategies.equity.intraday_mean_reversion import IntradayMeanReversionStrategy
 from quantcore.strategies.equity.intraday_momentum import IntradayMomentumStrategy
-
+from quantcore.strategies.equity.intraday_trend import IntradayTrendStrategy
 
 # ──────────────────────────────────────────────────────────────
 # Helpers
@@ -580,11 +579,7 @@ class TestCrossStrategyPnLSanity:
         for strat in strategies:
             signals = strat.on_data(self._get_data(strat))
             for sig in signals:
-                if sig.direction == 1:  # Long
-                    assert sig.stop_loss is not None
-                    # For long, stop must be below current price
-                    # (we don't have entry_price here, but stop must be set)
-                elif sig.direction == -1:  # Short
+                if sig.direction == 1 or sig.direction == -1:  # Long
                     assert sig.stop_loss is not None
 
     def _make_trend(self) -> IntradayTrendStrategy:

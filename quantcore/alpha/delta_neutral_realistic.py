@@ -18,8 +18,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from quantcore.data.vol_surface import VolatilitySurface
-
 _log = logging.getLogger(__name__)
 
 # Historical SPY overnight gap distribution (|gap| > 2%, 2010-2024)
@@ -228,7 +226,7 @@ class DeltaNeutralRealisticVRP:
                 S = S_raw * (1.0 + gap_sign * gap_mag)
 
             # ── Process active positions ──
-            for pos in list(active):
+            for pos in active:
                 if pos.closed:
                     continue
                 dte = (pos.expiry - dt).days

@@ -28,13 +28,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import pandas as pd
-
-if TYPE_CHECKING:
-    from pandas import DataFrame, DatetimeIndex
-
 
 # ── Canonical date boundaries for HYPOTHESIS_001 ──────────────────────────────
 IS_START  = "2016-01-01"
@@ -121,7 +117,7 @@ class DataSplitter:
         """Current research phase."""
         return self._phase
 
-    def advance(self) -> "DataSplitter":
+    def advance(self) -> DataSplitter:
         """Return a new DataSplitter advanced one phase.
 
         Use this when IS calibration is complete and you are ready to work

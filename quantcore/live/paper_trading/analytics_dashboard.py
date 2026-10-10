@@ -13,7 +13,6 @@ Output schema
 from __future__ import annotations
 
 import csv
-import json
 import logging
 from collections import deque
 from dataclasses import dataclass, field

@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 import datetime
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from quantcore.data.sources.historical_universe import (
-    HistoricalUniverseLoader,
     _BUILTINS,
     _HISTORY_CSV,
-    _loader,
+    HistoricalUniverseLoader,
     get_loader,
 )
 

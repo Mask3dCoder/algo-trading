@@ -10,11 +10,9 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from quantcore.backtest.engine import BacktestEngine, SignalData
 from quantcore.backtest.impact_config import MarketImpactConfig
-
 
 # ---------------------------------------------------------------------------
 # Helpers

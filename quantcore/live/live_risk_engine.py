@@ -14,11 +14,10 @@ Author: QuantCore Team
 from __future__ import annotations
 
 import logging
-import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -30,9 +29,6 @@ from quantcore.risk.advanced_risk import (
     RiskDecomposer,
     TailRiskModel,
 )
-
-if TYPE_CHECKING:
-    from quantcore.core.types import Order, Position, TradeSignal
 
 _log = logging.getLogger(__name__)
 
@@ -283,7 +279,6 @@ class LiveRiskEngine:
             )
 
             # Factor exposures
-            import pandas as pd
             pca_loadings = self._pca.get_factor_loadings(full_asset_names)
             if not pca_loadings.empty:
                 exposures = pca_loadings.mean(axis=1).to_dict()

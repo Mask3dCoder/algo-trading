@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +75,7 @@ class PositionSizerConfig:
     config_path: Path | None = None
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "PositionSizerConfig":
+    def from_yaml(cls, path: str | Path) -> PositionSizerConfig:
         """Load sizing parameters from config/paper_trading.yaml."""
         path = Path(path)
         if not path.exists():

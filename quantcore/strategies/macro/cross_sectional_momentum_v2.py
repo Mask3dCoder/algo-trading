@@ -33,8 +33,6 @@ from quantcore.regime.volatility_regime import VolRegime, vol_percentile_regime
 from quantcore.risk.drawdown_guard import DrawdownGuard, DrawdownGuardConfig
 from quantcore.risk.vol_target import VolTarget, VolTargetConfig
 from quantcore.strategies.base import Strategy, StrategyConfig, StrategyStatus, TradeSignal
-from quantcore.strategies.registry import register
-
 
 # ---------------------------------------------------------------------------
 # Regime → scale mapping (conservative: only binary reduction)
@@ -540,7 +538,7 @@ class CrossSectionalMomentumV2Strategy(Strategy):
         by accepting *any* first positional arg and ignoring it — the
         strategy is purely signal-driven and does not need fill feedback.
         """
-        pass  # Signal-driven strategy; no fill-based state update needed
+        # Signal-driven strategy; no fill-based state update needed
 
     def reset(self) -> None:
         """Reset all state (for walk-forward folds)."""

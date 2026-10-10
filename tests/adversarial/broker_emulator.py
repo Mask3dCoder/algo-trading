@@ -17,11 +17,11 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
-from enum import Enum, auto
+from enum import Enum
 from typing import Any
 
 from quantcore.core.cash import AssetClass, CashLedger
-from quantcore.core.types import Fill, Order, OrderStatus, OrderType, Position, Side
+from quantcore.core.types import Fill, Order, Position, Side
 
 
 class FillSeqStatus(str, Enum):

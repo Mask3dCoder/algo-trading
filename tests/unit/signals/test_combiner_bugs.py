@@ -8,17 +8,15 @@ on synthetic data with known properties.
 """
 
 import numpy as np
-import pytest
 
 from quantcore.signals.combiner import (
-    ic_weight_combine,
-    stacking_combine,
-    equal_weight_combine,
     adaptive_combine,
-    sign_agreement_combine,
+    equal_weight_combine,
+    ic_weight_combine,
     regime_weight_combine,
+    sign_agreement_combine,
+    stacking_combine,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

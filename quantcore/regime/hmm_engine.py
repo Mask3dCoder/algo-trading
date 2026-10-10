@@ -19,14 +19,12 @@ Reference: L.R. Rabiner, "An Introduction to Hidden Markov Models",
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.special import logsumexp
-from scipy.stats import multivariate_normal
-
 
 # ---------------------------------------------------------------------------
 # Data structures

@@ -6,7 +6,6 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from quantcore.backtest.engine import BacktestEngine, SignalData
 from quantcore.backtest.financing import (
@@ -15,7 +14,6 @@ from quantcore.backtest.financing import (
     compute_daily_borrow_cost,
     compute_daily_margin_interest,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -40,7 +39,7 @@ class TestBSMHelpers:
         assert _bsm_call(100, 105, 0.1, 0.04, 0.20) >= 0
 
     def test_put_call_parity(self):
-        from quantcore.alpha.iron_condor import _bsm_put, _bsm_call
+        from quantcore.alpha.iron_condor import _bsm_call, _bsm_put
         S, K, T, r, sigma = 100, 100, 0.1, 0.04, 0.20
         call = _bsm_call(S, K, T, r, sigma)
         put = _bsm_put(S, K, T, r, sigma)

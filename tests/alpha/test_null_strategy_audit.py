@@ -8,7 +8,6 @@ Acceptance:
   PASS if |Sharpe| < 0.2  AND  0.1 < DSR p < 0.9
   FAIL otherwise
 """
-import itertools
 import math
 import sys
 from pathlib import Path
@@ -19,8 +18,8 @@ import pandas as pd
 # ---------- project imports ----------
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from quantcore.backtest.null_strategy import NullStrategy
 from quantcore.backtest.engine import BacktestEngine
+from quantcore.backtest.null_strategy import NullStrategy
 from quantcore.strategies.base import StrategyConfig, StrategyType
 
 

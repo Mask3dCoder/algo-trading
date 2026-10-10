@@ -10,7 +10,7 @@ from quantcore.research.alpha_research import (
 )
 from quantcore.research.bootstrap import bootstrap_confidence_interval
 from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
-from quantcore.research.experiment_tracker import Experiment, log_experiment, load_experiments
+from quantcore.research.experiment_tracker import Experiment, load_experiments, log_experiment
 from quantcore.research.walkforward import WalkForwardBacktester, WalkForwardResult
 
 __all__ = [

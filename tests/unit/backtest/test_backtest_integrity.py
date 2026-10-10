@@ -10,14 +10,11 @@ Validates:
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from quantcore.backtest.walk_forward import (
-    Fold,
     anchored_walk_forward,
     rolling_walk_forward,
 )
-
 
 # ---------------------------------------------------------------------------
 # A6: Walk-forward embargo default
@@ -67,8 +64,8 @@ class TestEmbargoDefault:
 class TestVolTargetingCap:
     def test_cta_trend_has_max_vol_scale(self):
         """CTATrendStrategy should have max_vol_scale attribute."""
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
 
         config = StrategyConfig(
             name="test_cta",
@@ -82,8 +79,8 @@ class TestVolTargetingCap:
 
     def test_vol_scale_capped_at_max(self):
         """Vol scale should never exceed max_vol_scale."""
-        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
         from quantcore.strategies.base import StrategyConfig, StrategyType
+        from quantcore.strategies.macro.cta_trend import CTATrendStrategy
 
         config = StrategyConfig(
             name="test_cta",

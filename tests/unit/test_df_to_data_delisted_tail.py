@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
-
 from scripts.validate_all_strategies import _compute_signal_returns, _df_to_data
 
 
@@ -94,10 +93,10 @@ def test_df_to_data_masks_delisted_names() -> None:
 class _StubHoldDead:
     """Emits a persistent long signal on DEAD for every bar."""
 
-    def set_timestamp(self, ts) -> None:  # noqa: D102
+    def set_timestamp(self, ts) -> None:
         pass
 
-    def on_data(self, bar_data):  # noqa: D102
+    def on_data(self, bar_data):
         return [SimpleNamespace(symbol="DEAD", direction=1.0, strength=1.0)]
 
 

@@ -11,9 +11,8 @@ All data structures are immutable where possible to prevent accidental mutation.
 from __future__ import annotations
 
 import random
-from collections import deque
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 

@@ -6,16 +6,15 @@ import numpy as np
 import pytest
 
 from quantcore.signals.technical.volatility import (
-    vvix_conviction,
+    ts_regime_multiplier,
     vrp_composite_signal,
     vrp_raw,
-    ts_regime_multiplier,
+    vvix_conviction,
 )
 from quantcore.strategies.base import StrategyConfig, StrategyType
 from quantcore.strategies.macro.volatility_risk_premium import (
     VolatilityRiskPremiumStrategy,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

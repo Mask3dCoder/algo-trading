@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -19,7 +19,7 @@ class SignalSpec(BaseModel):
     """
 
     formula: str
-    rank: Optional[str] = None
+    rank: str | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -38,7 +38,7 @@ class FilterSpec(BaseModel):
     min_price: float = 0.0
     max_price: float = float("inf")
     exclude_symbols: list[str] = Field(default_factory=list)
-    include_symbols: Optional[list[str]] = None
+    include_symbols: list[str] | None = None
 
 
 class ExecutionSpec(BaseModel):
@@ -90,17 +90,17 @@ class StrategyFactoryConfig(BaseModel):
         "hft",
     ]
     universe: str
-    universe_tickers: Optional[list[str]] = None
+    universe_tickers: list[str] | None = None
     signal: SignalSpec
     rebalance: Literal["daily", "weekly", "monthly", "continuous"] = "daily"
     market_neutral: bool = True
     position_limit: float = 0.05
     leverage_cap: float = 2.0
-    filters: Optional[FilterSpec] = None
+    filters: FilterSpec | None = None
     execution: ExecutionSpec = Field(default_factory=ExecutionSpec)
-    regime_filter: Optional[RegimeFilterSpec] = None
+    regime_filter: RegimeFilterSpec | None = None
     status: Literal["active", "requires_data", "requires_infra"] = "active"
-    requires: Optional[str] = None  # human-readable description of missing data
+    requires: str | None = None  # human-readable description of missing data
     description: str = ""
 
     # Backtest overrides

@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
 
 from quantcore.core.types import Order, Side
 
@@ -52,7 +51,7 @@ class RiskLimitsConfig:
     max_leverage: float = 2.0                     # gross / equity
 
     @classmethod
-    def from_env(cls) -> "RiskLimitsConfig":
+    def from_env(cls) -> RiskLimitsConfig:
         """Load limits from environment variables."""
         return cls(
             max_position_per_ticker_pct=float(

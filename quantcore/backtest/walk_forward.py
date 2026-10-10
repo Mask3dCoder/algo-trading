@@ -187,16 +187,16 @@ def check_acceptance_criteria(
         (is_valid, reason)
     """
     criteria = ACCEPTANCE_CRITERIA
-    
+
     if oos_sharpe < criteria["min_oos_sharpe"]:
         return (False, f"OOS Sharpe {oos_sharpe:.2f} < {criteria['min_oos_sharpe']}")
-    
+
     if max_dd_pct > criteria["max_drawdown_pct"]:
         return (False, f"Max Drawdown {max_dd_pct:.1f}% > {criteria['max_drawdown_pct']}%")
-    
+
     if periods_passed < criteria["min_periods_passing"]:
         return (False, f"Only {periods_passed}/{total_periods} periods passed (need {criteria['min_periods_passing']})")
-    
+
     return (True, "ALL CRITERIA MET")
 
 

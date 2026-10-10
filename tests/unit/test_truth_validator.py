@@ -7,10 +7,7 @@ from decimal import Decimal
 import pytest
 
 from quantcore.core.truth_validator import (
-    ReconciliationReport,
-    PositionDelta,
     TruthValidator,
-    Violation,
     reconcile,
 )
 from quantcore.core.types import Fill, PortfolioSnapshot, Position, Side
@@ -458,7 +455,6 @@ class TestReplayEngine:
     def test_empty_stream_returns_initial_state(self):
         """Replaying an empty stream returns the initial state unchanged."""
         from quantcore.core.truth_validator import replay_engine
-        from quantcore.backtest.engine import PortfolioState
 
         state = replay_engine([], initial_cash=50000.0)
         assert abs(state.cash - 50000.0) < 0.01
@@ -500,7 +496,7 @@ class TestReplayEngine:
 
     def test_with_validator(self):
         """Replay with TruthValidator passes clean fills."""
-        from quantcore.core.truth_validator import replay_engine, TruthValidator
+        from quantcore.core.truth_validator import TruthValidator, replay_engine
 
         fills = [
             (Fill(order_id="o1", price=Decimal("100"), quantity=Decimal("10"),
@@ -512,7 +508,7 @@ class TestReplayEngine:
 
     def test_with_enforce_validator(self):
         """Replay in enforce mode blocks fills with missing side."""
-        from quantcore.core.truth_validator import replay_engine, TruthValidator
+        from quantcore.core.truth_validator import TruthValidator, replay_engine
 
         fills = [
             (Fill(order_id="o1", price=Decimal("100"), quantity=Decimal("10"),

@@ -20,6 +20,7 @@ import logging
 import os
 import time
 import uuid
+from datetime import UTC
 from decimal import Decimal
 from typing import Any
 
@@ -543,9 +544,8 @@ class LiveExecutionGateway:
 
         # Dispatch synchronously
         async def _do() -> str:
+
             from quantcore.execution.brokers.base import BrokerOrder
-            from alpaca.trading.enums import OrderSide, TimeInForce
-            from alpaca.trading.requests import MarketOrderRequest
 
             br_order = BrokerOrder(
                 symbol=str(order.symbol).strip().upper(),
@@ -622,11 +622,11 @@ class LiveExecutionGateway:
         """Write a fill event to the JSONL log file."""
         if not self._events_path:
             return
-        from datetime import datetime, timezone
         import json
+        from datetime import datetime
         try:
             event = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "event": "fill",
                 "symbol": symbol,
                 "side": side,

@@ -35,7 +35,6 @@ from quantcore.live.circuit_breaker import (
 )
 from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
 
-
 # =========================================================================
 # RiskManagerLive — stale-equity prevention
 # =========================================================================

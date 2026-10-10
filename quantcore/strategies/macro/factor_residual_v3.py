@@ -19,7 +19,6 @@ from numpy.typing import NDArray
 from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 from quantcore.strategies.registry import register
 
-
 # Factor definitions - assets to EXCLUDE from trading
 FACTOR_ASSETS = {"SPY", "TLT", "DBC", "GLD"}
 

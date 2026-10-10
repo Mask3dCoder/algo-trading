@@ -28,7 +28,6 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-import pandas as pd
 
 _log = logging.getLogger(__name__)
 

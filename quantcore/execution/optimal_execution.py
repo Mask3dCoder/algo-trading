@@ -16,9 +16,8 @@ References:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -70,8 +69,8 @@ class OrderSlice:
     timestamp: pd.Timestamp
     quantity: float
     order_type: str  # 'market', 'limit', 'pegged'
-    limit_price: Optional[float] = None
-    venue: Optional[str] = None
+    limit_price: float | None = None
+    venue: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +104,7 @@ class AlmgrenChrissOptimizer:
         Risk aversion parameter (default 1e-6).
         Higher = more urgency, lower = more patience.
     """
-    
+
     def __init__(
         self,
         sigma: float,
@@ -119,7 +118,7 @@ class AlmgrenChrissOptimizer:
         self.gamma = gamma
         self.tau = tau
         self.risk_aversion = risk_aversion
-        
+
     def compute_optimal_trajectory(
         self,
         total_quantity: float,
@@ -144,11 +143,11 @@ class AlmgrenChrissOptimizer:
         """
         # Almgren-Chriss parameters
         kappa = np.sqrt(self.risk_aversion * self.sigma**2 / self.eta)
-        
+
         # Time grid
         dt = self.tau / n_periods
         times = np.linspace(0, self.tau, n_periods + 1)
-        
+
         # Optimal trajectory: X_t = X_0 * sinh(κ(T-t)) / sinh(κT)
         if kappa * self.tau > 0.1:
             # Use sinh formula for non-trivial kappa*T
@@ -156,35 +155,35 @@ class AlmgrenChrissOptimizer:
         else:
             # Linear trajectory for very small risk aversion
             trajectory = total_quantity * (1 - times / self.tau)
-        
+
         # Compute trade quantities (differences)
         quantities = -np.diff(trajectory)  # Negative because we're selling down the position
         if not is_buy:
             quantities = -quantities  # Flip for buys
-        
+
         # Compute expected costs
         costs = []
         cumulative_qty = np.cumsum(quantities)
-        
+
         for i in range(n_periods):
             # Temporary impact: η * (q_i / dt)
             temp_impact = self.eta * abs(quantities[i]) / dt
-            
+
             # Permanent impact: γ * X_t
             perm_impact = self.gamma * abs(cumulative_qty[i])
-            
+
             # Timing risk: σ * sqrt(t) * remaining
             remaining = total_quantity - cumulative_qty[i]
             timing_risk = self.sigma * np.sqrt(times[i + 1]) * abs(remaining)
-            
+
             costs.append(temp_impact + perm_impact + timing_risk)
-        
+
         # Market impact and timing risk decomposition
         total_market_impact = self.eta * np.sum(quantities**2) / dt
         total_timing_risk = self.sigma**2 * np.sum((total_quantity - cumulative_qty)**2) * dt
-        
+
         timestamps = [pd.Timestamp.now() + pd.Timedelta(days=t) for t in times[1:]]
-        
+
         return ExecutionSchedule(
             timestamps=timestamps,
             quantities=quantities.tolist(),
@@ -194,7 +193,7 @@ class AlmgrenChrissOptimizer:
             market_impact=float(total_market_impact),
             timing_risk=float(total_timing_risk),
         )
-    
+
     def compute_trajectory_with_urgency(
         self,
         total_quantity: float,
@@ -227,7 +226,7 @@ class AlmgrenChrissOptimizer:
             UrgencyLevel.HIGH: 10.0,
             UrgencyLevel.AGGRESSIVE: 100.0,
         }
-        
+
         adjusted_optimizer = AlmgrenChrissOptimizer(
             sigma=self.sigma,
             eta=self.eta,
@@ -235,7 +234,7 @@ class AlmgrenChrissOptimizer:
             tau=self.tau,
             risk_aversion=self.risk_aversion * urgency_multipliers[urgency],
         )
-        
+
         return adjusted_optimizer.compute_optimal_trajectory(
             total_quantity, n_periods, is_buy,
         )
@@ -262,17 +261,17 @@ class VWAPExecutor:
     max_participation : float
         Maximum participation rate (default 0.25).
     """
-    
+
     def __init__(
         self,
-        volume_profile: Optional[NDArray] = None,
+        volume_profile: NDArray | None = None,
         participation_rate: float = 0.10,
         max_participation: float = 0.25,
     ) -> None:
         self.volume_profile = volume_profile
         self.participation_rate = participation_rate
         self.max_participation = max_participation
-        
+
     def generate_schedule(
         self,
         total_quantity: float,
@@ -304,28 +303,28 @@ class VWAPExecutor:
         else:
             # U-shaped intraday volume profile
             profile = self._generate_default_profile(n_periods)
-        
+
         # Ensure profile sums to 1
         profile = profile / profile.sum()
-        
+
         # Generate slices
         slices = []
         base_time = pd.Timestamp.now().normalize() + pd.Timedelta(hours=9, minutes=30)
-        
+
         for i in range(n_periods):
             # Volume in this period
             period_volume = total_volume * profile[i]
-            
+
             # Target quantity (participation rate * volume)
             target_qty = period_volume * self.participation_rate
-            
+
             # Cap at maximum participation
             max_qty = period_volume * self.max_participation
             target_qty = min(target_qty, max_qty)
-            
+
             # Ensure we don't exceed total
             target_qty = min(target_qty, total_quantity - sum(s.quantity for s in slices))
-            
+
             if target_qty > 0:
                 timestamp = base_time + pd.Timedelta(minutes=i)
                 slices.append(OrderSlice(
@@ -334,23 +333,23 @@ class VWAPExecutor:
                     order_type="limit",
                     venue="primary",
                 ))
-        
+
         return slices
-    
+
     def _generate_default_profile(self, n_periods: int) -> NDArray:
         """Generate default U-shaped intraday volume profile."""
         # Typical intraday volume pattern: high at open, low at lunch, high at close
         times = np.linspace(0, 1, n_periods)
-        
+
         # U-shaped: high at start and end, low in middle
         profile = 1.0 - 0.5 * np.sin(np.pi * times)
-        
+
         # Add extra volume at open and close
         profile[:n_periods // 10] *= 1.5
         profile[-n_periods // 10:] *= 1.5
-        
+
         return profile
-    
+
     def compute_slippage(
         self,
         executed_prices: NDArray,
@@ -377,12 +376,12 @@ class VWAPExecutor:
         total_qty = np.sum(executed_quantities)
         if total_qty == 0:
             return 0.0
-        
+
         implementation_vwap = np.sum(executed_prices * executed_quantities) / total_qty
-        
+
         # Slippage in bps
         slippage_bps = (implementation_vwap - vwap_benchmark) / vwap_benchmark * 10000
-        
+
         return float(slippage_bps)
 
 
@@ -406,7 +405,7 @@ class TWAPExecutor:
     randomization_pct : float
         Randomization percentage (default 0.10).
     """
-    
+
     def __init__(
         self,
         n_slices: int = 10,
@@ -416,7 +415,7 @@ class TWAPExecutor:
         self.n_slices = n_slices
         self.randomize = randomize
         self.randomization_pct = randomization_pct
-        
+
     def generate_schedule(
         self,
         total_quantity: float,
@@ -444,16 +443,16 @@ class TWAPExecutor:
         """
         # Equal quantity per slice
         qty_per_slice = total_quantity / self.n_slices
-        
+
         # Time interval
         total_duration = (end_time - start_time).total_seconds()
         interval = total_duration / self.n_slices
-        
+
         slices = []
         for i in range(self.n_slices):
             # Base timestamp
             timestamp = start_time + pd.Timedelta(seconds=i * interval)
-            
+
             # Add randomization
             if self.randomize:
                 random_offset = np.random.uniform(
@@ -461,14 +460,14 @@ class TWAPExecutor:
                     self.randomization_pct * interval,
                 )
                 timestamp += pd.Timedelta(seconds=random_offset)
-            
+
             slices.append(OrderSlice(
                 timestamp=timestamp,
                 quantity=qty_per_slice if is_buy else -qty_per_slice,
                 order_type="market",
                 venue="primary",
             ))
-        
+
         return slices
 
 
@@ -496,7 +495,7 @@ class TransactionCostAnalyzer:
     volatility : float
         Asset volatility (default 0.20).
     """
-    
+
     def __init__(
         self,
         spread_bps: float = 5.0,
@@ -506,7 +505,7 @@ class TransactionCostAnalyzer:
         self.spread_bps = spread_bps
         self.impact_coefficient = impact_coefficient
         self.volatility = volatility
-        
+
     def pre_trade_cost(
         self,
         quantity: float,
@@ -533,14 +532,14 @@ class TransactionCostAnalyzer:
             Estimated cost breakdown.
         """
         notional = quantity * price
-        
+
         # Spread cost (half spread for each side)
         spread_cost = notional * self.spread_bps / 10000 / 2
-        
+
         # Market impact (square-root model)
         participation = quantity / adv
         market_impact = notional * self.impact_coefficient * np.sqrt(participation)
-        
+
         # Timing cost (volatility risk)
         urgency_multipliers = {
             UrgencyLevel.LOW: 2.0,
@@ -550,16 +549,16 @@ class TransactionCostAnalyzer:
         }
         execution_time = urgency_multipliers[urgency]  # Days
         timing_cost = notional * self.volatility * np.sqrt(execution_time / 252)
-        
+
         # Opportunity cost (for patient execution)
         opportunity_cost = timing_cost * 0.5 if urgency == UrgencyLevel.LOW else 0.0
-        
+
         # Commission (assume $0.005 per share)
         commission = quantity * 0.005
-        
+
         total_cost = spread_cost + market_impact + timing_cost + opportunity_cost + commission
         cost_bps = total_cost / notional * 10000 if notional > 0 else 0.0
-        
+
         return TransactionCostBreakdown(
             spread_cost=spread_cost,
             market_impact=market_impact,
@@ -569,7 +568,7 @@ class TransactionCostAnalyzer:
             total_cost=total_cost,
             cost_bps=cost_bps,
         )
-    
+
     def post_trade_cost(
         self,
         decision_price: float,
@@ -598,26 +597,26 @@ class TransactionCostAnalyzer:
         total_qty = np.sum(execution_quantities)
         if total_qty == 0:
             return TransactionCostBreakdown(0, 0, 0, 0, 0, 0, 0)
-        
+
         # Implementation VWAP
         impl_vwap = np.sum(execution_prices * execution_quantities) / total_qty
-        
+
         # Implementation shortfall
         if side == "buy":
             shortfall = (impl_vwap - decision_price) / decision_price
         else:
             shortfall = (decision_price - impl_vwap) / decision_price
-        
+
         notional = total_qty * decision_price
         total_cost = shortfall * notional
-        
+
         # Decompose (simplified)
         spread_cost = total_cost * 0.3  # Assume 30% is spread
         market_impact = total_cost * 0.5  # 50% is impact
         timing_cost = total_cost * 0.2  # 20% is timing
-        
+
         cost_bps = shortfall * 10000
-        
+
         return TransactionCostBreakdown(
             spread_cost=spread_cost,
             market_impact=market_impact,
@@ -653,17 +652,17 @@ class SmartOrderRouter:
     fill_probability : dict[str, float] | None
         Estimated fill probability per venue.
     """
-    
+
     def __init__(
         self,
-        venues: Optional[list[str]] = None,
-        fee_schedule: Optional[dict[str, float]] = None,
-        fill_probability: Optional[dict[str, float]] = None,
+        venues: list[str] | None = None,
+        fee_schedule: dict[str, float] | None = None,
+        fill_probability: dict[str, float] | None = None,
     ) -> None:
         self.venues = venues or ["primary", "dark_pool"]
         self.fee_schedule = fee_schedule or {"primary": 0.003, "dark_pool": 0.001}
         self.fill_probability = fill_probability or {"primary": 0.95, "dark_pool": 0.60}
-        
+
     def route_order(
         self,
         quantity: float,
@@ -687,7 +686,7 @@ class SmartOrderRouter:
             Routed order slices.
         """
         slices = []
-        
+
         # Urgency-based venue allocation
         if urgency in [UrgencyLevel.HIGH, UrgencyLevel.AGGRESSIVE]:
             # Aggressive: mostly lit venues
@@ -695,9 +694,9 @@ class SmartOrderRouter:
         else:
             # Patient: more dark pool
             allocation = {"primary": 0.5, "dark_pool": 0.5}
-        
+
         base_time = pd.Timestamp.now()
-        
+
         for venue, fraction in allocation.items():
             venue_qty = quantity * fraction
             if venue_qty > 0:
@@ -708,7 +707,7 @@ class SmartOrderRouter:
                 else:
                     order_type = "limit"
                     limit_price = price
-                
+
                 slices.append(OrderSlice(
                     timestamp=base_time,
                     quantity=venue_qty,
@@ -716,9 +715,9 @@ class SmartOrderRouter:
                     limit_price=limit_price,
                     venue=venue,
                 ))
-        
+
         return slices
-    
+
     def estimate_routing_cost(
         self,
         quantity: float,
@@ -742,11 +741,11 @@ class SmartOrderRouter:
         for venue in self.venues:
             fee = self.fee_schedule.get(venue, 0.003)
             fill_prob = self.fill_probability.get(venue, 0.80)
-            
+
             # Expected cost = fee * quantity * fill_probability
             expected_cost = fee * quantity * fill_prob
             costs[venue] = expected_cost
-        
+
         return costs
 
 
@@ -778,10 +777,10 @@ def create_execution_optimizer(
         "twap": TWAPExecutor,
         "smart_router": SmartOrderRouter,
     }
-    
+
     if method not in optimizers:
         raise ValueError(f"Unknown method: {method}. Choose from {list(optimizers.keys())}")
-    
+
     return optimizers[method](**kwargs)
 
 
@@ -815,29 +814,29 @@ def compute_implementation_shortfall(
     total_qty = np.sum(execution_quantities)
     if total_qty == 0:
         return {"total": 0.0, "delay": 0.0, "trading": 0.0, "opportunity": 0.0}
-    
+
     # Implementation VWAP
     impl_vwap = np.sum(execution_prices * execution_quantities) / total_qty
-    
+
     # Total shortfall
     if side == "buy":
         total_shortfall = (impl_vwap - decision_price) / decision_price
     else:
         total_shortfall = (decision_price - impl_vwap) / decision_price
-    
+
     # Trading cost (vs arrival price)
     arrival_price = execution_prices[0]
     if side == "buy":
         trading_cost = (impl_vwap - arrival_price) / arrival_price
     else:
         trading_cost = (arrival_price - impl_vwap) / arrival_price
-    
+
     # Delay cost
     delay_cost = total_shortfall - trading_cost
-    
+
     # Opportunity cost (for unfilled orders)
     opportunity_cost = paper_portfolio_return * 0.1  # Simplified
-    
+
     return {
         "total": total_shortfall * 10000,  # bps
         "delay": delay_cost * 10000,

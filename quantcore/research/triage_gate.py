@@ -132,7 +132,7 @@ class TriageGate:
 
         # ── Gate 1: CI_low > 0 ─────────────────────────────────────────────
         if not np.isfinite(ci_low):
-            failures.append(f"CI_low is NaN — cannot gate on unmeasurable confidence interval")
+            failures.append("CI_low is NaN — cannot gate on unmeasurable confidence interval")
         elif ci_low < t["ci_low_min"]:
             failures.append(
                 f"OOS Sharpe CI_low ({ci_low:.3f}) < {t['ci_low_min']} — "
@@ -254,7 +254,7 @@ class TriageGate:
             n_wf_folds_passed=wf_result.get("n_wf_folds_passed", 0),
             total_wf_folds=wf_result.get("total_wf_folds", 0),
             paper_sharpe=paper_sharpe,
-            backtest_sharpe=wf_result.get("backtest_sharpe", None),
+            backtest_sharpe=wf_result.get("backtest_sharpe"),
         )
 
     def check_from_report(

@@ -9,12 +9,12 @@ Implements the Strategy ABC for integration with the backtest engine.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 
-from quantcore.strategies.base import Strategy, StrategyConfig, StrategyType, TradeSignal
+from quantcore.strategies.base import Strategy, StrategyConfig, TradeSignal
 from quantcore.strategies.registry import register
 
 log = logging.getLogger(__name__)
@@ -218,9 +218,7 @@ class StatArbMeanReversion(Strategy):
                 # Exit logic
                 should_exit = False
 
-                if ps.position == -1 and zscore <= self.exit_threshold:
-                    should_exit = True
-                elif ps.position == 1 and zscore >= -self.exit_threshold:
+                if (ps.position == -1 and zscore <= self.exit_threshold) or (ps.position == 1 and zscore >= -self.exit_threshold):
                     should_exit = True
 
                 # Stop-loss

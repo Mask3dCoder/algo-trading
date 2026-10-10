@@ -5,7 +5,6 @@ wasting CPU and potentially using a less numerically stable approach.
 """
 
 import numpy as np
-import pytest
 
 from quantcore.strategies.equity.mean_reversion import _rolling_mean, _rolling_std
 

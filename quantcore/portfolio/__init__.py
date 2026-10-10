@@ -1,5 +1,18 @@
 """Portfolio construction: sizing, optimization, rebalancing, tax-lot tracking."""
 
+from quantcore.portfolio.aggregator import (
+    AggregatorConfig,
+    MultiStrategyAggregator,
+    SubStrategy,
+)
+from quantcore.portfolio.hrp import compute_hrp_weights
+from quantcore.portfolio.kelly_sizing import (
+    KellySizer,
+    KellyStats,
+    RollingKellySizer,
+    compute_kelly_from_returns,
+    compute_kelly_from_trades,
+)
 from quantcore.portfolio.optimization import (
     OptimizationResult,
     bl_optimize,
@@ -33,19 +46,6 @@ from quantcore.portfolio.tax import (
     RealizedGain,
     TaxLot,
     TaxLotTracker,
-)
-from quantcore.portfolio.aggregator import (
-    AggregatorConfig,
-    MultiStrategyAggregator,
-    SubStrategy,
-)
-from quantcore.portfolio.hrp import compute_hrp_weights
-from quantcore.portfolio.kelly_sizing import (
-    KellySizer,
-    KellyStats,
-    RollingKellySizer,
-    compute_kelly_from_returns,
-    compute_kelly_from_trades,
 )
 
 __all__ = [

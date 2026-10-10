@@ -14,9 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import patch
 
-import pytest
-
-from quantcore.core.types import Order, OrderStatus, OrderType, Side
+from quantcore.core.types import OrderStatus, Side
 from quantcore.live.broker import LiveExecutionGateway
 
 

@@ -9,10 +9,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from quantcore.strategies.macro import *  # Triggers strategy registration
 from quantcore.strategies.base import StrategyConfig, StrategyType
+from quantcore.strategies.macro import *  # Triggers strategy registration
 from quantcore.strategies.registry import get as get_strategy_class
-
 
 # -- Scenario data generators ------------------------------------------------
 

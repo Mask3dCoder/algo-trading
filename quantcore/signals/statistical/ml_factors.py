@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 _log = logging.getLogger(__name__)
@@ -51,7 +49,7 @@ class GradientBoostingFactorCombiner:
     cv_folds : int
         Number of time-series CV folds (default 5).
     """
-    
+
     def __init__(
         self,
         n_estimators: int = 100,
@@ -66,12 +64,12 @@ class GradientBoostingFactorCombiner:
         self._model = None
         self._feature_names: list[str] = []
         self._is_fitted = False
-        
+
     def fit(
         self,
         X: NDArray,
         y: NDArray,
-        feature_names: Optional[list[str]] = None,
+        feature_names: list[str] | None = None,
     ) -> GradientBoostingFactorCombiner:
         """Fit the model using time-series cross-validation.
         
@@ -86,20 +84,20 @@ class GradientBoostingFactorCombiner:
         """
         from sklearn.ensemble import GradientBoostingRegressor
         from sklearn.model_selection import TimeSeriesSplit
-        
+
         if feature_names is not None:
             self._feature_names = feature_names
         else:
             self._feature_names = [f"factor_{i}" for i in range(X.shape[1])]
-        
+
         # Time-series cross-validation
         tscv = TimeSeriesSplit(n_splits=self.cv_folds)
         cv_scores = []
-        
+
         for train_idx, val_idx in tscv.split(X):
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
-            
+
             model = GradientBoostingRegressor(
                 n_estimators=self.n_estimators,
                 max_depth=self.max_depth,
@@ -113,14 +111,14 @@ class GradientBoostingFactorCombiner:
             self._model = model
 
         self._is_fitted = True
-        
+
         _log.info(
             "GradientBoosting fitted: CV R² = %.3f ± %.3f",
             np.mean(cv_scores), np.std(cv_scores),
         )
-        
+
         return self
-    
+
     def predict(self, X: NDArray) -> MLFactorResult:
         """Generate combined signal from factor scores.
         
@@ -136,32 +134,32 @@ class GradientBoostingFactorCombiner:
         """
         if not self._is_fitted or self._model is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
-        
+
         # Get predictions
         raw_signal = self._model.predict(X)
-        
+
         # Normalize to [-1, 1] using percentile clipping
         signal = np.clip(
             (raw_signal - np.median(raw_signal)) / (np.percentile(raw_signal, 95) - np.percentile(raw_signal, 5) + 1e-10),
             -1.0, 1.0,
         )
-        
+
         # Feature importance
         importance = dict(zip(
             self._feature_names,
             self._model.feature_importances_,
         ))
-        
+
         # Uncertainty estimate from prediction variance
         pred_std = float(np.std(raw_signal))
-        
+
         return MLFactorResult(
             signal=signal,
             feature_importance=importance,
             model_score=float(self._model.score(X, np.zeros_like(X[:, 0]))),  # Placeholder
             predictions_std=pred_std,
         )
-    
+
     @property
     def feature_importance(self) -> dict[str, float]:
         """Get feature importance scores."""
@@ -185,7 +183,7 @@ class RandomForestFactorCombiner:
     cv_folds : int
         Number of time-series CV folds (default 5).
     """
-    
+
     def __init__(
         self,
         n_estimators: int = 200,
@@ -198,30 +196,30 @@ class RandomForestFactorCombiner:
         self._model = None
         self._feature_names: list[str] = []
         self._is_fitted = False
-        
+
     def fit(
         self,
         X: NDArray,
         y: NDArray,
-        feature_names: Optional[list[str]] = None,
+        feature_names: list[str] | None = None,
     ) -> RandomForestFactorCombiner:
         """Fit the model using time-series cross-validation."""
         from sklearn.ensemble import RandomForestRegressor
         from sklearn.model_selection import TimeSeriesSplit
-        
+
         if feature_names is not None:
             self._feature_names = feature_names
         else:
             self._feature_names = [f"factor_{i}" for i in range(X.shape[1])]
-        
+
         # Time-series cross-validation
         tscv = TimeSeriesSplit(n_splits=self.cv_folds)
         cv_scores = []
-        
+
         for train_idx, val_idx in tscv.split(X):
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
-            
+
             model = RandomForestRegressor(
                 n_estimators=self.n_estimators,
                 max_depth=self.max_depth,
@@ -235,35 +233,35 @@ class RandomForestFactorCombiner:
             self._model = model
 
         self._is_fitted = True
-        
+
         _log.info(
             "RandomForest fitted: CV R² = %.3f ± %.3f",
             np.mean(cv_scores), np.std(cv_scores),
         )
-        
+
         return self
-    
+
     def predict(self, X: NDArray) -> MLFactorResult:
         """Generate combined signal with uncertainty estimates."""
         if not self._is_fitted or self._model is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
-        
+
         # Get predictions from all trees for uncertainty
         tree_predictions = np.array([
             tree.predict(X) for tree in self._model.estimators_
         ])
-        
+
         raw_signal = np.mean(tree_predictions, axis=0)
         pred_std = np.std(tree_predictions, axis=0)
-        
+
         # Normalize to [-1, 1]
         signal = np.clip(
             (raw_signal - np.median(raw_signal)) / (np.percentile(raw_signal, 95) - np.percentile(raw_signal, 5) + 1e-10),
             -1.0, 1.0,
         )
-        
+
         importance = dict(zip(self._feature_names, self._model.feature_importances_))
-        
+
         return MLFactorResult(
             signal=signal,
             feature_importance=importance,
@@ -289,7 +287,7 @@ class NeuralNetworkFactorCombiner:
     max_iter : int
         Maximum iterations (default 500).
     """
-    
+
     def __init__(
         self,
         hidden_layers: tuple[int, ...] = (64, 32, 16),
@@ -305,35 +303,35 @@ class NeuralNetworkFactorCombiner:
         self._feature_names: list[str] = []
         self._is_fitted = False
         self._scaler = None
-        
+
     def fit(
         self,
         X: NDArray,
         y: NDArray,
-        feature_names: Optional[list[str]] = None,
+        feature_names: list[str] | None = None,
     ) -> NeuralNetworkFactorCombiner:
         """Fit the neural network with proper scaling."""
+        from sklearn.model_selection import TimeSeriesSplit
         from sklearn.neural_network import MLPRegressor
         from sklearn.preprocessing import StandardScaler
-        from sklearn.model_selection import TimeSeriesSplit
-        
+
         if feature_names is not None:
             self._feature_names = feature_names
         else:
             self._feature_names = [f"factor_{i}" for i in range(X.shape[1])]
-        
+
         # Scale features for neural network
         self._scaler = StandardScaler()
         X_scaled = self._scaler.fit_transform(X)
-        
+
         # Time-series cross-validation
         tscv = TimeSeriesSplit(n_splits=5)
         cv_scores = []
-        
+
         for train_idx, val_idx in tscv.split(X_scaled):
             X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
-            
+
             model = MLPRegressor(
                 hidden_layer_sizes=self.hidden_layers,
                 activation=self.activation,
@@ -350,31 +348,31 @@ class NeuralNetworkFactorCombiner:
             self._model = model
 
         self._is_fitted = True
-        
+
         _log.info(
             "NeuralNetwork fitted: CV R² = %.3f ± %.3f",
             np.mean(cv_scores), np.std(cv_scores),
         )
-        
+
         return self
-    
+
     def predict(self, X: NDArray) -> MLFactorResult:
         """Generate combined signal."""
         if not self._is_fitted or self._model is None or self._scaler is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
-        
+
         X_scaled = self._scaler.transform(X)
         raw_signal = self._model.predict(X_scaled)
-        
+
         # Normalize to [-1, 1]
         signal = np.clip(
             (raw_signal - np.median(raw_signal)) / (np.percentile(raw_signal, 95) - np.percentile(raw_signal, 5) + 1e-10),
             -1.0, 1.0,
         )
-        
+
         # No direct feature importance for MLP, use permutation importance
         importance = {name: 1.0 / len(self._feature_names) for name in self._feature_names}
-        
+
         return MLFactorResult(
             signal=signal,
             feature_importance=importance,
@@ -396,10 +394,10 @@ class EnsembleFactorCombiner:
     ensemble_method : str
         'average' or 'stacking' (default 'average').
     """
-    
+
     def __init__(
         self,
-        models: Optional[list[str]] = None,
+        models: list[str] | None = None,
         ensemble_method: str = "average",
     ) -> None:
         self.models = models or ["gb", "rf", "nn"]
@@ -408,68 +406,68 @@ class EnsembleFactorCombiner:
         self._stacking_model = None
         self._feature_names: list[str] = []
         self._is_fitted = False
-        
+
     def fit(
         self,
         X: NDArray,
         y: NDArray,
-        feature_names: Optional[list[str]] = None,
+        feature_names: list[str] | None = None,
     ) -> EnsembleFactorCombiner:
         """Fit all ensemble members."""
         if feature_names is not None:
             self._feature_names = feature_names
         else:
             self._feature_names = [f"factor_{i}" for i in range(X.shape[1])]
-        
+
         # Initialize combiners
         if "gb" in self.models:
             self._combiners["gb"] = GradientBoostingFactorCombiner()
             self._combiners["gb"].fit(X, y, feature_names)
-        
+
         if "rf" in self.models:
             self._combiners["rf"] = RandomForestFactorCombiner()
             self._combiners["rf"].fit(X, y, feature_names)
-        
+
         if "nn" in self.models:
             self._combiners["nn"] = NeuralNetworkFactorCombiner()
             self._combiners["nn"].fit(X, y, feature_names)
-        
+
         # For stacking, train a meta-learner
         if self.ensemble_method == "stacking":
             from sklearn.linear_model import Ridge
-            
+
             # Get predictions from base models
             base_predictions = []
             for name, combiner in self._combiners.items():
                 result = combiner.predict(X)
                 base_predictions.append(result.signal)
-            
+
             X_meta = np.column_stack(base_predictions)
             self._stacking_model = Ridge(alpha=1.0)
             self._stacking_model.fit(X_meta, y)
-        
+
         self._is_fitted = True
         _log.info("Ensemble fitted with %d models using %s", len(self._combiners), self.ensemble_method)
-        
+
         return self
-    
+
     def predict(self, X: NDArray) -> MLFactorResult:
         """Generate ensemble combined signal."""
         if not self._is_fitted:
             raise RuntimeError("Ensemble not fitted. Call fit() first.")
-        
+
         # Get predictions from all base models
         base_predictions = []
         importance_sum = {}
-        
+
         for name, combiner in self._combiners.items():
             result = combiner.predict(X)
             base_predictions.append(result.signal)
-            
+
             # Aggregate importance
             for factor, imp in result.feature_importance.items():
                 importance_sum[factor] = importance_sum.get(factor, 0.0) + imp
-        
+
         if self.ensemble_method == "average":
             # Simple average
             signal = np.mean(base_predictions, axis=0)
@@ -483,11 +481,11 @@ class EnsembleFactorCombiner:
             )
         else:
             raise ValueError(f"Unknown ensemble method: {self.ensemble_method}")
-        
+
         # Normalize importance
         total_imp = sum(importance_sum.values())
         importance = {k: v / total_imp for k, v in importance_sum.items()}
-        
+
         return MLFactorResult(
             signal=signal,
             feature_importance=importance,
@@ -511,7 +509,7 @@ class AdaptiveFactorCombiner:
     min_weight : float
         Minimum factor weight (default 0.01).
     """
-    
+
     def __init__(
         self,
         lookback: int = 252,
@@ -521,10 +519,10 @@ class AdaptiveFactorCombiner:
         self.lookback = lookback
         self.decay = decay
         self.min_weight = min_weight
-        self._weights: Optional[NDArray] = None
+        self._weights: NDArray | None = None
         self._performance_history: list[NDArray] = []
         self._feature_names: list[str] = []
-        
+
     def update(
         self,
         factor_signals: NDArray,
@@ -540,28 +538,28 @@ class AdaptiveFactorCombiner:
             Realized return at time t+1.
         """
         self._performance_history.append(factor_signals * realized_return)
-        
+
         # Keep only recent history
         if len(self._performance_history) > self.lookback:
             self._performance_history = self._performance_history[-self.lookback:]
-        
+
         # Compute exponential weighted performance
         if len(self._performance_history) >= 20:
             history = np.array(self._performance_history)
             weights = np.array([self.decay ** i for i in range(len(history))])[::-1]
             weights /= weights.sum()
-            
+
             # Weighted average performance per factor
             weighted_perf = np.average(history, axis=0, weights=weights)
-            
+
             # Convert to weights (softmax-like)
             exp_perf = np.exp(weighted_perf - np.max(weighted_perf))
             self._weights = exp_perf / exp_perf.sum()
-            
+
             # Apply minimum weight
             self._weights = np.maximum(self._weights, self.min_weight)
             self._weights /= self._weights.sum()
-    
+
     def combine(self, factor_signals: NDArray) -> NDArray:
         """Combine factors using adaptive weights.
         
@@ -581,20 +579,20 @@ class AdaptiveFactorCombiner:
             weights = np.ones(n_factors) / n_factors
         else:
             weights = self._weights
-        
+
         # Weighted combination
         raw_signal = factor_signals @ weights
-        
+
         # Normalize to [-1, 1]
         signal = np.clip(
             (raw_signal - np.median(raw_signal)) / (np.percentile(raw_signal, 95) - np.percentile(raw_signal, 5) + 1e-10),
             -1.0, 1.0,
         )
-        
+
         return signal
-    
+
     @property
-    def current_weights(self) -> Optional[NDArray]:
+    def current_weights(self) -> NDArray | None:
         """Get current factor weights."""
         return self._weights.copy() if self._weights is not None else None
 
@@ -628,10 +626,10 @@ def create_ml_factor_combiner(
         "ensemble": EnsembleFactorCombiner,
         "adaptive": AdaptiveFactorCombiner,
     }
-    
+
     if method not in combiners:
         raise ValueError(f"Unknown method: {method}. Choose from {list(combiners.keys())}")
-    
+
     return combiners[method](**kwargs)
 
 
@@ -659,24 +657,24 @@ def evaluate_factor_combiner(
     dict
         Evaluation metrics (IC, ICIR, turnover, etc.).
     """
-    from sklearn.model_selection import TimeSeriesSplit
     from scipy.stats import spearmanr
-    
+    from sklearn.model_selection import TimeSeriesSplit
+
     tscv = TimeSeriesSplit(n_splits=n_splits)
     ics = []
-    
+
     for train_idx, val_idx in tscv.split(X):
         X_train, X_val = X[train_idx], X[val_idx]
         y_train, y_val = y[train_idx], y[val_idx]
-        
+
         # Fit and predict
         combiner.fit(X_train, y_train)
         result = combiner.predict(X_val)
-        
+
         # Compute IC
         ic, _ = spearmanr(result.signal, y_val)
         ics.append(ic)
-    
+
     return {
         "mean_ic": float(np.mean(ics)),
         "ic_std": float(np.std(ics)),

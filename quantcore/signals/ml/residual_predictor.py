@@ -9,9 +9,11 @@ Features per asset:
 """
 
 from __future__ import annotations
+
+import warnings
+
 import numpy as np
 from numpy.typing import NDArray
-import warnings
 
 try:
     from sklearn.linear_model import Ridge

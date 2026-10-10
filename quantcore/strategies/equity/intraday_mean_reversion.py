@@ -149,9 +149,7 @@ class IntradayMeanReversionStrategy(Strategy):
             exit_reason = None
 
             # Stop loss hit
-            if pos > 0 and price <= entry_px * (1 - self.stop_loss_pct / 100):
-                exit_reason = "stop_loss"
-            elif pos < 0 and price >= entry_px * (1 + self.stop_loss_pct / 100):
+            if (pos > 0 and price <= entry_px * (1 - self.stop_loss_pct / 100)) or (pos < 0 and price >= entry_px * (1 + self.stop_loss_pct / 100)):
                 exit_reason = "stop_loss"
             # Mean reversion complete
             elif abs(vwap_z[-1]) < self.z_exit:

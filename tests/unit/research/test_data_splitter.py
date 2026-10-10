@@ -6,16 +6,14 @@ import pytest
 from pandas import DataFrame, DatetimeIndex
 
 from quantcore.research.splitter.data_splitter import (
-    DataSplitter,
-    SPLIT_RANGES,
-    IS_START,
     IS_END,
-    VAL_START,
+    IS_START,
     VAL_END,
-    VAULT_START,
+    VAL_START,
     VAULT_END,
+    VAULT_START,
+    DataSplitter,
 )
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

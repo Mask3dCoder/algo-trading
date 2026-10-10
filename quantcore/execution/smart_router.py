@@ -29,7 +29,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -482,7 +482,7 @@ class SmartExecutionRouter:
 
             # Log to adverse events list (written to CSV on flush)
             self._adverse_events.append({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "ticker": ticker,
                 "fill_price": round(fill_price, 4),
                 "side": side,
@@ -1096,7 +1096,7 @@ class SmartExecutionRouter:
 
     def _get_daily_record(self) -> DailyCostRecord:
         """Get or create today's cost record."""
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        today = datetime.now(UTC).strftime("%Y-%m-%d")
         if today not in self._daily_costs:
             self._daily_costs[today] = DailyCostRecord(date=today)
         return self._daily_costs[today]

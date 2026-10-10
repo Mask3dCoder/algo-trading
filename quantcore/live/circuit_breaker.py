@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
-from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class CircuitBreakerConfig:
     _env_prefix: str = "QUANTCORE_RISK_"
 
     @classmethod
-    def from_env(cls) -> "CircuitBreakerConfig":
+    def from_env(cls) -> CircuitBreakerConfig:
         return cls(
             daily_loss_pct=_env_float("QUANTCORE_RISK_DAILY_LOSS_PCT", "0.02"),
             critical_drawdown_pct=_env_float("QUANTCORE_RISK_CRITICAL_DRAWDOWN_PCT", "0.10"),

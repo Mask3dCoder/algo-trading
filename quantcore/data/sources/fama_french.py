@@ -20,8 +20,7 @@ from __future__ import annotations
 import io
 import logging
 import shutil
-import warnings
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -93,7 +92,7 @@ class FamaFrenchLoader:
     def load_5_factors(
         self,
         freq: Literal["daily", "monthly"] = "daily",
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """Load the 5-factor (2x3) dataset as a DataFrame.
 
         Columns returned: [Mkt-RF, SMB, HML, RMW, CMA, RF]
@@ -106,7 +105,7 @@ class FamaFrenchLoader:
     def load_3_factors(
         self,
         freq: Literal["daily", "monthly"] = "daily",
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """Load the classic 3-factor dataset as a DataFrame.
 
         Columns returned: [Mkt-RF, SMB, HML, RF]
@@ -119,7 +118,7 @@ class FamaFrenchLoader:
     def load_momentum(
         self,
         freq: Literal["daily", "monthly"] = "daily",
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """Load the momentum factor dataset as a DataFrame.
 
         Columns returned: [Mom]
@@ -153,7 +152,7 @@ class FamaFrenchLoader:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load(self, dataset: str, freq: str) -> "pd.DataFrame":
+    def _load(self, dataset: str, freq: str) -> pd.DataFrame:
         cache_file = self._cache_dir / f"{dataset}_{freq}.csv"
         if cache_file.exists():
             _log.debug("cache_hit: %s", cache_file)
@@ -166,7 +165,7 @@ class FamaFrenchLoader:
         _log.info("cached: %s", cache_file)
         return df
 
-    def _download(self, dataset: str, freq: str) -> "pd.DataFrame":
+    def _download(self, dataset: str, freq: str) -> pd.DataFrame:
         if requests is None:
             raise ImportError("requests is required to download Fama-French data")
         url = _FAMAFRENCH_URLS[dataset][freq]
@@ -177,7 +176,7 @@ class FamaFrenchLoader:
             raise ConnectionError(f"Failed to download {url}: {r.status_code}")
         return self._parse_zip(r.content, dataset, freq)
 
-    def _parse_zip(self, content: bytes, dataset: str, freq: str) -> "pd.DataFrame":
+    def _parse_zip(self, content: bytes, dataset: str, freq: str) -> pd.DataFrame:
         import zipfile
 
         z = zipfile.ZipFile(io.BytesIO(content))
@@ -193,7 +192,7 @@ class FamaFrenchLoader:
             df = self._parse_csv(f, dataset, freq)
             return df
 
-    def _parse_csv(self, f, dataset: str, freq: str) -> "pd.DataFrame":
+    def _parse_csv(self, f, dataset: str, freq: str) -> pd.DataFrame:
         if pd is None:
             raise ImportError("pandas is required")  # type: ignore[unreachable]
 

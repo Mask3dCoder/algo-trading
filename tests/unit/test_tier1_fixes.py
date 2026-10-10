@@ -6,7 +6,6 @@ Each test verifies that the fix is correct and the old bug is eliminated.
 import numpy as np
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Bug 1: Sortino Ratio — downside deviation formula
 # ---------------------------------------------------------------------------
@@ -62,8 +61,8 @@ class TestKellyFix:
 
     def test_kelly_known_value(self):
         """Verify Kelly with known p and b values."""
-        from quantcore.strategies.equity.stat_arb import StatArbStrategy
         from quantcore.strategies.base import StrategyConfig
+        from quantcore.strategies.equity.stat_arb import StatArbStrategy
 
         config = StrategyConfig(name="test_stat_arb", strategy_type="equity")
         strat = StatArbStrategy(config)
@@ -88,8 +87,8 @@ class TestKellyFix:
 
     def test_kelly_non_negative(self):
         """Kelly fraction must be non-negative for valid entry thresholds."""
-        from quantcore.strategies.equity.stat_arb import StatArbStrategy
         from quantcore.strategies.base import StrategyConfig
+        from quantcore.strategies.equity.stat_arb import StatArbStrategy
 
         for entry_z in [0.5, 1.0, 1.5, 2.0]:
             config = StrategyConfig(name="test_stat_arb", strategy_type="equity")
@@ -228,10 +227,10 @@ class TestPriceFallbackFix:
     """Risk manager should use market_prices when available."""
 
     def test_order_price_uses_market_prices(self):
-        from quantcore.live.risk_manager import RiskManagerLive, RiskLimitsConfig
+        from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
 
         rm = RiskManagerLive(RiskLimitsConfig())
-        from quantcore.core.types import Order, Side, OrderType
+        from quantcore.core.types import Order, OrderType, Side
 
         order = Order(
             id="test",
@@ -251,8 +250,8 @@ class TestPriceFallbackFix:
             rm._order_price(order, market_prices=None)
 
     def test_pre_trade_check_uses_market_prices(self):
-        from quantcore.live.risk_manager import RiskManagerLive, RiskLimitsConfig, Approval
-        from quantcore.core.types import Order, Side, OrderType
+        from quantcore.core.types import Order, OrderType, Side
+        from quantcore.live.risk_manager import Approval, RiskLimitsConfig, RiskManagerLive
 
         rm = RiskManagerLive(RiskLimitsConfig())
         order = Order(

@@ -23,13 +23,11 @@ Gate: Portfolio-level DSR p-value must be < 0.1 before live deployment.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Core calculations
@@ -436,6 +434,6 @@ def compute_portfolio_dsr(
         n_strategies_surviving=n_strategies_surviving,
         n_observations=result["n_observations"],
         fail_reason=result.get("reason", ""),
-        correlation_matrix=corr_info.get("correlation_matrix", None),
+        correlation_matrix=corr_info.get("correlation_matrix"),
         condition_number=corr_info.get("condition_number", np.nan),
     )

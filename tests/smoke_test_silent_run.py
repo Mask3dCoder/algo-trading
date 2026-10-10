@@ -1,10 +1,6 @@
 """Smoke test for Silent Run modules."""
-from quantcore.live.paper_trading.live_connector import (
-    LiveStreamConnector, PassiveExecutionProxy, SilentRunOrchestrator, Tick
-)
-from quantcore.live.paper_trading.connection_monitor import (
-    ConnectionMonitor, ConnectionState
-)
+from quantcore.live.paper_trading.connection_monitor import ConnectionMonitor
+from quantcore.live.paper_trading.live_connector import LiveStreamConnector, PassiveExecutionProxy
 
 
 def test_passive_proxy():

@@ -17,7 +17,7 @@ import json
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
 from pathlib import Path
 from typing import Any

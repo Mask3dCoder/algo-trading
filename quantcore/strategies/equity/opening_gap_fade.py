@@ -97,7 +97,7 @@ class OpeningGapFadeStrategy(Strategy):
             return 2.0
         return 1.0
 
-    def _passes_volume_filter(self, sym: str, idx: int, data: dict[str, Any], ctx: dict[Any, Any] | None) -> bool:  # noqa: C901,PLR0912
+    def _passes_volume_filter(self, sym: str, idx: int, data: dict[str, Any], ctx: dict[Any, Any] | None) -> bool:
         """Return True if pre-market volume is below threshold multiple of avg."""
         pre_market_vol: float | None = None
         vol_20d_avg: float | None = None

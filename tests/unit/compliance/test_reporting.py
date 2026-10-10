@@ -11,14 +11,12 @@ Tests:
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from quantcore.compliance.reporting import (
     RegulatoryReport,
     generate_best_execution_report,
     generate_regulatory_report,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -15,12 +15,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Protocol
+from typing import Protocol
 
 from quantcore.core.types import Position
 from quantcore.risk.limits import (
     LimitCheckResult,
-    LimitStatus,
     RiskLimits,
     check_post_trade,
 )
@@ -187,8 +186,9 @@ class IntradayRiskLoop:
 
         # Post-trade limit checks (concentration, position limits)
         if limits is not None:
-            from quantcore.core.types import PortfolioSnapshot, Decimal
             from datetime import datetime as dt
+
+            from quantcore.core.types import Decimal, PortfolioSnapshot
             snap = PortfolioSnapshot(
                 timestamp=dt.utcnow(),
                 positions=positions,

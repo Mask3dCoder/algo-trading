@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -100,21 +99,21 @@ class PCARiskModel:
     rolling_window : int | None
         If set, uses rolling PCA for time-varying factors.
     """
-    
+
     def __init__(
         self,
-        n_components: Optional[int] = None,
-        rolling_window: Optional[int] = None,
+        n_components: int | None = None,
+        rolling_window: int | None = None,
     ) -> None:
         self.n_components = n_components
         self.rolling_window = rolling_window
-        self._pca_result: Optional[PCAResult] = None
+        self._pca_result: PCAResult | None = None
         self._is_fitted = False
-        
+
     def fit(
         self,
         returns: NDArray,
-        asset_names: Optional[list[str]] = None,
+        asset_names: list[str] | None = None,
     ) -> PCARiskModel:
         """Fit PCA model on return data.
         
@@ -127,11 +126,11 @@ class PCARiskModel:
         """
         from sklearn.decomposition import PCA
         from sklearn.preprocessing import StandardScaler
-        
+
         # Standardize returns — store scaler for OOS transform
         self.scaler = StandardScaler()
         returns_scaled = self.scaler.fit_transform(returns)
-        
+
         # Determine number of components
         if self.n_components is None:
             # Keep components explaining 95% variance
@@ -142,11 +141,11 @@ class PCARiskModel:
             n_components = min(n_components, returns.shape[1])
         else:
             n_components = self.n_components
-        
+
         # Fit PCA
         pca = PCA(n_components=n_components)
         scores = pca.fit_transform(returns_scaled)
-        
+
         # Store results
         self._pca_result = PCAResult(
             components=pca.components_,
@@ -156,17 +155,17 @@ class PCARiskModel:
             scores=scores,
             n_components=n_components,
         )
-        
+
         self._is_fitted = True
-        
+
         _log.info(
             "PCA fitted: %d components explain %.1f%% variance",
             n_components,
             np.sum(pca.explained_variance_ratio_) * 100,
         )
-        
+
         return self
-    
+
     def transform(self, returns: NDArray) -> NDArray:
         """Project returns onto principal components.
 
@@ -190,8 +189,8 @@ class PCARiskModel:
         scores = returns_scaled @ self._pca_result.components.T
 
         return scores
-    
-    def get_factor_loadings(self, asset_names: Optional[list[str]] = None) -> pd.DataFrame:
+
+    def get_factor_loadings(self, asset_names: list[str] | None = None) -> pd.DataFrame:
         """Get factor loadings as DataFrame.
         
         Parameters
@@ -206,18 +205,18 @@ class PCARiskModel:
         """
         if not self._is_fitted or self._pca_result is None:
             raise RuntimeError("PCA not fitted.")
-        
+
         if asset_names is None:
             asset_names = [f"Asset_{i}" for i in range(self._pca_result.loadings.shape[0])]
-        
+
         component_names = [f"PC_{i+1}" for i in range(self._pca_result.n_components)]
-        
+
         return pd.DataFrame(
             self._pca_result.loadings,
             index=asset_names,
             columns=component_names,
         )
-    
+
     def compute_factor_risk(
         self,
         weights: NDArray,
@@ -239,19 +238,19 @@ class PCARiskModel:
         """
         if not self._is_fitted or self._pca_result is None:
             raise RuntimeError("PCA not fitted.")
-        
+
         # Project returns onto factors
         factor_returns = self.transform(returns)
-        
+
         # Portfolio factor exposures
         factor_exposures = self._pca_result.loadings.T @ weights
-        
+
         # Factor risk contributions
         factor_vols = np.std(factor_returns, axis=0)
         factor_risks = factor_exposures * factor_vols
-        
+
         total_risk = np.sqrt(np.sum(factor_risks**2))
-        
+
         contributions = {}
         for i in range(self._pca_result.n_components):
             contributions[f"PC_{i+1}"] = {
@@ -260,7 +259,7 @@ class PCARiskModel:
                 "risk_contribution": float(factor_risks[i]),
                 "pct_of_total": float(factor_risks[i] / total_risk * 100) if total_risk > 0 else 0.0,
             }
-        
+
         return contributions
 
 
@@ -275,36 +274,36 @@ class ICARiskModel:
     n_components : int | None
         Number of independent components.
     """
-    
-    def __init__(self, n_components: Optional[int] = None) -> None:
+
+    def __init__(self, n_components: int | None = None) -> None:
         self.n_components = n_components
         self._ica_result = None
         self._is_fitted = False
-        
+
     def fit(
         self,
         returns: NDArray,
-        asset_names: Optional[list[str]] = None,
+        asset_names: list[str] | None = None,
     ) -> ICARiskModel:
         """Fit ICA model on return data."""
         from sklearn.decomposition import FastICA
-        
+
         n_components = self.n_components or min(returns.shape[1], 10)
-        
+
         ica = FastICA(n_components=n_components, random_state=42, max_iter=1000)
         sources = ica.fit_transform(returns)
-        
+
         self._ica_result = {
             "mixing": ica.mixing_,
             "sources": sources,
             "components": ica.components_,
         }
         self._is_fitted = True
-        
+
         _log.info("ICA fitted with %d independent components", n_components)
-        
+
         return self
-    
+
     def transform(self, returns: NDArray) -> NDArray:
         """Project returns onto independent components."""
         if not self._is_fitted or self._ica_result is None:
@@ -335,17 +334,17 @@ class TailRiskModel:
     threshold_percentile : float
         Percentile for threshold selection (default 0.05 = 5% worst losses).
     """
-    
+
     def __init__(self, threshold_percentile: float = 0.05) -> None:
         self.threshold_percentile = threshold_percentile
-        self._gpd_params: Optional[tuple[float, float]] = None
-        self._threshold: Optional[float] = None
+        self._gpd_params: tuple[float, float] | None = None
+        self._threshold: float | None = None
         self._is_fitted = False
-        
+
     def fit(
         self,
         returns: NDArray,
-        confidence_levels: Optional[list[float]] = None,
+        confidence_levels: list[float] | None = None,
     ) -> TailRiskModel:
         """Fit GPD to extreme losses.
         
@@ -358,7 +357,7 @@ class TailRiskModel:
         """
         if confidence_levels is None:
             confidence_levels = [0.95, 0.99]
-        
+
         # Use losses (negative returns)
         losses = -returns
         losses = losses[np.isfinite(losses)]
@@ -366,27 +365,27 @@ class TailRiskModel:
 
         # Select threshold
         self._threshold = np.percentile(losses, 100 * (1 - self.threshold_percentile))
-        
+
         # Exceedances
         exceedances = losses[losses > self._threshold] - self._threshold
         n_exceedances = len(exceedances)
-        
+
         if n_exceedances < 10:
             _log.warning("Too few exceedances (%d). Using empirical VaR.", n_exceedances)
             self._gpd_params = (0.0, np.std(losses))
             self._is_fitted = True
             return self
-        
+
         # Fit GPD using MLE
         try:
             # Method of moments initial estimate
             mean_excess = np.mean(exceedances)
             var_excess = np.var(exceedances)
-            
+
             # Method of moments estimates
             xi_mom = 0.5 * (1 - mean_excess**2 / var_excess)
             beta_mom = 0.5 * mean_excess * (1 + mean_excess**2 / var_excess)
-            
+
             # MLE refinement
             def neg_log_likelihood(params):
                 xi, beta = params
@@ -399,28 +398,28 @@ class TailRiskModel:
                 if np.any(z <= 0):
                     return 1e10
                 return n * np.log(beta) + (1 + 1/xi) * np.sum(np.log(z))
-            
+
             result = minimize(
                 neg_log_likelihood,
                 [xi_mom, beta_mom],
                 method="Nelder-Mead",
             )
-            
+
             self._gpd_params = (result.x[0], result.x[1])
-            
+
         except Exception as e:
             _log.warning("GPD fit failed: %s. Using method of moments.", e)
             self._gpd_params = (xi_mom, beta_mom)
-        
+
         self._is_fitted = True
-        
+
         _log.info(
             "EVT fitted: threshold=%.4f, exceedances=%d, ξ=%.4f, β=%.4f",
             self._threshold, n_exceedances, self._gpd_params[0], self._gpd_params[1],
         )
-        
+
         return self
-    
+
     def compute_var(
         self,
         confidence: float = 0.99,
@@ -442,24 +441,24 @@ class TailRiskModel:
         """
         if not self._is_fitted or self._gpd_params is None or self._threshold is None:
             raise RuntimeError("Model not fitted. Call fit() first.")
-        
+
         xi, beta = self._gpd_params
         # Use actual observation count from fit() instead of hardcoded 1000
         n = getattr(self, '_n_observations', 1000)
         n_exceedances = int(n * self.threshold_percentile)
-        
+
         # VaR formula from GPD
         p = 1 - confidence
         if abs(xi) < 1e-10:
             var = self._threshold + beta * np.log(n_exceedances / (n * p))
         else:
             var = self._threshold + (beta / xi) * ((n_exceedances / (n * p))**xi - 1)
-        
+
         # Scale to holding period (square root of time rule)
         var_scaled = var * np.sqrt(n_periods)
-        
+
         return float(var_scaled)
-    
+
     def compute_es(
         self,
         confidence: float = 0.99,
@@ -481,18 +480,18 @@ class TailRiskModel:
         """
         if not self._is_fitted or self._gpd_params is None:
             raise RuntimeError("Model not fitted.")
-        
+
         var = self.compute_var(confidence, n_periods)
         xi, beta = self._gpd_params
-        
+
         # ES formula from GPD
         if xi < 1:
             es = var / (1 - xi) + (beta - xi * self._threshold) / (1 - xi)
         else:
             es = var * 1.5  # Approximation for ξ ≥ 1
-        
+
         return float(es)
-    
+
     def compute_tail_metrics(self, n_periods: int = 1) -> TailRiskMetrics:
         """Compute comprehensive tail risk metrics.
         
@@ -508,7 +507,7 @@ class TailRiskModel:
         """
         if not self._is_fitted:
             raise RuntimeError("Model not fitted.")
-        
+
         return TailRiskMetrics(
             var_95=self.compute_var(0.95, n_periods),
             var_99=self.compute_var(0.99, n_periods),
@@ -539,7 +538,7 @@ class CorrelationRegimeDetector:
     breakpoint_threshold : float
         Threshold for breakpoint detection (default 0.3).
     """
-    
+
     def __init__(
         self,
         lookback: int = 60,
@@ -548,7 +547,7 @@ class CorrelationRegimeDetector:
         self.lookback = lookback
         self.breakpoint_threshold = breakpoint_threshold
         self._regimes: list[CorrelationRegime] = []
-        
+
     def detect_regimes(
         self,
         returns: pd.DataFrame,
@@ -572,14 +571,14 @@ class CorrelationRegimeDetector:
         if n_periods < self.lookback * 2:
             _log.warning("Insufficient data for regime detection")
             return []
-        
+
         # Compute rolling correlation matrices
         rolling_corrs = []
         for i in range(self.lookback, n_periods):
             window = returns.iloc[i - self.lookback:i]
             corr = window.corr()
             rolling_corrs.append(corr.values)
-        
+
         # Compute average correlation over time
         avg_corrs = []
         for corr in rolling_corrs:
@@ -588,24 +587,24 @@ class CorrelationRegimeDetector:
             mask = np.ones((n, n), dtype=bool)
             np.fill_diagonal(mask, False)
             avg_corrs.append(np.mean(corr[mask]))
-        
+
         avg_corrs = np.array(avg_corrs)
-        
+
         # Detect breakpoints (sudden changes in average correlation)
         regimes = []
         current_regime_start = 0
-        
+
         for i in range(1, len(avg_corrs)):
             if abs(avg_corrs[i] - avg_corrs[i-1]) > self.breakpoint_threshold:
                 # Breakpoint detected
                 regime_idx = len(regimes)
                 start_date = dates[self.lookback + current_regime_start]
                 end_date = dates[self.lookback + i - 1]
-                
+
                 # Compute regime statistics
                 regime_corrs = avg_corrs[current_regime_start:i]
                 stability = 1.0 - np.std(regime_corrs) / (np.mean(regime_corrs) + 1e-10)
-                
+
                 regimes.append(CorrelationRegime(
                     regime_id=regime_idx,
                     start_date=start_date,
@@ -614,18 +613,18 @@ class CorrelationRegimeDetector:
                     correlation_stability=float(stability),
                     duration_days=int((end_date - start_date).days),
                 ))
-                
+
                 current_regime_start = i
-        
+
         # Final regime
         if current_regime_start < len(avg_corrs):
             regime_idx = len(regimes)
             start_date = dates[self.lookback + current_regime_start]
             end_date = dates[-1]
-            
+
             regime_corrs = avg_corrs[current_regime_start:]
             stability = 1.0 - np.std(regime_corrs) / (np.mean(regime_corrs) + 1e-10)
-            
+
             regimes.append(CorrelationRegime(
                 regime_id=regime_idx,
                 start_date=start_date,
@@ -634,14 +633,14 @@ class CorrelationRegimeDetector:
                 correlation_stability=float(stability),
                 duration_days=int((end_date - start_date).days),
             ))
-        
+
         self._regimes = regimes
-        
+
         _log.info("Detected %d correlation regimes", len(regimes))
-        
+
         return regimes
-    
-    def get_current_regime(self, date: pd.Timestamp) -> Optional[CorrelationRegime]:
+
+    def get_current_regime(self, date: pd.Timestamp) -> CorrelationRegime | None:
         """Get regime for a specific date."""
         for regime in self._regimes:
             if regime.start_date <= date <= regime.end_date:
@@ -661,7 +660,7 @@ class DCCGARCHModel:
     dcc_order : tuple[int, int]
         DCC(a,b) order (default (1,1)).
     """
-    
+
     def __init__(
         self,
         garch_order: tuple[int, int] = (1, 1),
@@ -671,7 +670,7 @@ class DCCGARCHModel:
         self.dcc_order = dcc_order
         self._is_fitted = False
         self._params = None
-        
+
     def fit(self, returns: NDArray) -> DCCGARCHModel:
         """Fit DCC-GARCH model.
         
@@ -682,43 +681,43 @@ class DCCGARCHModel:
         """
         # Simplified DCC-GARCH implementation
         # In production, use arch library or similar
-        
+
         n_periods, n_assets = returns.shape
-        
+
         # Step 1: Fit univariate GARCH for each asset
         garch_params = []
         standardized_returns = np.zeros_like(returns)
-        
+
         for i in range(n_assets):
             # Simple GARCH(1,1) estimation
             # sigma_t^2 = omega + alpha * r_{t-1}^2 + beta * sigma_{t-1}^2
             r = returns[:, i]
             r_centered = r - np.mean(r)
-            
+
             # Method of moments estimates
             var_r = np.var(r_centered)
             alpha = 0.1  # Typical value
             beta = 0.85  # Typical value
             omega = var_r * (1 - alpha - beta)
-            
+
             garch_params.append((omega, alpha, beta))
-            
+
             # Compute conditional volatility
             h = np.zeros(n_periods)
             h[0] = var_r
             for t in range(1, n_periods):
                 h[t] = omega + alpha * r_centered[t-1]**2 + beta * h[t-1]
-            
+
             # Standardize returns
             standardized_returns[:, i] = r_centered / np.sqrt(h + 1e-10)
-        
+
         # Step 2: Estimate DCC parameters
         # Q_bar = unconditional correlation of standardized returns
         Q_bar = np.corrcoef(standardized_returns.T)
-        
+
         # DCC parameters (simplified)
         a, b = 0.05, 0.90  # Typical DCC(1,1) values
-        
+
         self._params = {
             "garch": garch_params,
             "Q_bar": Q_bar,
@@ -726,11 +725,11 @@ class DCCGARCHModel:
             "dcc_b": b,
         }
         self._is_fitted = True
-        
+
         _log.info("DCC-GARCH fitted for %d assets", n_assets)
-        
+
         return self
-    
+
     def compute_dynamic_correlation(
         self,
         returns: NDArray,
@@ -749,31 +748,31 @@ class DCCGARCHModel:
         """
         if not self._is_fitted or self._params is None:
             raise RuntimeError("Model not fitted.")
-        
+
         n_periods, n_assets = returns.shape
         Q_bar = self._params["Q_bar"]
         a = self._params["dcc_a"]
         b = self._params["dcc_b"]
-        
+
         # Initialize
         Q_t = Q_bar.copy()
         correlations = np.zeros((n_periods, n_assets, n_assets))
-        
+
         # Standardize returns (simplified)
         r_std = (returns - np.mean(returns, axis=0)) / (np.std(returns, axis=0) + 1e-10)
-        
+
         for t in range(n_periods):
             # DCC recursion: Q_t = (1-a-b) * Q_bar + a * z_{t-1} z_{t-1}' + b * Q_{t-1}
             z = r_std[t:t+1, :].T
             Q_t = (1 - a - b) * Q_bar + a * z @ z.T + b * Q_t
-            
+
             # Convert to correlation
             D_t = np.sqrt(np.diag(np.diag(Q_t)))
             D_inv = np.linalg.inv(D_t + np.eye(n_assets) * 1e-10)
             R_t = D_inv @ Q_t @ D_inv
-            
+
             correlations[t] = R_t
-        
+
         return correlations
 
 
@@ -790,16 +789,16 @@ class RiskDecomposer:
     n_factors : int | None
         Number of risk factors (default: auto-select via PCA).
     """
-    
-    def __init__(self, n_factors: Optional[int] = None) -> None:
+
+    def __init__(self, n_factors: int | None = None) -> None:
         self.n_factors = n_factors
         self._pca_model = PCARiskModel(n_components=n_factors)
-        
+
     def decompose(
         self,
         weights: NDArray,
         returns: NDArray,
-        asset_names: Optional[list[str]] = None,
+        asset_names: list[str] | None = None,
     ) -> RiskDecomposition:
         """Decompose portfolio risk.
         
@@ -819,38 +818,38 @@ class RiskDecomposer:
         """
         # Fit PCA model
         self._pca_model.fit(returns, asset_names)
-        
+
         # Get factor exposures
         factor_exposures = self._pca_model._pca_result.loadings.T @ weights
-        
+
         # Factor returns
         factor_returns = self._pca_model.transform(returns)
-        
+
         # Factor covariance (ensure at least 2D for single-asset edge case)
         factor_cov = np.atleast_2d(np.cov(factor_returns.T))
 
         # Portfolio factor risk
         systematic_var = factor_exposures @ factor_cov @ factor_exposures
         systematic_risk = np.sqrt(systematic_var)
-        
+
         # Total portfolio risk
         port_returns = returns @ weights
         total_risk = np.std(port_returns)
-        
+
         # Idiosyncratic risk
         idiosyncratic_risk = np.sqrt(max(total_risk**2 - systematic_risk**2, 0))
-        
+
         # Marginal contribution to risk
         port_vol = total_risk
         cov_matrix = np.atleast_2d(np.cov(returns.T))
         marginal_contrib = ((cov_matrix @ weights[:, None]) / port_vol).ravel()
-        
+
         # Component contribution to risk
         component_contrib = weights * marginal_contrib
-        
+
         # Factor contribution
         factor_contrib = factor_exposures * np.sqrt(np.diag(factor_cov))
-        
+
         return RiskDecomposition(
             total_risk=float(total_risk),
             systematic_risk=float(systematic_risk),
@@ -894,24 +893,24 @@ def compute_portfolio_var(
         VaR estimate.
     """
     port_returns = returns @ weights
-    
+
     if method == "parametric":
         mu = np.mean(port_returns)
         sigma = np.std(port_returns)
         z = stats.norm.ppf(1 - confidence)
         var = -(mu + z * sigma) * np.sqrt(n_periods)
-        
+
     elif method == "historical":
         var = -np.percentile(port_returns, (1 - confidence) * 100) * np.sqrt(n_periods)
-        
+
     elif method == "evt":
         model = TailRiskModel()
         model.fit(port_returns)
         var = model.compute_var(confidence, n_periods)
-        
+
     else:
         raise ValueError(f"Unknown method: {method}")
-    
+
     return float(var)
 
 
@@ -943,11 +942,11 @@ def compute_portfolio_es(
         ES estimate.
     """
     port_returns = returns @ weights
-    
+
     if method == "historical":
         var = np.percentile(port_returns, (1 - confidence) * 100)
         es = np.mean(port_returns[port_returns <= var]) * np.sqrt(n_periods)
-        
+
     elif method == "evt":
         model = TailRiskModel()
         model.fit(port_returns)

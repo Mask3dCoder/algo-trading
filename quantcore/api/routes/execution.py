@@ -7,7 +7,6 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 
 from quantcore.core.types import Fill, Side
@@ -18,7 +17,7 @@ from quantcore.execution.impact import (
     sqrt_impact_bps,
 )
 from quantcore.execution.oms import OrderManager, limit_order, market_order
-from quantcore.execution.tca import StrategySummary, TCAResult, tca_strategy, tca_trade
+from quantcore.execution.tca import TCAResult, tca_strategy, tca_trade
 
 router = APIRouter(prefix="/execution", tags=["execution"])
 

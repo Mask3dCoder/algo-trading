@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import csv
-import time
-from collections import deque
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -15,10 +13,8 @@ from quantcore.core.types import Order, OrderType, Side
 from quantcore.execution.smart_router import (
     SmartExecutionRouter,
     SmartRouterConfig,
-    TrackedOrder,
     _build_minute_profile,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

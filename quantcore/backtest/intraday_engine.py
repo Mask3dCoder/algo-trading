@@ -22,14 +22,14 @@ consistent with the base engine's behavior.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from datetime import datetime, time
+from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from quantcore.backtest.simulation import OptionFillSimulator
 from quantcore.backtest.tick_context import (
     EXIT_TIME,
     FIRST_5_MIN_CLOSE,
@@ -39,18 +39,13 @@ from quantcore.backtest.tick_context import (
     RTH_OPEN,
     TickContext,
     TickContextHistory,
-    build_5min_bar_df,
-    compute_intraday_slippage,
     is_exit_time,
-    is_first_5_min_bar,
     is_premarket_bar,
     is_rth_bar,
 )
-from quantcore.backtest.simulation import OptionFillSimulator
-from quantcore.core.events import Event, EventType
 from quantcore.core.types import OHLCV, Fill, Order, OrderType, Position, Side
 from quantcore.risk.intraday_drawdown import IntradayDrawdownCalculator
-from quantcore.risk.limits import LimitCheckResult, RiskLimits, check_pre_trade
+from quantcore.risk.limits import RiskLimits, check_pre_trade
 
 # Export tick_context constants for strategy use
 __all__ = [
@@ -804,7 +799,7 @@ class IntradayBacktestEngine:
 
     def summary(self):
         """Generate performance report using the analytics module."""
-        from quantcore.backtest.analytics import generate_performance_report, compute_returns
+        from quantcore.backtest.analytics import compute_returns, generate_performance_report
         equity = np.array(self._equity_curve)
         returns = compute_returns(equity) if len(equity) > 1 else np.array([])
         return generate_performance_report(equity, returns)

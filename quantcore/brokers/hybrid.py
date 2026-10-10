@@ -10,7 +10,6 @@ Data flows: Alpaca WebSocket → signal engine → OMS → IBKR broker
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 log = logging.getLogger(__name__)

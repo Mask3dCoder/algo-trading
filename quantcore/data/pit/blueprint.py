@@ -25,10 +25,11 @@ from __future__ import annotations
 import argparse
 import os
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any, Sequence
+from typing import Any
 
 import pandas as pd
 import requests
@@ -45,8 +46,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
-    select,
     func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, insert
@@ -343,8 +344,8 @@ def parse_sec_datetime(value: str) -> datetime:
         value = value[:-1] + "+00:00"
     dt = datetime.fromisoformat(value)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def clean_cik(cik: int | str) -> str:
@@ -549,7 +550,7 @@ class FactsIngestor:
                             filing_published_at = datetime.combine(
                                 date.fromisoformat(obs.get("filed", "1900-01-01")),
                                 datetime.min.time(),
-                                tzinfo=timezone.utc,
+                                tzinfo=UTC,
                             )
                             is_restatement = is_amendment(obs.get("form", ""))
                         else:

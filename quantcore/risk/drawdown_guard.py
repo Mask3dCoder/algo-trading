@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from quantcore.risk.drawdown import DrawdownTracker, DrawdownConfig, DrawdownAction
+from quantcore.risk.drawdown import DrawdownAction, DrawdownConfig, DrawdownTracker
 
 
 @dataclass
@@ -174,8 +174,8 @@ class DrawdownGuard:
 # ---------------------------------------------------------------------------
 
 from dataclasses import field
+
 import numpy as np
-from numpy.typing import NDArray
 
 
 class VolAdjustedConfig:

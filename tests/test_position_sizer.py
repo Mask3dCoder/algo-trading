@@ -5,11 +5,7 @@ premium-based allocation, respecting round-lot and margin constraints.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
-from quantcore.live.paper_trading.position_sizer import PositionSizer, PositionSizerConfig
+from quantcore.live.paper_trading.position_sizer import PositionSizer
 
 
 class TestPremiumAllocation:
@@ -74,7 +70,6 @@ class TestDeltaHedgeSizing:
             option_delta=-0.30, contracts=-5, target_net_delta=0.0,
         )
         # Need to sell 150 shares to neutralize (+150)
-        pass
 
     def test_no_hedge_needed(self) -> None:
         sizer = PositionSizer(equity=100_000.0)

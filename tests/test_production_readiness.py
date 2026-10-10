@@ -18,11 +18,9 @@ Usage
 
 from __future__ import annotations
 
-import csv
 import json
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -37,8 +35,6 @@ from quantcore.live.paper_trading.risk_controller import (
     RiskController,
     RiskControllerConfig,
 )
-from quantcore.monitoring.alerting import AlertSeverity
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -263,7 +259,7 @@ class TestRollingSharpeHalt:
             rc.record_daily_return(start + timedelta(days=i), daily_return)
 
         sharpe = rc.check_monthly_sharpe(as_of=start + timedelta(days=63))
-        assert not np.isnan(sharpe), f"Sharpe should not be NaN with varied returns"
+        assert not np.isnan(sharpe), "Sharpe should not be NaN with varied returns"
         assert sharpe > 0.0, f"Sharpe should be positive, got {sharpe:.4f}"
         assert rc.is_active, "Positive Sharpe must not trigger pause"
 

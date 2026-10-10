@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from scipy import stats as sp_stats
 
 from quantcore.risk.psr import (
     benjamini_hochberg_correction,
@@ -16,7 +15,6 @@ from quantcore.risk.psr import (
     probabilistic_sharpe_ratio,
     selection_bias_estimate,
 )
-
 
 # ---------------------------------------------------------------------------
 # PSR tests

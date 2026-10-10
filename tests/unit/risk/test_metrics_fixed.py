@@ -8,12 +8,17 @@ Validates that:
   5. rolling_sharpe and rolling_maxdd produce correct shapes.
 """
 from __future__ import annotations
+
 import math
+
 import numpy as np
-import pytest
+
 from quantcore.risk.metrics import (
-    sharpe_ratio, calmar_ratio, bootstrap_ci,
-    rolling_sharpe, rolling_maxdd,
+    bootstrap_ci,
+    calmar_ratio,
+    rolling_maxdd,
+    rolling_sharpe,
+    sharpe_ratio,
 )
 
 

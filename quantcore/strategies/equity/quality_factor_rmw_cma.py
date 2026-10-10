@@ -72,7 +72,6 @@ class QualityRMWCMAStrategy(Strategy):
             return []
 
         try:
-            import pandas as pd
             factor_slice = factor_df.loc[:dates[-1]]
             factor_aligned = factor_slice.reindex(dates[-self.regression_days:])
             if factor_aligned.isna().any().any():

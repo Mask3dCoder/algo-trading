@@ -12,15 +12,13 @@ All cash/risk systems remain fully active.
 
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 from quantcore.core.cash import CashLedger
 from quantcore.core.types import Fill, Order, Position, Side
-from quantcore.execution.oms import OrderManager, market_order
+from quantcore.execution.oms import OrderManager
 
 
 @dataclass

@@ -7,7 +7,6 @@ from unittest import mock
 import numpy as np
 import pandas as pd
 import pytest
-
 from scripts.real_data_loader import (
     UNIVERSES,
     fetch_and_prepare,

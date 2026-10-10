@@ -34,7 +34,6 @@ from quantcore.strategies.base import (
 )
 from quantcore.strategies.registry import register
 
-
 # Asset type mapping for carry computation
 ASSET_CARRY_TYPE: dict[str, str] = {
     "SPY": "equity",

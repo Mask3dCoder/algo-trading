@@ -5,15 +5,15 @@ generate_signals interface."""
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 from quantcore.backtest.engine import (
-    Fill,
     OHLCV,
+    Fill,
     PortfolioState,
     SignalData,
 )
@@ -293,7 +293,7 @@ class LiveStrategyAdapter:
         if ts:
             ts_list.append(ts)
         else:
-            ts_list.append(datetime.now(timezone.utc))
+            ts_list.append(datetime.now(UTC))
 
     def _ingest_raw(
         self, sym: str, ts: Any, price: float, event: dict[str, Any],
@@ -314,7 +314,7 @@ class LiveStrategyAdapter:
         if ts:
             raw_ts.append(ts)
         else:
-            raw_ts.append(datetime.now(timezone.utc))
+            raw_ts.append(datetime.now(UTC))
 
         if len(raw["close"]) < self._resample:
             return
