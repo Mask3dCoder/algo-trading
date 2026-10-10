@@ -12,7 +12,6 @@ Each failure MUST include: reproduction scenario, component, severity, economic 
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -35,17 +34,12 @@ from quantcore.execution.brokers.paper import PaperBroker, PaperConfig
 from quantcore.execution.oms import OrderManager
 from quantcore.risk.engine import RiskEngine
 from quantcore.risk.limits import (
-    LimitStatus,
     RiskLimits,
     check_post_trade,
-    check_pre_trade,
 )
 from quantcore.risk.var import (
-    cvar,
-    historical_var,
     parametric_var,
 )
-
 
 # ===========================================================================
 # Helpers
@@ -141,7 +135,7 @@ class TestPhase1_TemporalStress:
         Scenario: Portfolio has 200 SPY. bar.volume=0, simulate_fill returns None.
         _flatten_all_positions must use _force_fill to close everything.
         """
-        from quantcore.backtest.engine import BacktestEngine, PortfolioState, FillSimulator
+        from quantcore.backtest.engine import BacktestEngine, FillSimulator, PortfolioState
 
         ps = PortfolioState(1_000_000.0)
         fill = Fill(order_id="o1_buy", price=Decimal("100"), quantity=Decimal("200"),
@@ -184,7 +178,7 @@ class TestPhase1_TemporalStress:
 
     def test_1d_repeated_flattens_no_error(self):
         """Calling _flatten_all_positions on an already flat portfolio must not raise."""
-        from quantcore.backtest.engine import BacktestEngine, PortfolioState, FillSimulator
+        from quantcore.backtest.engine import BacktestEngine, FillSimulator, PortfolioState
 
         ps = PortfolioState(1_000_000.0)
         engine = BacktestEngine.__new__(BacktestEngine)
@@ -327,15 +321,15 @@ class TestPhase2_BacktestIntegrity:
         pd.testing.assert_frame_equal(result_ordered, result_reversed)
 
     def test_2c_bar_open_vs_close_execution_timing_bias(self):
-        """Trading at close vs open produces different results on gap days.
+        """Execution-bar price level (open vs close) visibly changes fills.
 
-        This validates that the execution timing assumption matters and is visible.
+        Post-forensic-audit redesign (engine.py FillSimulator doc): ``fill_at``
+        selects the price level on the *execution* bar — the 1-bar delay is
+        enforced by the engine's order queue (``_execute_queued_orders``), so a
+        directly-provided ``next_bar`` must NEVER be consumed by the fill
+        (it exists solely as the look-ahead canary for on_bar tests).
         """
-        from quantcore.backtest.engine import PortfolioState, FillSimulator
         from quantcore.backtest.engine import FillSimulator
-
-        # FillSimulator should fill at next_open (default)
-        sim = FillSimulator(fill_at="next_open")
 
         current = OHLCV(
             symbol="SPY", timestamp=datetime(2025, 1, 1),
@@ -347,13 +341,29 @@ class TestPhase2_BacktestIntegrity:
             open=Decimal("80"), high=Decimal("85"), low=Decimal("78"),
             close=Decimal("82"), volume=1_000_000,
         )
-        sim.set_bars(current, next_b)
-
         order = _make_order("t1", "SPY", 100, Side.BUY)
-        fill = sim.simulate_fill(order)
-        assert fill is not None
-        # Fill should use next_bar.open = 80 (not current_bar.close = 104)
-        assert float(fill.price) == pytest.approx(80.0 * (1 + sim.slippage_bps / 10000.0), abs=0.1)
+
+        # next_open mode: fills at the execution bar's open, even when a
+        # next bar is visible — the fill must NOT touch next_b.open (80).
+        sim_open = FillSimulator(fill_at="next_open")
+        sim_open.set_bars(current, next_b)
+        fill_open = sim_open.simulate_fill(order)
+        assert fill_open is not None
+        assert float(fill_open.price) == pytest.approx(
+            100.0 * (1 + sim_open.slippage_bps / 10000.0), abs=0.1
+        ), "next_open must fill at the execution bar's open, not the canary next bar"
+
+        # close mode: fills at the execution bar's close.
+        sim_close = FillSimulator(fill_at="close")
+        sim_close.set_bars(current)
+        fill_close = sim_close.simulate_fill(order)
+        assert fill_close is not None
+        assert float(fill_close.price) == pytest.approx(
+            104.0 * (1 + sim_close.slippage_bps / 10000.0), abs=0.1
+        )
+
+        # The execution timing assumption matters and is visible.
+        assert abs(float(fill_open.price) - float(fill_close.price)) > 1.0
 
 
 # ===========================================================================
@@ -395,7 +405,7 @@ class TestPhase3_ExecutionDrift:
     def test_3c_partial_fill_simulation(self):
         """FillSimulator should handle partial fills (quantity > bar_volume)."""
         from quantcore.backtest.engine import FillSimulator
-        from quantcore.backtest.impact_config import VolumeFilterConfig, MarketImpactConfig
+        from quantcore.backtest.impact_config import MarketImpactConfig, VolumeFilterConfig
 
         # With volume filter — order exceeds bar volume
         vf = VolumeFilterConfig(max_participation_rate=0.1)  # Max 10% of volume
@@ -702,7 +712,7 @@ class TestCrossCutting_MultiModeStress:
         This simulates a real crash scenario where stops trigger at bad prices,
         then the market gaps and more fills arrive.
         """
-        from quantcore.backtest.engine import PortfolioState, FillSimulator
+        from quantcore.backtest.engine import PortfolioState
 
         ps = PortfolioState(1_000_000.0)
 
@@ -737,7 +747,7 @@ class TestCrossCutting_MultiModeStress:
 
         This is covered by existing tests: _force_fill fallback in margin call path.
         """
-        from quantcore.backtest.engine import BacktestEngine, PortfolioState, FillSimulator
+        from quantcore.backtest.engine import BacktestEngine, FillSimulator, PortfolioState
 
         ps = PortfolioState(100_000.0)
         # Load up on leveraged position

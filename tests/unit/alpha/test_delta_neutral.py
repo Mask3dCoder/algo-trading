@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 
@@ -39,7 +38,7 @@ class TestBSMHelpers:
         assert _bsm_call(100, 105, 0.1, 0.04, 0.20) >= 0
 
     def test_put_call_parity(self):
-        from quantcore.alpha.delta_neutral import _bsm_put, _bsm_call
+        from quantcore.alpha.delta_neutral import _bsm_call, _bsm_put
         S, K, T, r, sigma = 100, 100, 0.1, 0.04, 0.20
         call = _bsm_call(S, K, T, r, sigma)
         put = _bsm_put(S, K, T, r, sigma)
@@ -238,7 +237,12 @@ class TestSimulation:
         )
 
         if len(eq1) > 0 and len(eq2) > 0:
-            overlap = eq1.index.intersection(eq2.index)
+            # The terminal bar of the SHORTER run is excluded: run_returns_backtest
+            # force-liquidates open positions at the final bar (delta_neutral.py,
+            # end-of-run close-out block), so the run-terminal equity point is
+            # legitimately path-dependent by design. Every HOLD-period point must
+            # be identical — divergence there is what indicates lookahead.
+            overlap = eq1.index[:-1].intersection(eq2.index)
             if len(overlap) > 0:
                 np.testing.assert_allclose(
                     eq1.loc[overlap].values,

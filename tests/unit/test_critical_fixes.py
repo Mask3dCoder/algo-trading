@@ -19,11 +19,9 @@ from datetime import datetime
 from decimal import Decimal
 
 import numpy as np
-import pytest
 
 from quantcore.core.types import (
     OHLCV,
-    Fill,
     Order,
     OrderType,
     PortfolioSnapshot,
@@ -38,8 +36,6 @@ from quantcore.risk.limits import (
     check_post_trade,
     check_pre_trade,
 )
-from quantcore.risk.stress import StressResult, build_scenario_library
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,19 +128,25 @@ class TestFix3_FillDelay:
     def test_pending_orders_fill_at_next_bar_open(self):
         """Orders should fill 1 bar after signal, not 2 bars.
 
-        This is tested indirectly: the backtest engine should process pending
-        orders at the current bar before setting up fill sim for next bar.
-        The fix is in engine.py ordering — we verify the code path exists.
+        Tested via source introspection of the engine's run() loop: after the
+        forensic-audit redesign, orders generated at snapshot T are queued and
+        executed at snapshot T+1's open by ``_execute_queued_orders`` — the
+        only fill site — and this must happen BEFORE new signals are generated
+        at T+1 (otherwise a same-bar signal→fill round trip would be possible).
         """
-        # Read the engine source to verify ordering
         import inspect
+
         from quantcore.backtest.engine import BacktestEngine
         source = inspect.getsource(BacktestEngine.run)
-        # pending orders should be processed BEFORE set_bars(bar, next_bar)
-        pending_idx = source.find("Process pending orders")
-        set_bars_next_idx = source.find("set_bars(bar, next_bar)")
-        assert pending_idx < set_bars_next_idx, (
-            "Pending orders must be processed before set_bars(bar, next_bar)"
+        # Queued orders from the previous timestamp must be executed before
+        # new signals are generated at the current timestamp.
+        execute_idx = source.find("_execute_queued_orders(")
+        signal_idx = source.find("_generate_signals(")
+        assert execute_idx != -1, "_execute_queued_orders must be called in run()"
+        assert signal_idx != -1, "_generate_signals must be called in run()"
+        assert execute_idx < signal_idx, (
+            "Queued orders must be executed before new signals are generated "
+            "(preserves the 1-bar signal-to-fill delay)"
         )
 
 
@@ -195,8 +197,8 @@ class TestFix4_DrawdownForceFill:
 class TestFix5_ZeroPrice:
     def test_zero_market_price_falls_back_to_100(self):
         """market_price=0 should not produce $0 fill — falls back to 100.0."""
-        from quantcore.execution.brokers.paper import PaperBroker
         from quantcore.execution.brokers.base import BrokerOrder
+        from quantcore.execution.brokers.paper import PaperBroker
 
         broker = PaperBroker()
         order = BrokerOrder(
