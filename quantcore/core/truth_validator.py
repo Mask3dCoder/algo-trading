@@ -28,13 +28,17 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from quantcore.core import economic_kernel
-from quantcore.core.types import Fill, PortfolioSnapshot, Position, Side
+from quantcore.core.types import Fill, Position, Side
+
+if TYPE_CHECKING:
+    # Imported lazily at runtime in ``replay_engine`` to keep core -> backtest
+    # acyclic at import time.
+    from quantcore.backtest.engine import PortfolioState
 
 
 @dataclass

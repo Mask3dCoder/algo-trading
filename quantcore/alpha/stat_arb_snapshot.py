@@ -23,10 +23,14 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from quantcore.backtest.engine import SignalData
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 _log = logging.getLogger(__name__)
 
@@ -50,7 +54,7 @@ class _PairState:
 
 
 def pairs_from_panel(
-    panel: "pd.DataFrame",
+    panel: pd.DataFrame,
     train_start: str = "2018-01-01",
     train_end: str = "2021-12-31",
     lookback_days: int = 252,
@@ -67,6 +71,7 @@ def pairs_from_panel(
     for :class:`StatArbMeanReversionSnapshot`.
     """
     import pandas as pd
+
     from quantcore.alpha.pairs_finder import PairsFinder
 
     tr = panel.copy()
@@ -265,9 +270,7 @@ class StatArbMeanReversionSnapshot:
                                                metadata={"pair": key, "leg": "short_b", "z": z}))
             else:
                 should_exit = False
-                if ps.position == -1 and z <= self.exit_threshold:
-                    should_exit = True
-                elif ps.position == 1 and z >= -self.exit_threshold:
+                if (ps.position == -1 and z <= self.exit_threshold) or (ps.position == 1 and z >= -self.exit_threshold):
                     should_exit = True
                 if abs(z) > self.stop_threshold:
                     should_exit = True

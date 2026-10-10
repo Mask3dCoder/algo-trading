@@ -240,13 +240,14 @@ class LiveTrader:
             if order_value > avail + 1.0:
                 continue
 
+            order = market_order(symbol=symbol, side=side, quantity=qty)
+
             # Reserve cash
             try:
                 self._cash_ledger.reserve(order_value, order.id)
             except Exception:
                 continue
 
-            order = market_order(symbol=symbol, side=side, quantity=qty)
             snap = PortfolioSnapshot(
                 timestamp=datetime.now(UTC), positions=self._positions,
                 total_value=self._current_value(),

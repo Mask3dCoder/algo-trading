@@ -43,10 +43,8 @@ from __future__ import annotations
 import atexit
 import json
 import logging
-import os
 import signal
-import sys
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -61,11 +59,11 @@ except ImportError:
         "schedule module required: pip install schedule"
     )
 
-from quantcore.core.types import Order, Side
+from quantcore.core.types import Order, Position, Side
 from quantcore.live.broker import LiveExecutionGateway
-from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerState
+from quantcore.live.circuit_breaker import CircuitBreaker
 from quantcore.live.data_feed import LiveDataFeed
-from quantcore.live.risk_manager import Approval, RiskManagerLive, RiskLimitsConfig
+from quantcore.live.risk_manager import RiskLimitsConfig, RiskManagerLive
 from quantcore.strategies.base import Strategy, TradeSignal
 
 log = logging.getLogger(__name__)
@@ -105,7 +103,7 @@ class LiveBroker:
     def cancel_order(self, order_id: str) -> bool:
         return self._gw.cancel_order(order_id)
 
-    def get_positions(self) -> dict[str, "Position"]:  # type: ignore[name-defined]
+    def get_positions(self) -> dict[str, Position]:
         return self._gw.get_positions()
 
     def get_account(self) -> dict[str, float]:
@@ -408,7 +406,7 @@ class PaperTrader:
 
             # Log event
             event = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "event":     "submit",
                 "symbol":    symbol,
                 "side":      side.value,
@@ -452,7 +450,7 @@ class PaperTrader:
         )
         order_id = self.broker.submit_order(order)
         event = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event":     "close",
             "symbol":    symbol,
             "qty":       qty,

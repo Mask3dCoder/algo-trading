@@ -14,14 +14,17 @@ network access (Alpaca responses are mocked via hypothesis + respx).
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, timezone
-from pathlib import Path
-from typing import Any
+from datetime import date
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
+
+if TYPE_CHECKING:
+    # Constructed lazily inside fixtures (mocked, no network); annotation-only here.
+    from quantcore.live.data_feed import LiveDataFeed
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -180,10 +183,10 @@ class TestSignalParity:
         synthetically_mapped_live_feed,
     ) -> None:
         """on_data() must return identical signals for synthetic vs LiveDataFeed input."""
+        from quantcore.strategies.base import StrategyConfig
         from quantcore.strategies.macro.cross_sectional_momentum import (
             CrossSectionalMomentumStrategy,
         )
-        from quantcore.strategies.base import StrategyConfig
 
         cfg = StrategyConfig(
             name="macro_cross_sectional_momentum",
@@ -228,8 +231,8 @@ class TestLiveExecutionGateway:
         assert gw.get_account()["cash"] == 50_000
 
     def test_gateway_paper_order_flow(self) -> None:
-        from quantcore.live.broker import LiveExecutionGateway
         from quantcore.core.types import Order, OrderType, Side
+        from quantcore.live.broker import LiveExecutionGateway
 
         with patch.dict(os.environ):
             for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):
@@ -252,8 +255,8 @@ class TestLiveExecutionGateway:
             assert "AAPL" in gw.get_positions()
 
     def test_gateway_short_sell(self) -> None:
-        from quantcore.live.broker import LiveExecutionGateway
         from quantcore.core.types import Order, OrderType, Side
+        from quantcore.live.broker import LiveExecutionGateway
 
         with patch.dict(os.environ):
             for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):
@@ -273,8 +276,8 @@ class TestLiveExecutionGateway:
         assert float(gw.get_positions()["SPY"].quantity) == 5
 
     def test_gateway_rejects_insufficient_cash(self) -> None:
-        from quantcore.live.broker import LiveExecutionGateway
         from quantcore.core.types import Order, OrderType, Side
+        from quantcore.live.broker import LiveExecutionGateway
 
         with patch.dict(os.environ):
             for k in ("ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_BASE_URL"):

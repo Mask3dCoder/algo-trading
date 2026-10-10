@@ -66,11 +66,14 @@ import os
 import sys
 import threading
 import time as _time
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
-from pathlib import Path
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from quantcore.live.paper_trading.adaptive_hedger import AdaptiveHedger
+    from quantcore.live.paper_trading.risk_controller import RiskController
+    from quantcore.live.paper_trading.tca_engine import TCAEngine
 
 _log = __import__("logging").getLogger(__name__)
 
@@ -506,7 +509,6 @@ class ANSIDashboardRenderer:
 
 class ANSIDashboardRendererTextual(ANSIDashboardRenderer):
     """Extended renderer with blinking red for critical states (Textual compat)."""
-    pass
 
 
 def Greek_indicator(delta: float, warn_threshold: float, critical_threshold: float) -> str:
@@ -526,8 +528,8 @@ def _try_import_textual():
     """Try to import Textual. Returns (module_or_None, is_available)."""
     try:
         from textual.app import App, ComposeResult
-        from textual.widgets import Static
         from textual.reactive import reactive
+        from textual.widgets import Static
         return (True,)
     except ImportError:
         return (False,)
@@ -583,9 +585,9 @@ class TerminalDashboard:
         mode: str = "ansi",
         refresh_interval_sec: float = 1.0,
         starting_capital: float = 100_000.0,
-        risk_controller: "RiskController | None" = None,
-        tca_engine: "TCAEngine | None" = None,
-        hedger: "AdaptiveHedger | None" = None,
+        risk_controller: RiskController | None = None,
+        tca_engine: TCAEngine | None = None,
+        hedger: AdaptiveHedger | None = None,
     ) -> None:
         self._mode = mode
         self._interval = refresh_interval_sec

@@ -30,17 +30,21 @@ Usage
 from __future__ import annotations
 
 import csv
+import logging
 import threading
 import time as _time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-_log = __import__("logging").getLogger(__name__)
+if TYPE_CHECKING:
+    from quantcore.live.execution_state import ExecutionEvent
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -265,7 +269,7 @@ class PartialFillHandler:
 
     def __init__(
         self,
-        tca_engine: "TCAEngine",
+        tca_engine: TCAEngine,
         sweep_threshold_sec: float = 30.0,
         poll_interval_sec: float = 5.0,
         on_sweep_callback: Callable[[str], None] | None = None,
@@ -485,7 +489,7 @@ class TCAEngine:
 
     def record_execution(
         self,
-        event: "ExecutionEvent",
+        event: ExecutionEvent,
         arrival_price: float,
         mid_price: float,
         is_sweep: bool = False,

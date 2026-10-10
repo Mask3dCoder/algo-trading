@@ -40,16 +40,14 @@ import atexit
 import json
 import logging
 import os
-import signal
 import sys
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from dataclasses import asdict, dataclass
+from datetime import date, timedelta
 from enum import Enum
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import yaml
 
 # schedule — pure stdlib-compatible scheduling (pip install schedule)
@@ -59,45 +57,44 @@ except ImportError:  # pragma: no cover — defensive; condaforge makes it avail
     raise ImportError("schedule module required: pip install schedule") from None
 
 from quantcore.core.data_validation import validate_live_snapshot
-from quantcore.core.types import Order, Side
-from quantcore.live.circuit_breaker import CircuitBreaker, CircuitBreakerState
-from quantcore.live.execution_state import ExecutionEvent, ExecutionEventState
+from quantcore.core.types import Side
+from quantcore.live.circuit_breaker import CircuitBreaker
 from quantcore.live.data_feed import LiveDataFeed
+from quantcore.live.execution_state import ExecutionEvent, ExecutionEventState
+from quantcore.live.paper_trading.adaptive_hedger import (
+    AdaptiveHedger,
+    AdaptiveHedgerConfig,
+)
 from quantcore.live.paper_trading.analytics_dashboard import (
     AnalyticsConfig,
     PaperTradingAnalytics,
 )
-from quantcore.live.paper_trading.tca_engine import TCAConfig, TCAEngine, PartialFillHandler
-from quantcore.live.paper_trading.adaptive_hedger import AdaptiveHedger, AdaptiveHedgerConfig, HedgeSignal
-from quantcore.live.paper_trading.terminal_dashboard import TerminalDashboard
-from quantcore.live.paper_trading.execution_environment import (
-    PaperExecutionConfig,
-    PaperExecutionEnvironment,
-)
-from quantcore.live.paper_trading.risk_controller import (
-    ExecutionState,
-    RiskController,
-    RiskControllerConfig,
-)
-from quantcore.live.paper_trading.position_sizer import (
-    PositionSizer,
-    PositionSizerConfig,
+from quantcore.live.paper_trading.connection_monitor import (
+    ConnectionMonitor,
 )
 from quantcore.live.paper_trading.delta_telemetry import (
     DeltaTelemetryConfig,
     DeltaTelemetryMiddleware,
 )
+from quantcore.live.paper_trading.execution_environment import (
+    PaperExecutionConfig,
+    PaperExecutionEnvironment,
+)
 from quantcore.live.paper_trading.live_connector import (
-    LiveStreamConnector,
     PassiveExecutionProxy,
-    SilentRunOrchestrator,
 )
-from quantcore.live.paper_trading.connection_monitor import (
-    ConnectionMonitor,
-    ConnectionState,
+from quantcore.live.paper_trading.position_sizer import (
+    PositionSizer,
+    PositionSizerConfig,
 )
+from quantcore.live.paper_trading.risk_controller import (
+    RiskController,
+    RiskControllerConfig,
+)
+from quantcore.live.paper_trading.tca_engine import TCAConfig, TCAEngine
+from quantcore.live.paper_trading.terminal_dashboard import TerminalDashboard
 from quantcore.strategies.base import Strategy, StrategyConfig
-from quantcore.strategies.registry import create as create_strategy, get as get_strategy
+from quantcore.strategies.registry import create as create_strategy
 
 log = logging.getLogger(__name__)
 
@@ -194,7 +191,7 @@ class PaperTradingConfig:
     dte_max: int = 60
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PaperTradingConfig":
+    def from_dict(cls, data: dict) -> PaperTradingConfig:
         """Build from a YAML-loaded dict."""
         strategies = data.get("strategies", [])
         strat_cfg = next(
@@ -693,7 +690,7 @@ class PaperTradingRunner:
             # Size position using PositionSizer (capital-allocated)
             sigma_est = self._exec.get_current_iv()
             T_rough = (self.cfg.dte_min + self.cfg.dte_max) / 2.0 / 252.0
-            from quantcore.alpha.delta_neutral import _bsm_call as _call, _bsm_put as _put, _bsm_delta
+            from quantcore.alpha.delta_neutral import _bsm_call, _bsm_delta, _bsm_put
             synthetic_premium = _bsm_call(spot, spot, T_rough, 0.05, sigma_est) * 2
             sizing = self._position_sizer.size_option_entry(
                 premium=max(synthetic_premium, 0.50),
