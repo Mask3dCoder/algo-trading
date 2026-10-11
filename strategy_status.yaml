@@ -133,16 +133,21 @@ strategies:
     paper_end_date: null
     notes: Registered/importable but not selected for immediate Phase 4 validation.
   equity_stat_arb:
-    phase: PAPER
+    phase: INACTIVE
     family: equity
     config_file: config/strategies/equity_stat_arb.toml
     live_weight: null
-    paper_allocation_weight: 0.3333333333333333
-    paper_risk_budget_weight: 0.015
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
     paper_start_date: '2026-06-09'
     paper_end_date: '2026-07-21'
-    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
-      allowed.
+    notes: 'Registry reconciliation 2026-10-11: paper window (2026-06-09 ->
+      2026-07-21) lapsed; strategy is NOT paper-trading. Under the honest
+      full-engine validation stack (2026-10-10 migration off the signal-returns
+      shortcut) it scores OOS Sharpe -0.46 with 90% CI lower -2.84 — the old
+      shortcut reported CI lower +0.086, a false positive. Re-entry to PAPER
+      requires passing the runtime evidence gate on a fresh paper window;
+      no parameter tuning allowed.'
   equity_stat_arb_mr:
     phase: INACTIVE
     family: equity
@@ -485,16 +490,19 @@ strategies:
       Prior reported Sharpe derived from the hedge-P&L inflation bug; not deployable
       until re-validated through the phase gates under FREEZE.md.'
   options_tail_hedge:
-    phase: PAPER
+    phase: INACTIVE
     family: options
     config_file: config/strategies/options_tail_hedge.toml
     live_weight: null
-    paper_allocation_weight: 0.3333333333333333
-    paper_risk_budget_weight: 0.015
+    paper_allocation_weight: null
+    paper_risk_budget_weight: null
     paper_start_date: '2026-06-09'
     paper_end_date: '2026-07-21'
-    notes: Phase 4 paper validation batch selected on 2026-06-09; no parameter tuning
-      allowed.
+    notes: 'Registry reconciliation 2026-10-11: paper window (2026-06-09 ->
+      2026-07-21) lapsed; strategy is NOT paper-trading. Also blocked upstream
+      by missing real options chain data (OPRA/Polygon unavailable). Skew and
+      cross-asset correlation are proxies. Re-entry to PAPER requires real
+      chain data plus a fresh paper window.'
   sentiment_momentum:
     phase: INACTIVE
     family: alpha

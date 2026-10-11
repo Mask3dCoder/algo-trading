@@ -1,5 +1,17 @@
 # QuantCore Phase 4 Paper Validation Configuration
 # Updated: 2026-06-12
+# Batch status: CLOSED 2026-07-21 (see below)
+#
+# BATCH CLOSED 2026-10-11 (registry reconciliation):
+#   The validation window 2026-06-09 -> 2026-07-21 has elapsed and both
+#   strategies are INACTIVE in strategy_status.yaml. This file is retained
+#   as the record of that batch (composition, weights, params, circuit
+#   breakers). It is NOT launchable: `python scripts/config_preflight.py
+#   --paper` now fails closed on the elapsed window and on the phase
+#   mismatch. A new paper batch requires a fresh window plus explicit
+#   governance approval — it is not a config edit.
+#   equity_stat_arb additionally failed honest full-engine validation on
+#   2026-10-10 (OOS Sharpe -0.46, 90% CI lower -2.84).
 #
 # Purpose:
 #   Parallel paper validation for non-live strategies selected from the

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +115,48 @@ def check_kill_switch_logs() -> list[str]:
     return warnings
 
 
+def check_validation_window(config: dict[str, Any], expected: str) -> tuple[list[str], list[str]]:
+    """Fail closed when the configured paper validation window has elapsed.
+
+    The registry phase is only half of the launch gate; the configured
+    window is the other half. Without this check a batch whose window
+    ended months ago still preflights clean as long as the registry says
+    PAPER — which is exactly how the Phase 4 batch (2026-06-09 ->
+    2026-07-21) stayed launchable-looking long after it lapsed. A new
+    window is a governance decision (FREEZE.md), not a config edit.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if expected != "PAPER":
+        return errors, warnings
+
+    validation = config.get("validation")
+    if not isinstance(validation, dict):
+        warnings.append("config has no 'validation' block; paper window cannot be verified")
+        return errors, warnings
+
+    end = validation.get("end_date")
+    if not end:
+        warnings.append("config validation block has no end_date; paper window cannot be verified")
+        return errors, warnings
+
+    try:
+        end_date = date.fromisoformat(str(end))
+    except ValueError:
+        errors.append(f"config validation.end_date {end!r} is not an ISO date (YYYY-MM-DD)")
+        return errors, warnings
+
+    today = date.today()
+    if end_date < today:
+        errors.append(
+            f"paper validation window ended {end_date.isoformat()} "
+            f"({(today - end_date).days} days ago); launching requires a fresh window "
+            "with explicit governance approval"
+        )
+    return errors, warnings
+
+
 def run_preflight(config_path: Path, status_path: Path) -> int:
     """Run all preflight checks and return a process exit code."""
     errors: list[str] = []
@@ -158,6 +201,10 @@ def run_preflight(config_path: Path, status_path: Path) -> int:
         )
     else:
         warnings.append(f"Enabled strategy weights sum to {weight_sum:.12f}")
+
+    window_errors, window_warnings = check_validation_window(config, expected)
+    errors.extend(window_errors)
+    warnings.extend(window_warnings)
 
     file_errors, file_warnings = check_kill_switch_files()
     errors.extend(file_errors)
