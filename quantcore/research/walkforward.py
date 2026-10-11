@@ -9,6 +9,7 @@ strictly OOS returns.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +20,7 @@ from numpy.typing import NDArray
 
 from quantcore.research.bootstrap import bootstrap_confidence_interval
 from quantcore.research.dsr_published import deflated_sharpe_ratio_published
+from quantcore.research.purged_cv import generate_purged_folds
 
 _log = logging.getLogger(__name__)
 
@@ -55,12 +57,64 @@ class WalkForwardBacktester:
         *,
         train_years: int = 10,
         test_years: int = 1,
+        label_horizon_days: int = 0,
+        embargo_days: int = 0,
     ) -> None:
         self.strategy = strategy
         self.train_years = train_years
         self.test_years = test_years
+        self.label_horizon_days = label_horizon_days
+        self.embargo_days = embargo_days
 
     def generate_folds(self, dates: pd.DatetimeIndex) -> list[dict[str, Any]]:  # type: ignore[type-arg]
+        """Generate anchored walk-forward folds, purged by label horizon.
+
+        ``train_end`` is the last observation whose label is fully known before
+        the OOS window opens - it is NOT ``oos_start - 1 day``. With
+        ``label_horizon_days=0`` the two coincide and behaviour is unchanged.
+        ``train_end_raw`` and ``purged_days`` are reported so the size of the
+        removal is visible in results rather than implicit.
+        """
+        folds: list[dict[str, Any]] = []
+        for fold in generate_purged_folds(
+            dates,
+            train_years=self.train_years,
+            test_years=self.test_years,
+            label_horizon_days=self.label_horizon_days,
+            embargo_days=self.embargo_days,
+        ):
+            folds.append(fold.as_dict())
+        return folds
+
+    def _supports_training_end(self) -> bool:
+        """Whether the strategy can actually stop training at a date."""
+        try:
+            params = inspect.signature(self.strategy.run_returns_backtest).parameters
+        except (TypeError, ValueError):
+            return False
+        return "training_end" in params
+
+    def _warn_if_purge_unsupported(self) -> None:
+        """Fail loudly when a purge is requested but cannot be honoured.
+
+        Silently training on data whose labels reach into the OOS window is the
+        exact failure this module exists to prevent, so it is a warning with
+        the purge size in it, not a silent no-op.
+        """
+        if self.label_horizon_days <= 0 and self.embargo_days <= 0:
+            return
+        if not self._supports_training_end():
+            _log.warning(
+                "purge_unsupported: strategy %s has no 'training_end' parameter, so "
+                "the requested purge (label_horizon_days=%d, embargo_days=%d) CANNOT "
+                "be enforced - training will extend to the OOS boundary and results "
+                "will be optimistically biased.",
+                type(self.strategy).__name__,
+                self.label_horizon_days,
+                self.embargo_days,
+            )
+
+    def _legacy_generate_folds(self, dates: pd.DatetimeIndex) -> list[dict[str, Any]]:  # type: ignore[type-arg]
         """Generate anchored walk-forward folds.
 
         Returns a list of dicts with keys ``train_start``, ``train_end``,
@@ -112,6 +166,8 @@ class WalkForwardBacktester:
         """
         folds = self.generate_folds(dates)
         _log.info("generated_folds: n_folds=%d", len(folds))
+        self._warn_if_purge_unsupported()
+        honour_training_end = self._supports_training_end()
 
         fold_results: list[WalkForwardResult] = []
         all_oos_returns: list[NDArray[np.floating]] = []
@@ -120,18 +176,27 @@ class WalkForwardBacktester:
 
         for i, fold_def in enumerate(folds, start=1):
             _log.info(
-                "running_fold: fold=%d, train_end=%s, oos_start=%s, oos_end=%s",
+                "running_fold: fold=%d, train_end=%s (purged %s days), oos_start=%s, oos_end=%s",
                 i,
                 fold_def["train_end"],
+                fold_def.get("purged_days", 0),
                 fold_def["oos_start"],
                 fold_def["oos_end"],
             )
+
+            # Hand the strategy the PurgED boundary when it can accept one;
+            # otherwise training runs to the OOS edge and the warning above
+            # has already said so.
+            train_kwargs: dict[str, Any] = {}
+            if honour_training_end:
+                train_kwargs["training_end"] = fold_def["train_end"]
 
             # Run the returns-based backtest for this fold
             equity, daily_rets, turnover, _ = self.strategy.run_returns_backtest(
                 start=fold_def["oos_start"],
                 end=fold_def["oos_end"],
                 training_start=fold_def["train_start"],
+                **train_kwargs,
                 **cparams,
             )
 

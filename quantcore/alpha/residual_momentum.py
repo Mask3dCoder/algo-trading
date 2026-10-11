@@ -89,12 +89,19 @@ class ResidualMomentumStrategy:
         self,
         as_of: pd.Timestamp,  # type: ignore[type-arg]
         training_start: pd.Timestamp,  # type: ignore[type-arg]
+        training_end: pd.Timestamp | None = None,  # type: ignore[type-arg]
     ) -> dict[str, float]:
         """Compute target portfolio weights as of ``as_of``.
 
-        The OLS betas are estimated on *all* data from ``training_start`` up to
-        (and including) ``as_of``.  The cumulative idiosyncratic return is
-        summed over the past ``lookback_months`` months from ``as_of``.
+        The OLS betas are estimated on data from ``training_start`` up to (and
+        including) ``as_of``.  ``training_end`` optionally caps that estimation
+        window, which is how a purged walk-forward keeps training from reaching
+        across the fold boundary: a beta estimated on data that overlaps the OOS
+        window is fitted on the answer. When ``training_end`` is None the window
+        is unbounded above, exactly as before.
+
+        The cumulative idiosyncratic return is summed over the past
+        ``lookback_months`` months from ``as_of``.
 
         Returns
         -------
@@ -106,8 +113,10 @@ class ResidualMomentumStrategy:
         if as_of not in self._dates:
             as_of = self._dates[self._dates <= as_of][-1]
 
-        # -- expanding window up to `as_of` ---------------------------------
+        # -- expanding window up to `as_of`, optionally capped --------------
         mask = (self._dates >= training_start) & (self._dates <= as_of)
+        if training_end is not None:
+            mask &= self._dates <= training_end
         window_rets = self._log_returns.loc[mask]
         window_factors = self._factors.loc[mask]
 
@@ -166,6 +175,7 @@ class ResidualMomentumStrategy:
         start: pd.Timestamp,  # type: ignore[type-arg]
         end: pd.Timestamp,  # type: ignore[type-arg]
         training_start: pd.Timestamp,  # type: ignore[type-arg],
+        training_end: pd.Timestamp | None = None,  # type: ignore[type-arg]
         initial_capital: float = 1_000_000.0,
         spread_bps: float = 5.0,
         impact_bps: float = 10.0,
@@ -207,7 +217,7 @@ class ResidualMomentumStrategy:
             # Transaction costs applied on rebalance dates
             if date in rebal_dates:
                 # Compute new target weights
-                new_weights = self.compute_target_weights(date, training_start)
+                new_weights = self.compute_target_weights(date, training_start, training_end)
                 new_w = pd.Series(0.0, index=weights.index)
                 new_w.update(new_weights)
                 new_w = new_w.reindex(weights.index).fillna(0.0)
