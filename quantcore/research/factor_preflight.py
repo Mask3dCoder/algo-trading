@@ -248,26 +248,53 @@ def check_benchmark(store: Any) -> PreflightReport:
 
 
 def check_formation_burnin(store: Any, symbols: list[str]) -> PreflightReport:
-    """Protocol S3/S5: enough history for the 12-1 lookback before OOS starts."""
+    """Protocol S3/S5: enough history for the 12-1 lookback before OOS starts.
+
+    Counted from real stored bars, not from a business-day approximation: a
+    weekday calendar ignores market holidays and overestimates the history
+    actually available, which would let an insufficient panel pass this gate.
+    """
     report = PreflightReport()
-    first_dates: list[pd.Timestamp] = []
-    for sym in symbols[:60]:
-        bars = store.read("equity_bars", [sym])
-        if len(bars):
-            first_dates.append(pd.Timestamp(bars["ts"].min()))
-    if not first_dates:
+    calendar_sym = BENCHMARK if store.has_shard("equity_bars", BENCHMARK) else None
+    if calendar_sym is None:
+        dates: list[pd.Timestamp] = []
+        for sym in symbols[:60]:
+            bars = store.read("equity_bars", [sym])
+            if len(bars):
+                dates.extend(pd.Timestamp(bars["ts"]))
+        calendar = pd.DatetimeIndex(sorted(set(dates)))
+    else:
+        bars = store.read("equity_bars", [calendar_sym])
+        calendar = pd.DatetimeIndex(pd.to_datetime(bars["ts"]).sort_values())
+
+    if len(calendar) == 0:
         report.add("formation_burnin", "FAIL", "no price history to measure burn-in", "S3 formation")
         return report
 
-    earliest = min(first_dates)
+    first_bar = calendar[0]
     bars_needed = MOMENTUM_LOOKBACK + MOMENTUM_SKIP
-    calendar = pd.bdate_range(earliest, periods=bars_needed)
+    oos_start = first_bar + pd.DateOffset(months=FORMATION_MONTHS)
+    available = int((calendar < oos_start).sum())
+
+    if available < bars_needed:
+        report.add(
+            "formation_burnin",
+            "FAIL",
+            f"only {available} trading bars precede the {FORMATION_MONTHS}-month formation "
+            f"reserve ({oos_start.date()}); the 12-1 factor needs {bars_needed} "
+            f"(T-{MOMENTUM_LOOKBACK} and T-{MOMENTUM_SKIP})",
+            "S3 formation / S5 12-1 momentum",
+        )
+        return report
+
+    lookback_date = calendar[available - MOMENTUM_LOOKBACK]
     report.add(
         "formation_burnin",
         "PASS",
-        f"panel starts {earliest.date()}; {bars_needed} trading days of history "
-        f"({len(calendar)} business days to {calendar[-1].date()}) cover the "
-        f"12-1 lookback plus the {FORMATION_MONTHS}-month formation reserve",
+        f"panel starts {first_bar.date()}; {available} real trading bars precede the "
+        f"{FORMATION_MONTHS}-month formation reserve ending {oos_start.date()}, against "
+        f"{bars_needed} required; first OOS close[T-{MOMENTUM_LOOKBACK}] resolves to "
+        f"{lookback_date.date()}",
         "S3 formation / S5 12-1 momentum",
     )
     return report
