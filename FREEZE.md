@@ -75,4 +75,29 @@ New strategy/signal code may resume only after:
 2. The backtest cost model passes the `buy_and_hold(SPY)` sanity check.
 3. Walk-forward + purged k-fold + DSR p < 0.05 are enforced as a hard gate.
 
+### Gate status (recorded 2026-10-11)
+
+The three conditions are now met **as capabilities**. This is not a verdict on
+any strategy and authorises no new strategy/signal work: the only sanctioned
+experiment remains the pre-registered cross-sectional factor protocol.
+
+1. **MET.** 612-name PIT panel ingested and verified (gate asks 500+), from
+   Alpaca IEX via `bin/alpaca_ingest.py`. Raw + vendor-adjusted series stored
+   separately; implied adjustment factors derived; splits and delistings
+   derived and checked against known ground truth (AMZN 20:1, GOOGL 20:1,
+   TSLA 5:1 + 3:1, NVDA 4:1 + 10:1, ATVI delisting at the 94.42 deal price).
+   52 dead names retained with full history, so the panel is
+   survivorship-reduced. Two declared limitations (derived corporate actions,
+   permissive PIT membership) are logged in the protocol's amendment log.
+2. **MET.** `tests/integration/test_backtest_sanity.py` — zero-cost
+   `buy_and_hold` reproduces SPY total return exactly and cost drag equals one
+   round trip. 3 tests, green.
+3. **MET as a capability.** Walk-forward (`quantcore/research/walkforward.py`),
+   purged + embargoed folds (`quantcore/research/purged_cv.py`), and the
+   published DSR (`quantcore/research/dsr_published.py`) all exist and are
+   wired. Purging was added 2026-10-11: folds previously trained to
+   `oos_start - 1 day`, which let the final year of every training set carry
+   labels paid off by prices inside the OOS window — a leak that is worst
+   precisely for the 12-month momentum label this project scores.
+
 Rollback point: `git tag pre-forensic-audit` (HEAD `61daebe`).
