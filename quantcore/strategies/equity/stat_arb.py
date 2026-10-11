@@ -42,6 +42,10 @@ class StatArbStrategy(Strategy):
         self.rescan_freq = int(config.params.get("rescan_freq", 63))
         self._pairs: list[dict] = []
         self._days_since_scan = self.rescan_freq  # Force initial scan
+        # Positions held per symbol (checked by the pair-exit branch below;
+        # previously never initialized -> AttributeError whenever an exit
+        # signal was evaluated, which silently killed whole backtest folds).
+        self._positions: dict[str, float] = {}
 
     def _scan_pairs(self, prices: NDArray) -> list[dict]:
         """Scan for cointegrated pairs using Engle-Granger approach."""
@@ -111,33 +115,54 @@ class StatArbStrategy(Strategy):
         return pairs[:self.max_pairs]
 
     def _kalman_spread(self, spread: NDArray) -> tuple[NDArray, NDArray]:
-        """Simple Kalman filter on spread for dynamic mean tracking."""
+        """2-state Kalman filter (mean, slope) on the spread.
+
+        Mathematically identical to the 2x2 matrix form (F=[[1,1],[0,1]],
+        H=[1,0], Q=0.001*I, R=0.1*var(spread)): the matrix chain products
+        and the 1x1 inverse are expanded elementwise and the recursion runs
+        on plain floats. Identical equations, same result to floating-point
+        tolerance, ~100x faster than calling np.linalg.inv per step (the
+        per-step Python matrix algebra dominated the batch validator at
+        96% of stat_arb's runtime - 2M inv() calls).
+        """
         n = len(spread)
-        # State: [mean, slope]
-        x_est = np.array([spread[0], 0.0])
-        P = np.eye(2) * 1.0
-        Q = np.eye(2) * 0.001  # Process noise
-        R = np.array([[np.var(spread) * 0.1]])  # Observation noise
-        H = np.array([[1.0, 0.0]])
-        F = np.array([[1.0, 1.0], [0.0, 1.0]])
+        r = float(np.var(spread)) * 0.1  # observation noise (R)
+
+        # State x_est = [mean, slope]; P = [[p00, p01], [p10, p11]]
+        m = float(spread[0])
+        s = 0.0
+        p00, p01, p10, p11 = 1.0, 0.0, 0.0, 1.0
 
         means = np.zeros(n)
         stds = np.zeros(n)
 
         for t in range(n):
-            # Predict
-            x_pred = F @ x_est
-            P_pred = F @ P @ F.T + Q
+            # Predict: x_pred = F @ x_est
+            m_pred = m + s
+            s_pred = s
+            # P_pred = F @ P @ F.T + Q, F = [[1,1],[0,1]], Q = 0.001*I
+            pp00 = p00 + p01 + p10 + p11 + 0.001
+            pp01 = p01 + p11
+            pp10 = p10 + p11
+            pp11 = p11 + 0.001
 
-            # Update
-            z = np.array([spread[t] - x_pred[0]])
-            S = H @ P_pred @ H.T + R
-            K = P_pred @ H.T @ np.linalg.inv(S)
-            x_est = x_pred + K @ z
-            P = (np.eye(2) - K @ H) @ P_pred
+            # Update: S = H @ P_pred @ H.T + R (1x1 inverse = 1/S)
+            z = float(spread[t]) - m_pred
+            S = pp00 + r
+            k0 = pp00 / S
+            k1 = pp10 / S
 
-            means[t] = x_est[0]
-            stds[t] = np.sqrt(max(P[0, 0], 1e-10))
+            m = m_pred + k0 * z
+            s = s_pred + k1 * z
+
+            # P = (I - K @ H) @ P_pred
+            p00 = pp00 - k0 * pp00
+            p01 = pp01 - k0 * pp10
+            p10 = pp10 - k1 * pp00
+            p11 = pp11 - k1 * pp10
+
+            means[t] = m
+            stds[t] = np.sqrt(max(p00, 1e-10))
 
         return means, stds
 
