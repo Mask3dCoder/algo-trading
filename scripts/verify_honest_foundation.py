@@ -22,7 +22,7 @@ import math
 import sys
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -111,46 +111,129 @@ def run_null_strategy_audit() -> dict:
         return {"error": str(e), "engine_is_biased": True, "judgment": f"ERROR: {e}"}
 
 
-def check_triage_gates() -> list[dict]:
-    """Check all strategies in live.yaml against TriageGate."""
+SCOREBOARD_PATH = REPO_ROOT / "reports" / "strategy_scoreboard.json"
+
+
+def _load_scoreboard_evidence() -> tuple[dict[str, dict], str | None]:
+    """Load the batch validator's scoreboard (the real evidence source).
+
+    Returns (by_name, staleness_note). A missing/unreadable scoreboard is
+    NOT silently treated as "no evidence" — the caller fails closed.
+    """
+    if not SCOREBOARD_PATH.exists():
+        return {}, f"{SCOREBOARD_PATH} does not exist — run scripts/validate_all_strategies.py"
     try:
-        from quantcore.research.triage_gate import TriageGate
-        import yaml
+        payload = json.loads(SCOREBOARD_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return {}, f"scoreboard unreadable: {exc}"
 
-        gate = TriageGate()
-        with open("config/live.yaml") as f:
+    strategies = payload.get("strategies") or []
+    by_name = {s["strategy_id"]: s for s in strategies if "strategy_id" in s}
+    note = None
+    # The scoreboard writes its generation stamp under "generated"
+    # (see _save_scoreboard_json in validate_all_strategies.py).
+    ts = payload.get("timestamp") or payload.get("generated_at") or payload.get("generated")
+    if ts:
+        try:
+            stamp = datetime.fromisoformat(str(ts))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=UTC)
+            age_days = (datetime.now(UTC) - stamp).days
+            if age_days > 30:
+                note = f"scoreboard is {age_days} days old (generated {ts})"
+        except Exception:
+            note = f"could not parse scoreboard timestamp {ts!r}"
+    else:
+        note = "scoreboard carries no generation timestamp (staleness unknown)"
+    return by_name, note
+
+
+def _score_number(row: dict, key: str) -> float:
+    """Read a numeric metric from a scoreboard row; NaN if absent/unparsable.
+
+    NaN (never a default) is deliberate: a missing metric must surface as a
+    gate failure, not as a value that happens to pass.
+    """
+    try:
+        return float(row.get(key))
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def check_triage_gates() -> list[dict]:
+    """Run the TriageGate against REAL OOS evidence from the scoreboard.
+
+    Previously this called ``gate.check()`` with hardcoded metrics
+    (oos_sharpe=1.5, ci_low=0.5, dsr_p=0.05, n_oos_trades=20) and reported
+    the verdict as if a backtest had produced them — fabricated evidence in
+    the one tool whose job is to detect fabricated evidence. Every metric now
+    comes from ``reports/strategy_scoreboard.json`` (written by
+    scripts/validate_all_strategies.py through the full BacktestEngine), and
+    a strategy with no scoreboard row FAILS the gate: no exception, no
+    invented numbers.
+    """
+    from quantcore.research.triage_gate import TriageGate
+    import yaml
+
+    gate = TriageGate()
+
+    try:
+        with open(REPO_ROOT / "config" / "live.yaml") as f:
             config = yaml.safe_load(f)
+    except Exception as exc:  # noqa: BLE001
+        return [{"error": f"cannot read config/live.yaml: {exc}"}]
 
-        results = []
-        for strat_cfg in config.get("strategies", []):
-            name = strat_cfg["name"]
-            enabled = strat_cfg.get("enabled", False)
-            if not enabled:
-                continue
+    evidence, staleness_note = _load_scoreboard_evidence()
 
-            stype = "OPTIONS" if "options" in name else "EQUITY"
+    results: list[dict] = []
+    for strat_cfg in config.get("strategies", []):
+        name = strat_cfg["name"]
+        if not strat_cfg.get("enabled", False):
+            continue
 
-            # In a real check, these would come from OOS backtest metrics
-            result = gate.check(
-                strategy_name=name,
-                strategy_type=stype,
-                oos_sharpe=1.5,
-                ci_low=0.5,
-                dsr_p=0.05,
-                max_dd_pct=30.0,
-                n_oos_trades=20,
-                null_sharpe=0.05,
-            )
+        stype = "OPTIONS" if "options" in name else "EQUITY"
+        row = evidence.get(name)
+
+        if row is None:
             results.append({
                 "name": name,
-                "passed": result.passed,
-                "failures": result.failures,
-                "warnings": result.warnings,
-                "metrics": str(result.metrics),
+                "passed": False,
+                "failures": [
+                    "NO EVIDENCE — no scoreboard row; run validate_all_strategies.py "
+                    "to produce real OOS metrics (gate inputs are never fabricated)"
+                ],
+                "warnings": [staleness_note] if staleness_note else [],
+                "metrics": "unavailable",
             })
-        return results
-    except Exception as e:
-        return [{"error": str(e)}]
+            continue
+
+        trades = _score_number(row, "n_trades")
+        result = gate.check(
+            strategy_name=name,
+            strategy_type=stype,
+            oos_sharpe=_score_number(row, "oos_sharpe"),
+            ci_low=_score_number(row, "ci_lower_90"),
+            ci_high=_score_number(row, "ci_upper_90"),
+            dsr_p=_score_number(row, "dsr_pvalue"),
+            max_dd_pct=_score_number(row, "max_drawdown_pct"),
+            n_oos_trades=int(trades) if trades == trades else 0,  # nan check
+            null_sharpe=0.05,
+        )
+        warnings = list(result.warnings)
+        if staleness_note:
+            warnings.append(staleness_note)
+        if str(row.get("status", "ok")) != "ok":
+            warnings.append(f"scoreboard status={row.get('status')}: {row.get('error', '')}")
+
+        results.append({
+            "name": name,
+            "passed": result.passed,
+            "failures": result.failures,
+            "warnings": warnings,
+            "metrics": str(result.metrics),
+            "evidence_source": str(SCOREBOARD_PATH),
+        })
+    return results
 
 
 def check_pre_mortems() -> dict:
@@ -176,21 +259,40 @@ def check_pre_mortems() -> dict:
 
 
 def compute_portfolio_dsr() -> dict:
-    """Compute portfolio-level DSR."""
+    """Verify the portfolio-level DSR INFRASTRUCTURE on synthetic noise.
+
+    Rationale (unchanged, now explicit in code): there is no live portfolio
+    return series to deflate while the rebuild is frozen, so the check is
+    that the DSR pipeline runs and correctly REJECTS pure noise (p ~ 1.0,
+    not deployable). The series below is a zero-signal control, labeled
+    ``synthetic`` in the output — it is never presented as portfolio
+    performance. Wiring real portfolio returns happens only once strategies
+    are live (see the 30-day paper gate).
+    """
     try:
         from quantcore.research.portfolio_dsr import compute_portfolio_dsr
         rng = np.random.default_rng(42)
-        portfolio_returns = rng.normal(3e-4, 0.015, 505)  # Mock
+        # Synthetic zero-signal control: pure noise, mean ~0. This is NOT
+        # performance data; it is the input that MUST fail the gate.
+        synthetic_returns = rng.normal(0.0, 0.015, 505)
 
         result = compute_portfolio_dsr(
-            portfolio_returns,
+            synthetic_returns,
             n_strategies_tested=45,
             n_strategies_surviving=3,
         )
+        dsr_p = result.dsr_p_value
+        rejects_noise = not (dsr_p is not None and dsr_p < 0.05)
         return {
-            "dsr_p_value": result.dsr_p_value,
-            "is_deployable": result.is_deployable if hasattr(result, "is_deployable") else False,
-            "reason": result.fail_reason if hasattr(result, "fail_reason") else "",
+            "dsr_p_value": dsr_p,
+            "is_deployable": getattr(result, "is_deployable", False),
+            "reason": getattr(result, "fail_reason", ""),
+            "input_kind": "synthetic_zero_signal_control",
+            "input_note": (
+                "Synthetic noise, NOT portfolio performance. Infrastructure "
+                "check only: the DSR must reject it (p >= 0.05)."
+            ),
+            "rejects_noise_correctly": rejects_noise,
         }
     except Exception as e:
         return {"error": str(e)}
@@ -203,7 +305,7 @@ def main() -> int:
     print("=" * 70)
 
     report = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "version": "2024-06-06-v2",
     }
     blockers = []
