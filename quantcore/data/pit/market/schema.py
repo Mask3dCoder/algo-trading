@@ -81,6 +81,26 @@ CORP_ACTION_COLUMNS: tuple[str, ...] = (
     "source",           # "polygon" | "manual"
 )
 
+# --- Vendor total-return series (Alpaca ``adjustment=all``) ------------------
+# Same shape as EQUITY_BAR_COLUMNS. Kept in a SEPARATE dataset from the raw
+# prices on purpose: the raw series is the one an execution backtest trades on,
+# and mixing an adjusted series into it would silently remove splits from the
+# price path. The pair (raw, adjusted) is what makes the implied adjustment
+# factor computable, and therefore what replaces a corporate-actions ledger.
+EQUITY_BAR_TOTAL_RETURN_COLUMNS: tuple[str, ...] = EQUITY_BAR_COLUMNS
+
+# --- Implied adjustment factors (DERIVED, not an authoritative ledger) -------
+# factor = adjusted_close / raw_close on each trading day. A value materially
+# different from 1.0 means a corporate action sits inside that day's window.
+# source is "alpaca_derived" to keep the provenance visible downstream: nothing
+# in this table may be cited as a confirmed split or dividend.
+ADJUSTMENT_FACTOR_COLUMNS: tuple[str, ...] = (
+    "symbol",
+    "ts",       # datetime64[ns, UTC] — bar close
+    "factor",   # float — adjusted_close / raw_close
+    "source",   # "alpaca_derived"
+)
+
 # --- Universe / tickers reference (Polygon /v3/reference/tickers) ------------
 # delisted_utc is the survivorship-bias killer: active=false tickers are kept,
 # so a backtest at T never assumes a ticker exists that had already died.
@@ -96,6 +116,8 @@ UNIVERSE_COLUMNS: tuple[str, ...] = (
 
 DATASET_COLUMNS: Mapping[str, tuple[str, ...]] = {
     "equity_bars": EQUITY_BAR_COLUMNS,
+    "equity_bars_total_return": EQUITY_BAR_TOTAL_RETURN_COLUMNS,
+    "adjustment_factors": ADJUSTMENT_FACTOR_COLUMNS,
     "options_contracts": OPTION_CONTRACT_COLUMNS,
     "options_quotes": OPTION_QUOTE_COLUMNS,
     "corp_actions": CORP_ACTION_COLUMNS,
@@ -110,6 +132,8 @@ DATASET_COLUMNS: Mapping[str, tuple[str, ...]] = {
 #   universe         -> <shard=all>/<YYYY>.parquet
 PERIOD_GRANULARITY: Mapping[str, str] = {
     "equity_bars": "year",
+    "equity_bars_total_return": "year",
+    "adjustment_factors": "year",
     "options_contracts": "year",
     "options_quotes": "month",
     "corp_actions": "year",

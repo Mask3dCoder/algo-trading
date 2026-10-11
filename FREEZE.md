@@ -48,10 +48,12 @@ wonder why a gate-breaking bug did not reopen everything.
 
 ## Allowed — the only work that changes the outcome
 
-- ✅ Real data acquisition: Polygon.io subscription, PIT market data
+- ✅ Real data acquisition: Alpaca IEX subscription tier (Polygon/Massive is not
+  affordable — amended 2026-10-11, see `docs/cross_sectional_factor_protocol.md`
+  amendment log), optional IBKR TWS gap-fill, PIT market data
   (500+ liquid equities), real options NBBO chains, corporate actions
 - ✅ PIT data ingestion pipeline (`quantcore/data/pit/`,
-  `quantcore/data/sources/polygon.py`)
+  `quantcore/data/sources/polygon.py`, `quantcore/data/sources/alpaca.py`)
 - ✅ Backtest engine cost model: real bid-ask spread, market impact,
   borrow/financing, calibrated commissions + slippage
 - ✅ The `buy_and_hold(SPY)` sanity gate — until it passes, all backtests are fiction

@@ -33,6 +33,9 @@ multiple-testing correction (DSR p < 0.05)?
   (delisted tail retained), raw unadjusted bars + separate corporate-actions table, PIT
   membership (names included only from their actual listing / index-entry date; excluded
   after delisting/removal). Sourced via `bin/polygon_ingest.py` into the PIT store.
+  *(Source amended 2026-10-11 to Alpaca + optional IBKR gap-fill, with two declared
+  data limitations — see the amendment log at the end of this document. The requirements
+  above are otherwise unchanged and remain in force.)*
 - **Evaluation window (rule, not a chosen number):** the full clean post-formation period
   the backfill yields, with the first 18 months reserved as formation/training burn-in.
   The exact start/end are recorded in the results file at run time — they are set by data
@@ -175,3 +178,43 @@ multiple-testing correction (DSR p < 0.05)?
   readiness: 12 months, not 18. The live pilot proves execution, not alpha; overlap
   keeps the raise on a deliberate 12-month clock while preserving the kill-switch
   safeguards.
+- **2026-10-11 (pre-backfill, pre-results) - data source: Massive/Polygon -> Alpaca
+  (+ IBKR as gap-fill only).** Section 3 named Massive/Polygon and
+  `bin/polygon_ingest.py`. No Polygon/Massive subscription is available or
+  affordable, so the decisive dataset is built from Alpaca's free IEX tier via
+  `bin/alpaca_ingest.py`. This amendment changes the SOURCE, not the design: the
+  500+ universe, survivorship-free requirement, evaluation-window rule, factor
+  definitions, cost model, and Section 8 thresholds are all unchanged. No factor
+  results have been computed on the new data at the time of this note.
+  - **Coverage verified empirically before committing (2026-10-11):** all 612 names
+    in the smoke panel return history from Alpaca, 2 of them after a ticker-notation
+    fix (`BRK-B` -> `BRK.B`, `BF-B` -> `BF.B`). Median 1,761 bars per name equals the
+    full trading-day count for the window, so coverage is not merely nominal.
+  - **The delisted tail is available, which is the fact this amendment turns on.**
+    52 names in the panel are dead (last bars between 2018-03-06 and 2023-12-29 -
+    ATVI, DISCA, DISCK, ABMD, CELG, ESRX, FBHS, APC, and 44 others) and Alpaca
+    retains their full history. Spot-checked ATVI: final bar 2023-10-13 at 94.42,
+    the Microsoft acquisition price, with a zero-volume terminal bar. Survivorship
+    bias is therefore repairable from Alpaca alone. IBKR TWS is retained only as an
+    optional gap-fill for any name Alpaca cannot serve, and is NOT required for the
+    delisted tail.
+  - **Declared limitation (corporate actions):** Alpaca exposes no corporate-actions
+    endpoint. The protocol's "separate corporate-actions table" is therefore built
+    as the vendor's implied adjustment factor per bar - `raw` and `all` series are
+    both ingested, and the per-day ratio is stored as a DERIVED adjustment series,
+    not an authoritative dividend/split ledger. Verified non-degenerate: across
+    AAPL's 2020-08-31 4:1 split the ratio changes as expected (2020-08-28 raw
+    499.23 -> adjusted 120.96). Where a decisive result depends on a specific
+    corporate action, that action must be confirmed against a primary source before
+    any deployment decision.
+  - **Declared limitation (PIT membership):** Section 3 requires index-entry/index-
+    removal dates. No historical S&P 500 constituent file exists in this repo
+    (`quantcore/data/sources/universe_history.csv` holds 25 rows dated 2013-2014 and
+    `universe_history.json` is empty), and free historical constituent files do not
+    exist. The membership rule is therefore fixed as: a name enters the investable
+    universe on its first available bar and leaves on its last available bar, with
+    the dead names of the tail included throughout their life. **Known bias
+    direction:** this admits names that traded but were not index members, so it is
+    permissive rather than survivorship-optimistic; it cannot flatter a momentum
+    result by dropping the dead names, which is the failure mode that matters here.
+    Any future availability of a real constituent history supersedes this rule.

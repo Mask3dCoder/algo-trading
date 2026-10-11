@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,12 @@ import pandas as pd
 from quantcore.data.pit.market.schema import DATASET_COLUMNS
 
 _WATERMARKS_FILE = "_watermarks.json"
+
+#: os.replace on the manifest can transiently fail with PermissionError while a
+#: cloud-sync client or the Windows Search indexer holds the file. Three tries
+#: with a short backoff cover that window without slowing the common case.
+_WATERMARK_REPLACE_ATTEMPTS = 3
+_WATERMARK_REPLACE_BACKOFF = 0.5
 
 
 class PitStoreError(RuntimeError):
@@ -137,10 +144,23 @@ class ParquetPitStore:
         shards: Iterable[str] | None = None,
         periods: Iterable[str] | None = None,
     ) -> pd.DataFrame:
-        """Read rows from the store, optionally filtered by shard and period."""
+        """Read rows from the store, optionally filtered by shard and period.
+
+        ``shards``/``periods`` must be iterables of names. A bare string is
+        silently iterable, so ``read("equity_bars", "AAPL")`` would filter on
+        the characters {'A', 'P', 'L'} and quietly return nothing - a wrong
+        answer with no error. Reject it instead.
+        """
         dataset_dir = self._dataset_dir(dataset)
         if not dataset_dir.exists():
             return _empty_frame(dataset)
+
+        for name, value in (("shards", shards), ("periods", periods)):
+            if isinstance(value, str):
+                raise TypeError(
+                    f"read({dataset!r}, {name}=...) expects an iterable of names, "
+                    f"not a bare string; pass [{value!r}]"
+                )
 
         wanted_shards = set(shards) if shards is not None else None
         wanted_periods = set(periods) if periods is not None else None
@@ -197,15 +217,32 @@ class ParquetPitStore:
         manifest = self._load_manifest()
         manifest.setdefault(dataset, {})[shard] = stamp.isoformat()
         path = self._manifest_path()
+        payload = json.dumps(manifest, indent=2, sort_keys=True)
         fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
         os.close(fd)
         try:
-            Path(tmp).write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-            os.replace(tmp, path)
-        except BaseException:
+            Path(tmp).write_text(payload, encoding="utf-8")
+            # os.replace is atomic but takes an exclusive lock on the target.
+            # Sync clients (OneDrive) and Windows indexers can hold the
+            # manifest open and make that fail with WinError 5, which would
+            # abort an hours-long backfill over bookkeeping. Retry briefly,
+            # then fall back to a direct write: a slightly less atomic
+            # manifest update is strictly better than losing the run.
+            for attempt in range(_WATERMARK_REPLACE_ATTEMPTS):
+                try:
+                    os.replace(tmp, path)
+                    return
+                except PermissionError:
+                    if attempt == _WATERMARK_REPLACE_ATTEMPTS - 1:
+                        break
+                    time.sleep(_WATERMARK_REPLACE_BACKOFF)
+            path.write_text(payload, encoding="utf-8")
+        finally:
             if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
 
     # -- misc ------------------------------------------------------------------
     def status(self) -> dict[str, dict[str, Any]]:
