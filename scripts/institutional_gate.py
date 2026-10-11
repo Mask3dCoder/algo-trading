@@ -292,7 +292,7 @@ def _collect_combined_oos_returns(full_df: pd.DataFrame, cost_per_leg: float, ma
 
 
 def _aggregate_equity(oos_returns: list[float], num_trials: int) -> dict:
-    from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
+    from quantcore.research.dsr_published import deflated_sharpe_ratio_published
 
     r = np.asarray(oos_returns, dtype=float)
     if r.size < 2 or np.std(r, ddof=1) < 1e-12:
@@ -304,9 +304,14 @@ def _aggregate_equity(oos_returns: list[float], num_trials: int) -> dict:
     max_dd = float(abs(np.min((eq - peak) / peak)) * 100.0)
     win_rate = float(np.mean(r > 0))
     try:
-        dsr_p, _ = deflated_sharpe_ratio(
+        # Published B&LdP 2014 DSR: per-observation Sharpe + RAW kurtosis.
+        mean_r = float(np.mean(r))
+        std_r = float(np.std(r, ddof=1))
+        skew = float(np.mean((r - mean_r) ** 3) / std_r**3)
+        kurt_raw = float(np.mean((r - mean_r) ** 4) / std_r**4)
+        dsr_p, _ = deflated_sharpe_ratio_published(
             observed_sharpe=sharpe / np.sqrt(252), num_trials=num_trials,
-            sample_length=r.size,
+            sample_length=r.size, skewness=skew, kurtosis=kurt_raw,
         )
     except Exception:
         dsr_p = 1.0

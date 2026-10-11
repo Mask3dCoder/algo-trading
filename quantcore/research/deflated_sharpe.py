@@ -1,5 +1,19 @@
 """Deflated Sharpe Ratio (Bailey & López de Prado, 2012).
 
+⚠ DEPRECATED / STATISTICALLY INCORRECT — DO NOT USE FOR VERDICTS ⚠
+
+This legacy implementation inflates the DSR statistic by sqrt(T-0.25), omits
+the sigma_hat scaling inside SR*, uses a mixed kurtosis convention, and its
+callers historically passed ANNUALIZED Sharpe where the formula requires the
+per-observation Sharpe. Every DSR p-value computed through it is
+**uninformative** (see FREEZE.md DSR correction note, 2026-08-05, and
+docs/dsr_audit.md).
+
+The corrected, published Bailey & López de Prado (2014) implementation is
+``quantcore.research.dsr_published`` and MUST be used for any gate, triage, or
+promotion decision. This module is retained only for backward compatibility
+with archived research scripts.
+
 Provides the ``deflated_sharpe_ratio`` function, which computes the
 probability that an observed Sharpe ratio is statistically significant
 given the number of independent trials inherent in the backtest
@@ -9,6 +23,7 @@ optimisation process.
 from __future__ import annotations
 
 import logging
+import warnings
 
 import numpy as np
 from scipy import stats
@@ -25,6 +40,11 @@ def deflated_sharpe_ratio(
     kurtosis_: float | None = None,
 ) -> tuple[float, float]:
     """Compute the Bailey & López de Prado Deflated Sharpe Ratio (DSR).
+
+    .. deprecated::
+        Statistically incorrect legacy instrument — results are uninformative.
+        Use ``quantcore.research.dsr_published.deflated_sharpe_ratio_published``
+        (per-observation Sharpe, RAW kurtosis) for any verdict.
 
     Parameters
     ----------
@@ -49,6 +69,15 @@ def deflated_sharpe_ratio(
     dsr_stat :
         The deflated Sharpe statistic (same scale as ``observed_sharpe``).
     """
+    warnings.warn(
+        "quantcore.research.deflated_sharpe.deflated_sharpe_ratio is a legacy, "
+        "statistically incorrect instrument (sqrt(T-0.25) inflation; callers "
+        "historically passed annualized Sharpe). Its p-values are uninformative. "
+        "Use quantcore.research.dsr_published.deflated_sharpe_ratio_published "
+        "for any verdict (FREEZE.md DSR correction note, 2026-08-05).",
+        UserWarning,
+        stacklevel=2,
+    )
     n = float(sample_length)
 
     # Expected maximum Sharpe under the null (max of N standard normals)

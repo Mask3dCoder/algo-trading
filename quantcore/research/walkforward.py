@@ -18,7 +18,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from quantcore.research.bootstrap import bootstrap_confidence_interval
-from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
+from quantcore.research.dsr_published import deflated_sharpe_ratio_published
 
 _log = logging.getLogger(__name__)
 
@@ -185,15 +185,19 @@ class WalkForwardBacktester:
             catalogues_returns, block_size=max(5, int(len(catalogues_returns) ** (1 / 3))), n_boot=2000, ci=0.90
         )
 
-        # DSR
+        # DSR — published Bailey & Lopez de Prado (2014) form.
+        # Contract: per-observation Sharpe + RAW kurtosis (3.0 = normal).
+        # The annualized Sharpe (mean/std * sqrt(252)) must NOT be fed here;
+        # see quantcore/research/dsr_published.py docstring + docs/dsr_audit.md.
+        per_obs_sharpe = mean_ret / std_ret if std_ret > 1e-12 else 0.0
         skew = float(np.mean((catalogues_returns - mean_ret) ** 3) / (std_ret ** 3)) if std_ret > 1e-12 else 0.0
-        kurt = float(np.mean((catalogues_returns - mean_ret) ** 4) / (std_ret ** 4) - 3.0) if std_ret > 1e-12 else 3.0
-        dski = deflated_sharpe_ratio(
-            observed_sharpe=annual_sharpe,
+        kurt_raw = float(np.mean((catalogues_returns - mean_ret) ** 4) / (std_ret ** 4)) if std_ret > 1e-12 else 3.0
+        dski = deflated_sharpe_ratio_published(
+            observed_sharpe=per_obs_sharpe,
             num_trials=n_trials,
             sample_length=len(catalogues_returns),
             skewness=skew,
-            kurtosis_=kurt,
+            kurtosis=kurt_raw,
         )
 
         # Max drawdown on OOS equity

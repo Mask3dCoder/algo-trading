@@ -268,14 +268,25 @@ class TriageGate:
         total_wf_folds: int = 0,
         paper_sharpe: float | None = None,
     ) -> TriageResult:
-        """Gate from a PerformanceReport (the output of engine.summary())."""
+        """Gate from a PerformanceReport (the output of engine.summary()).
+
+        Note: ``PerformanceReport.deflated_sharpe`` is a PSR-style PROBABILITY
+        (higher = more significant, ~0.5 for noise) computed by
+        ``quantcore.risk.psr``; the gate's ``dsr_p`` expects a p-value (lower =
+        more significant). Convert: p = 1 - probability.
+        """
+        dsr_probability = getattr(report, 'deflated_sharpe', np.nan)
+        try:
+            dsr_p = 1.0 - float(dsr_probability)
+        except (TypeError, ValueError):
+            dsr_p = np.nan
         return self.check(
             strategy_name=strategy_name,
             strategy_type=strategy_type,
             oos_sharpe=getattr(report, 'sharpe', np.nan),
             ci_low=getattr(report, 'ci_low', np.nan),
             ci_high=getattr(report, 'ci_high', np.nan),
-            dsr_p=getattr(report, 'deflated_sharpe', np.nan),
+            dsr_p=dsr_p,
             max_dd_pct=getattr(report, 'max_drawdown', np.nan) * 100.0,
             n_oos_trades=n_oos_trades,
             null_sharpe=null_sharpe,

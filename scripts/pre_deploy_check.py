@@ -130,7 +130,7 @@ def run_checks() -> bool:
         from quantcore.portfolio.kelly_sizing import KellySizer
         from quantcore.signals.statistical.kalman_hedge import KalmanHedgeRatio
         from quantcore.data.vol_surface import VolatilitySurface
-        from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
+        from quantcore.research.dsr_published import deflated_sharpe_ratio_published
         _check("Module imports", True)
     except ImportError as e:
         _check("Module imports", False, str(e))
