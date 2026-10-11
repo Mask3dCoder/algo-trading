@@ -234,14 +234,13 @@ class CrossSectionalFactorNeutralStatArb(Strategy):
     # -----------------------------------------------------------------
     # Batch entry point (used by backtest engine on_data)
     # -----------------------------------------------------------------
-    def on_fill(self, fill, portfolio=None) -> None:
-        """Handle fill events from the backtest engine.
+    def on_fill(self, *args, **kwargs) -> None:
+        """Handle fill events from the backtest engine (all calling conventions).
 
-        The BacktestEngine calls ``on_fill(fill: Fill, portfolio: PortfolioState)``.
-        The ABC declares ``on_fill(symbol, fill_price, fill_qty, side)``.
-        This implementation is compatible with BOTH calling conventions by
-        accepting *any* first positional arg and ignoring it - the strategy
-        is purely signal-driven and does not need fill feedback.
+        The engine's adapter calls ``on_fill(symbol, fill_price, fill_qty,
+        side)`` (4 args, per the ABC) while a raw engine calls
+        ``on_fill(fill, portfolio)``. This strategy is purely signal-driven
+        and needs no fill feedback, so accept and ignore anything.
         """
         # Signal-driven strategy; no fill-based state update needed
 
