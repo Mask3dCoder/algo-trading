@@ -953,6 +953,8 @@ def run_full_period_backtest_v2(
     fold_results: list[dict] = []
     all_oos_rets: list[np.ndarray] = []
 
+    from quantcore.backtest.adapter import FrameworkStrategyAdapter
+
     for fold in folds:
         if fold.train_end > n_bars or fold.test_end > n_bars:
             continue
@@ -960,14 +962,19 @@ def run_full_period_backtest_v2(
             continue
 
         try:
+            # Framework strategies speak on_data; the engine speaks
+            # on_snapshot/on_bar. The adapter bridges them — without it the
+            # engine raises AttributeError('on_bar') on every fold, which the
+            # per-fold except used to swallow silently (fix 2026-10-10).
             strat = _setup_strategy(strategy_id)
+            adapter = FrameworkStrategyAdapter(strategy=strat, symbols=symbols)
 
             # In-sample: build strategy state via BacktestEngine
             train_ts = timestamps[fold.train_start:fold.train_end]
             train_data = df[df["timestamp"].isin(train_ts)].copy()
             if len(train_data) > 5:
                 engine = BacktestEngine(
-                    strategy=strat,
+                    strategy=adapter,
                     initial_cash=1_000_000,
                     slippage_bps=tc_bps,
                     commission_per_share=0.005,
@@ -981,7 +988,7 @@ def run_full_period_backtest_v2(
                 continue
 
             engine = BacktestEngine(
-                strategy=strat,
+                strategy=adapter,
                 initial_cash=1_000_000,
                 slippage_bps=tc_bps,
                 commission_per_share=0.005,
@@ -1020,7 +1027,10 @@ def run_full_period_backtest_v2(
                 all_oos_rets.append(oos_rets)
 
         except Exception as e:
-            log.debug("Fold (%d, %d) failed in v2: %s", fold.test_start, fold.test_end, e)
+            # WARNING level: fold failures must be visible. (Historical bug:
+            # a silent debug-level swallow here hid an every-fold
+            # AttributeError for months.)
+            log.warning("Fold (%d, %d) failed in v2: %s", fold.test_start, fold.test_end, e)
             continue
 
     if not all_oos_rets:
@@ -1088,7 +1098,12 @@ def run_regime_backtest_v2(
         return result
 
     try:
+        # Framework strategies speak on_data; the engine speaks
+        # on_snapshot/on_bar. The adapter bridges them (fix 2026-10-10).
+        from quantcore.backtest.adapter import FrameworkStrategyAdapter
+
         strat = _setup_strategy(strategy_id)
+        adapter = FrameworkStrategyAdapter(strategy=strat, symbols=symbols)
 
         # Warmup: build strategy state via BacktestEngine
         if warmup_end_idx > 10:
@@ -1096,7 +1111,7 @@ def run_regime_backtest_v2(
             warmup_data = df[df["timestamp"].isin(warmup_ts)].copy()
             if len(warmup_data) > 5:
                 engine = BacktestEngine(
-                    strategy=strat,
+                    strategy=adapter,
                     initial_cash=1_000_000,
                     slippage_bps=tc_bps,
                     commission_per_share=0.005,
@@ -1111,7 +1126,7 @@ def run_regime_backtest_v2(
             return result
 
         engine = BacktestEngine(
-            strategy=strat,
+            strategy=adapter,
             initial_cash=1_000_000,
             slippage_bps=tc_bps,
             commission_per_share=0.005,

@@ -30,6 +30,18 @@ class FrameworkStrategyAdapter:
     strategy's ``on_data`` with aligned 2D arrays, and converts emitted
     ``TradeSignal`` objects into ``SignalData`` for the engine.
 
+    Two engine entry points are provided:
+
+    - ``on_snapshot(snapshot, portfolio)`` — the PREFERRED cross-sectional
+      path. The engine calls it once per timestamp with every universe
+      symbol's bar. Without it the engine falls back to the legacy
+      ``on_bar(representative_bar)`` path, which delivers only ONE symbol's
+      bar per timestamp (``MarketDataSnapshot.representative_bar`` returns
+      ``symbols[0]``), so multi-symbol strategies never see the rest of the
+      universe and the adapter's alignment check blocks ``on_data`` forever.
+    - ``on_bar(bar, portfolio)`` — legacy single-symbol compatibility, kept
+      for callers that drive the adapter bar-by-bar.
+
     Parameters
     ----------
     strategy:
@@ -47,10 +59,41 @@ class FrameworkStrategyAdapter:
             sym: defaultdict(list) for sym in symbols
         }
         self._last_bar_time: datetime | None = None
+        # Preallocated (capacity, n_assets) assembly cache. Filled
+        # incrementally as bars arrive; each on_data call receives fresh
+        # array copies sliced from this cache. This replaces the former
+        # per-call column_stack over the full history, which was O(history)
+        # per bar (O(n^2) per pass).
+        self._field_arrays: dict[str, NDArray[np.floating]] | None = None
+        self._field_arrays_capacity = 0
+        self._field_arrays_filled = 0
 
     # ------------------------------------------------------------------
     # Strategy Protocol
     # ------------------------------------------------------------------
+
+    def on_snapshot(self, snapshot: Any, portfolio: PortfolioState) -> list[SignalData]:
+        """Engine-native path: consume the full cross-sectional slice.
+
+        Appends every universe symbol's bar from the immutable snapshot. A
+        universe symbol with no bar in this snapshot is causally
+        forward-filled from its last seen bar (open=high=low=close=prev_close,
+        volume=0) so the per-symbol buffers stay aligned and ``on_data``
+        keeps receiving rectangular arrays across suspensions/missing days.
+        A symbol that has never traded yet is NOT filled (nothing to fill
+        from) and keeps the adapter silent until it first appears.
+        """
+        saw_any = False
+        for sym in self._symbols:
+            bar = snapshot.get_bar(sym)
+            if bar is not None:
+                self._append_bar(sym, bar)
+                saw_any = True
+            else:
+                self._ffill_symbol(sym)
+        if saw_any:
+            self._last_bar_time = snapshot.timestamp
+        return self._aligned_on_data(portfolio)
 
     def on_bar(self, bar: OHLCV, portfolio: PortfolioState) -> list[SignalData]:
         sym = bar.symbol
@@ -58,29 +101,10 @@ class FrameworkStrategyAdapter:
             return []
 
         # Accumulate
-        self._buffers[sym]["open"].append(float(bar.open))
-        self._buffers[sym]["high"].append(float(bar.high))
-        self._buffers[sym]["low"].append(float(bar.low))
-        self._buffers[sym]["close"].append(float(bar.close))
-        self._buffers[sym]["volume"].append(float(bar.volume))
+        self._append_bar(sym, bar)
         self._last_bar_time = bar.timestamp
 
-        # Only call on_data when all symbols are aligned (once per time period).
-        # This prevents strategies with internal counters from seeing N calls
-        # per period (one per symbol) in multi-asset backtests.
-        lengths = [len(self._buffers[s]["close"]) for s in self._symbols]
-        if min(lengths) != max(lengths):
-            return []
-
-        data = self._assemble_data()
-        if data is None:
-            return []
-
-        # Inject current portfolio equity so strategies can size dynamically
-        data["equity"] = portfolio.total_value
-
-        trade_signals = self._strategy.on_data(data)
-        return [self._to_signal_data(s) for s in trade_signals]
+        return self._aligned_on_data(portfolio)
 
     def on_fill(self, fill: Fill, portfolio: PortfolioState) -> None:
         # order_id formats (FillSimulator appends _buy or _sell):
@@ -96,22 +120,86 @@ class FrameworkStrategyAdapter:
     # Internals
     # ------------------------------------------------------------------
 
+    def _append_bar(self, sym: str, bar: OHLCV) -> None:
+        self._buffers[sym]["open"].append(float(bar.open))
+        self._buffers[sym]["high"].append(float(bar.high))
+        self._buffers[sym]["low"].append(float(bar.low))
+        self._buffers[sym]["close"].append(float(bar.close))
+        self._buffers[sym]["volume"].append(float(bar.volume))
+
+    def _ffill_symbol(self, sym: str) -> None:
+        """Causally continue ``sym``'s series from its last seen bar."""
+        closes = self._buffers[sym]["close"]
+        if not closes:
+            return  # never traded yet — nothing to fill from
+        pc = float(closes[-1])
+        self._buffers[sym]["open"].append(pc)
+        self._buffers[sym]["high"].append(pc)
+        self._buffers[sym]["low"].append(pc)
+        self._buffers[sym]["close"].append(pc)
+        self._buffers[sym]["volume"].append(0.0)
+
+    def _aligned_on_data(self, portfolio: PortfolioState) -> list[SignalData]:
+        """Call ``on_data`` once all symbol buffers are aligned (once per period).
+
+        This prevents strategies with internal counters from seeing N calls
+        per period (one per symbol) in multi-asset backtests.
+        """
+        lengths = [len(self._buffers[s]["close"]) for s in self._symbols]
+        if min(lengths) != max(lengths):
+            return []
+
+        data = self._assemble_data()
+        if data is None:
+            return []
+
+        # Inject current portfolio equity so strategies can size dynamically
+        data["equity"] = portfolio.total_value
+
+        trade_signals = self._strategy.on_data(data)
+        return [self._to_signal_data(s) for s in trade_signals]
+
     def _assemble_data(self) -> dict[str, NDArray] | None:
-        """Build 2D arrays (n_periods, n_assets) aligned to min length."""
+        """Build 2D arrays (n_periods, n_assets) aligned to min length.
+
+        Arrays are assembled from a preallocated cache that is filled
+        incrementally (only newly arrived bars are copied in), then handed
+        to the strategy as fresh array copies — the same no-aliasing
+        contract the former per-call column_stack provided, without its
+        O(history) cost per bar.
+        """
         lengths = [len(self._buffers[s]["close"]) for s in self._symbols]
         min_len = min(lengths)
         if min_len < 2:
             return None
 
         n_assets = len(self._symbols)
-        fields = ["open", "high", "low", "close", "volume"]
-        data: dict[str, NDArray | dict | datetime] = {}
+        fields = ("open", "high", "low", "close", "volume")
 
-        for field in fields:
-            cols = []
-            for s in self._symbols:
-                cols.append(self._buffers[s][field][:min_len])
-            data[field] = np.column_stack(cols)
+        if (
+            self._field_arrays is None
+            or self._field_arrays_capacity < min_len
+        ):
+            new_capacity = max(64, 2 * (min_len + 16))
+            self._field_arrays = {
+                f: np.empty((new_capacity, n_assets), dtype=float) for f in fields
+            }
+            self._field_arrays_capacity = new_capacity
+            self._field_arrays_filled = 0
+
+        if min_len > self._field_arrays_filled:
+            # Copy only the rows that arrived since the last assembly.
+            for j, sym in enumerate(self._symbols):
+                buf = self._buffers[sym]
+                for f in fields:
+                    self._field_arrays[f][self._field_arrays_filled:min_len, j] = (
+                        buf[f][self._field_arrays_filled:min_len]
+                    )
+            self._field_arrays_filled = min_len
+
+        data: dict[str, NDArray | dict | datetime] = {}
+        for f in fields:
+            data[f] = self._field_arrays[f][:min_len].copy()
 
         data["symbols"] = list(self._symbols)
 

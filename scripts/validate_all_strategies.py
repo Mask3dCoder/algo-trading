@@ -1,10 +1,14 @@
 """Automated strategy validation pipeline.
 
 Runs every non-DISABLED strategy through walk-forward validation with:
-  - Rolling walk-forward (504 train / 126 test, expanding anchor)
+  - Anchored expanding-window walk-forward (300-bar warmup, 126-bar OOS folds)
+    executed through the FULL BacktestEngine stack (queue-based no-lookahead
+    fills, slippage 5 bps, $0.005/share commissions, mark-to-market,
+    end-of-period liquidation) via FrameworkStrategyAdapter
   - OOS annualized Sharpe ratio
   - 90% bootstrap CI lower bound (block bootstrap, 2000 replications)
-  - Deflated Sharpe Ratio p-value
+  - Deflated Sharpe Ratio p-value (published Bailey & Lopez de Prado 2014
+    form via quantcore.research.dsr_published)
   - Maximum drawdown
   - Win rate
   - Number of trades
@@ -326,7 +330,17 @@ def _last_valid_price(
 
 
 # ---------------------------------------------------------------------------
-# Signal-based return computation (from run_backtest_focused.py)
+# Signal-based return computation (RETIRED from the pipeline; tests only)
+#
+# _df_to_data / _last_valid_price / _compute_signal_returns implement the old
+# signal-returns approximation (weights x close-to-close returns minus
+# approximate costs). The validation pipeline stopped using them on
+# 2026-10-10 in favor of _run_walk_forward_engine (full BacktestEngine
+# execution stack). They are retained ONLY because
+# tests/unit/test_df_to_data_delisted_tail.py regression-tests their
+# delisted-name safety properties (no zero-fill, no fake -100% bars), which
+# document survivorship-handling conventions the engine path must respect.
+# Do NOT wire them back into any verdict path.
 # ---------------------------------------------------------------------------
 
 def _compute_signal_returns(
@@ -469,32 +483,57 @@ def _compute_signal_returns(
 
 
 # ---------------------------------------------------------------------------
-# Walk-forward validation
+# Walk-forward validation (full execution engine)
 # ---------------------------------------------------------------------------
 
-def _run_walk_forward(
+def _run_walk_forward_engine(
     strat_cls: type,
     params: dict,
-    data: dict,
-    timestamps: list,
+    df: pd.DataFrame,
     strategy_type: str,
     warmup: int = 300,
-    train_size: int = 504,
     test_size: int = 126,
     tc_bps: float = 5.0,
-    spread_bps: float = 5.0,
-    impact_bps: float = 10.0,
 ) -> tuple[np.ndarray, list[dict]]:
-    """Run anchored expanding-window walk-forward validation.
+    """Anchored expanding-window walk-forward through the FULL BacktestEngine.
 
-    Returns aggregated OOS returns and trades across all folds.
+    Replaces the retired signal-returns shortcut (2026-10-10): every fold now
+    runs the complete execution stack — queue-based no-lookahead fills,
+    slippage, commissions, mark-to-market, end-of-period liquidation — so
+    validation numbers are net of realistic execution and the engine's
+    honesty guarantees (canary look-ahead tests, buy_and_hold(SPY) cost gate)
+    apply to every verdict this pipeline produces.
+
+    Per fold:
+      1. Fresh strategy instance (no state leakage across folds). The
+         FrameworkStrategyAdapter calls initialize() itself.
+      2. Train pass: engine over bars [0, test_start) — indicator state is
+         built through real execution, with fills fed back via on_fill.
+      3. Test pass: FRESH portfolio, same adapter (bar buffers continue from
+         training so indicators see continuous history), engine over bars
+         [test_start, test_end).
+      4. Daily equity -> log returns; engine fills -> FIFO realized
+         round-trip P&Ls for trade counts and win rate.
+
+    Returns aggregated OOS returns and realized-trade dicts across folds.
     """
+    from quantcore.backtest.adapter import FrameworkStrategyAdapter
+    from quantcore.backtest.engine import BacktestEngine
     from quantcore.strategies.base import StrategyConfig, StrategyType
 
-    close = data["close"]
-    n_periods = close.shape[0]
+    symbols = sorted(df["symbol"].unique())
+    if not symbols:
+        return np.array([], dtype=float), []
 
-    # Map strategy type
+    # Unique timestamps sorted; map every row to its positional index via
+    # int64 epoch keys (robust to tz-aware datetime64 dtypes, whose .values
+    # would otherwise degrade to object arrays of Timestamps).
+    unique_ts = pd.DatetimeIndex(sorted(df["timestamp"].unique()))
+    n_periods = len(unique_ts)
+    row_pos = np.searchsorted(
+        unique_ts.asi8, pd.DatetimeIndex(df["timestamp"]).asi8
+    )
+
     stype_map = {
         "equity": StrategyType.EQUITY,
         "macro": StrategyType.MACRO,
@@ -505,54 +544,86 @@ def _run_walk_forward(
     all_oos_returns: list[np.ndarray] = []
     all_trades: list[dict] = []
 
-    # Walk-forward folds: anchored (expanding training window)
     fold_start = warmup
+    fold_idx = 0
     while fold_start + test_size <= n_periods:
-        train_end = fold_start
         test_start = fold_start
         test_end = min(fold_start + test_size, n_periods)
-
         if test_end - test_start < 10:
             break
 
-        # Create fresh strategy instance for this fold
-        cfg = StrategyConfig(
-            name=strat_cls.__name__,
-            strategy_type=stype,
-            params=dict(params),
-        )
+        fold_idx += 1
         try:
+            cfg = StrategyConfig(
+                name=strat_cls.__name__,
+                strategy_type=stype,
+                params=dict(params),
+            )
             strat = strat_cls(cfg)
-            strat.initialize()
-        except Exception:
+            adapter = FrameworkStrategyAdapter(strategy=strat, symbols=symbols)
+        except Exception as e:
+            print(f"WARNING: fold {fold_idx}: strategy init failed: {e}", flush=True)
             break
 
-        # Warmup: feed training data to build state
-        for bar_i in range(0, train_end):
-            bar_data = {}
-            for k, v in data.items():
-                if k == "symbols":
-                    bar_data[k] = v
-                elif isinstance(v, np.ndarray) and v.ndim >= 1:
-                    bar_data[k] = v[:bar_i + 1]
-                else:
-                    bar_data[k] = v
-            if bar_i < len(timestamps):
-                bar_data["timestamp"] = timestamps[bar_i]
-            try:
-                strat.on_data(bar_data)
-            except Exception:
-                pass
+        try:
+            # Train pass [0, test_start): build state through real execution.
+            if test_start > 5:
+                train_data = df[row_pos < test_start].copy()
+                if len(train_data) > 5:
+                    train_engine = BacktestEngine(
+                        strategy=adapter,
+                        initial_cash=1_000_000,
+                        slippage_bps=tc_bps,
+                        commission_per_share=0.005,
+                    )
+                    train_engine.run(train_data)
 
-        # OOS test: collect returns
-        oos_rets, fold_trades = _compute_signal_returns(
-            strat, data, test_start, test_end,
-            timestamps=timestamps, tc_bps=tc_bps,
-            spread_bps=spread_bps, impact_bps=impact_bps,
-        )
-        if len(oos_rets) > 0:
+            # Test pass [test_start, test_end): fresh portfolio, same adapter.
+            test_data = df[(row_pos >= test_start) & (row_pos < test_end)].copy()
+            if len(test_data) < 5:
+                fold_start += test_size
+                continue
+
+            test_engine = BacktestEngine(
+                strategy=adapter,
+                initial_cash=1_000_000,
+                slippage_bps=tc_bps,
+                commission_per_share=0.005,
+            )
+            eq_df = test_engine.run(test_data)
+        except Exception as e:
+            print(f"WARNING: fold {fold_idx} (bars {test_start}:{test_end}) failed: {e}", flush=True)
+            fold_start += test_size
+            continue
+
+        if len(eq_df) < 3:
+            fold_start += test_size
+            continue
+
+        # Daily equity (one point per timestamp) -> log returns.
+        eq_df = eq_df.copy()
+        eq_df["timestamp"] = pd.to_datetime(eq_df["timestamp"])
+        daily_eq = eq_df.groupby("timestamp")["equity"].last().sort_index()
+        eq = daily_eq.values.astype(float)
+        eq = eq[eq > 0]
+        if len(eq) < 3:
+            fold_start += test_size
+            continue
+
+        oos_rets = np.diff(np.log(eq))
+        oos_rets = oos_rets[np.isfinite(oos_rets)]
+        if len(oos_rets) > 2:
             all_oos_returns.append(oos_rets)
-            all_trades.extend(fold_trades)
+
+            # Realized round-trip P&Ls from engine fills (FIFO pairing).
+            fills = test_engine.portfolio.trades
+            pnls = BacktestEngine._compute_trade_pnls(fills)
+            for pnl in pnls:
+                all_trades.append({
+                    "pnl_abs": float(pnl),
+                    "fold": fold_idx,
+                    "n_fills": len(fills),
+                })
 
         fold_start += test_size
 
@@ -705,16 +776,20 @@ def _deflated_sharpe_pvalue(
     n_strategies: int,
     returns: np.ndarray | None = None,
 ) -> float:
-    """Compute Deflated Sharpe Ratio p-value.
+    """Compute the Deflated Sharpe Ratio p-value.
 
-    Uses the full Bailey & López de Prado (2012) formula which accounts for:
-      - Number of independent trials (strategies tested)
-      - Sample length
-      - Skewness and excess kurtosis of returns
+    Uses the published Bailey & Lopez de Prado (2014) exact form
+    (``quantcore.research.dsr_published``) per FREEZE.md's DSR correction note
+    (2026-08-05): the legacy ``quantcore.research.deflated_sharpe`` instrument
+    inflates the statistic by sqrt(T-0.25) and its callers passed annualized
+    Sharpe, so every prior DSR verdict computed through it is uninformative.
 
-    The simplified version (without skew/kurtosis) is used as fallback.
+    Contract (see dsr_published docstring):
+      - ``observed_sharpe`` must be PER-OBSERVATION; the annualized Sharpe
+        passed in here is converted by / sqrt(252).
+      - kurtosis is RAW (3.0 = normal), not excess.
     """
-    from quantcore.research.deflated_sharpe import deflated_sharpe_ratio
+    from quantcore.research.dsr_published import deflated_sharpe_ratio_published
 
     if np.isnan(observed_sharpe) or n_obs < 20:
         return 1.0
@@ -722,9 +797,9 @@ def _deflated_sharpe_pvalue(
     # Conservative trial count: strategies tested + 10 prior experiments
     n_trials = n_strategies + 10
 
-    # Compute skewness and kurtosis from returns if available
+    # Compute skewness and raw kurtosis from returns if available
     skewness = None
-    kurtosis_ = None
+    kurt_raw = None
     if returns is not None and len(returns) > 20:
         r = np.asarray(returns, dtype=float)
         r_clean = r[np.isfinite(r)]
@@ -733,14 +808,16 @@ def _deflated_sharpe_pvalue(
             std_r = np.std(r_clean, ddof=1)
             if std_r > 1e-12:
                 skewness = float(np.mean((r_clean - mean_r) ** 3) / (std_r ** 3))
-                kurtosis_ = float(np.mean((r_clean - mean_r) ** 4) / (std_r ** 4) - 3.0)
+                kurt_raw = float(np.mean((r_clean - mean_r) ** 4) / (std_r ** 4))
 
-    p_value, _ = deflated_sharpe_ratio(
-        observed_sharpe=observed_sharpe,
+    per_obs_sharpe = float(observed_sharpe) / np.sqrt(252.0)
+
+    p_value, _ = deflated_sharpe_ratio_published(
+        observed_sharpe=per_obs_sharpe,
         num_trials=n_trials,
         sample_length=n_obs,
         skewness=skewness,
-        kurtosis_=kurtosis_,
+        kurtosis=kurt_raw,
     )
 
     return float(np.clip(p_value, 0.0, 1.0))
@@ -961,9 +1038,6 @@ def run_validation(
                 results.append(result)
                 continue
 
-            data = _df_to_data(df)
-            timestamps = sorted(df["timestamp"].unique())
-
             # Get default params from the strategy class
             from quantcore.strategies.base import StrategyConfig, StrategyType
             stype_map = {"equity": StrategyType.EQUITY, "macro": StrategyType.MACRO, "options": StrategyType.OPTIONS}
@@ -972,15 +1046,12 @@ def run_validation(
             default_params = dict(temp_cfg.params)
 
             t0 = time.time()
-            returns, trades = _run_walk_forward(
-                cls, default_params, data, timestamps,
+            returns, trades = _run_walk_forward_engine(
+                cls, default_params, df,
                 strategy_type=strategy_type,
                 warmup=warmup,
-                train_size=504,
                 test_size=126,
                 tc_bps=5.0,
-                spread_bps=5.0,
-                impact_bps=10.0,
             )
             elapsed = time.time() - t0
 
